@@ -1,0 +1,104 @@
+'use client'
+
+import { useRouter } from 'next/navigation'
+import { DataTable, type Column } from '@/components/ui/data-table'
+import { Badge, QUOTE_STATUS_CONFIG, QUOTE_TYPE_CONFIG } from '@/components/ui/badge'
+import { Avatar } from '@/components/ui/avatar'
+import { formatCurrency } from '@/lib/utils'
+
+interface QuoteRow {
+  id: string
+  quote_number: string
+  status: string
+  quote_type: string | null
+  vat_rate: number
+  customers: { name: string } | null
+  users: { id: string; first_name: string; last_name: string; initials: string | null; color: string | null } | null
+  quote_lines: { quantity: number; sell_price: number }[]
+}
+
+interface QuotesTableProps {
+  quotes: QuoteRow[]
+}
+
+export function QuotesTable({ quotes }: QuotesTableProps) {
+  const router = useRouter()
+
+  const columns: Column<QuoteRow>[] = [
+    {
+      key: 'quote_number',
+      label: 'Quote #',
+      render: (r) => <span className="font-semibold">{r.quote_number}</span>,
+    },
+    {
+      key: 'customer',
+      label: 'Customer',
+      render: (r) => r.customers?.name || '',
+    },
+    {
+      key: 'owner',
+      label: 'Owner',
+      render: (r) =>
+        r.users ? (
+          <Avatar
+            user={{
+              first_name: r.users.first_name,
+              last_name: r.users.last_name,
+              initials: r.users.initials,
+              color: r.users.color,
+            }}
+            size={24}
+          />
+        ) : null,
+    },
+    {
+      key: 'type',
+      label: 'Type',
+      render: (r) => {
+        if (!r.quote_type) return null
+        const cfg = QUOTE_TYPE_CONFIG[r.quote_type as keyof typeof QUOTE_TYPE_CONFIG]
+        return cfg ? <Badge label={cfg.label} color={cfg.color} bg={cfg.bg} /> : null
+      },
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (r) => {
+        const cfg = QUOTE_STATUS_CONFIG[r.status as keyof typeof QUOTE_STATUS_CONFIG]
+        return cfg ? <Badge label={cfg.label} color={cfg.color} bg={cfg.bg} /> : r.status
+      },
+    },
+    {
+      key: 'lines',
+      label: 'Lines',
+      align: 'center',
+      render: (r) => r.quote_lines?.length || 0,
+    },
+    {
+      key: 'total',
+      label: 'Total (inc VAT)',
+      align: 'right',
+      nowrap: true,
+      render: (r) => {
+        const subtotal = (r.quote_lines || []).reduce(
+          (s, l) => s + l.sell_price * l.quantity,
+          0
+        )
+        return (
+          <span className="font-semibold">
+            {formatCurrency(subtotal * (1 + r.vat_rate / 100))}
+          </span>
+        )
+      },
+    },
+  ]
+
+  return (
+    <DataTable
+      columns={columns}
+      data={quotes}
+      onRowClick={(r) => router.push(`/quotes/${r.id}`)}
+      emptyMessage="No quotes found."
+    />
+  )
+}
