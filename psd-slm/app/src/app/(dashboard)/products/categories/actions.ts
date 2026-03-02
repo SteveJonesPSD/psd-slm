@@ -112,6 +112,7 @@ export async function seedCategories() {
     { name: 'Access Control', requires_serial: true, sort_order: 2 },
     { name: 'Cabling & Infrastructure', requires_serial: false, sort_order: 3 },
     { name: 'Software & Licensing', requires_serial: false, sort_order: 4 },
+    { name: 'Professional Services', requires_serial: false, sort_order: 5 },
   ]
 
   const { error } = await supabase

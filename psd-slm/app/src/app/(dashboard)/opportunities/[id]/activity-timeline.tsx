@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { OPPORTUNITY_STAGE_CONFIG, type OpportunityStage } from '@/lib/opportunities'
@@ -70,12 +71,28 @@ function describeAction(action: string, details: Record<string, unknown> | null)
 }
 
 export function ActivityTimeline({ activities }: ActivityTimelineProps) {
+  const [open, setOpen] = useState(false)
+
   if (activities.length === 0) return null
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 mb-5">
-      <h3 className="text-[15px] font-semibold mb-4">Activity</h3>
-      <div className="space-y-4">
+    <div className="rounded-xl border border-gray-200 bg-white mb-5">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center justify-between w-full px-5 py-4 text-left"
+      >
+        <h3 className="text-[15px] font-semibold">Activity</h3>
+        <svg
+          className={`h-4 w-4 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          strokeWidth={2}
+          stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+        </svg>
+      </button>
+      {open && <div className="px-5 pb-5 space-y-4">
         {activities.map((a) => {
           const details = a.details as Record<string, unknown> | null
 
@@ -136,7 +153,7 @@ export function ActivityTimeline({ activities }: ActivityTimelineProps) {
             </div>
           )
         })}
-      </div>
+      </div>}
     </div>
   )
 }

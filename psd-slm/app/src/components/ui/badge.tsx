@@ -38,6 +38,7 @@ export const QUOTE_STATUS_CONFIG = {
   declined: { label: 'Declined', color: '#dc2626', bg: '#fef2f2' },
   expired: { label: 'Expired', color: '#9ca3af', bg: '#f9fafb' },
   superseded: { label: 'Superseded', color: '#64748b', bg: '#f1f5f9' },
+  revised: { label: 'Revised', color: '#9ca3af', bg: '#f3f4f6' },
 } as const
 
 export const QUOTE_TYPE_CONFIG = {
@@ -57,6 +58,14 @@ export const FULFILMENT_ROUTE_CONFIG = {
   from_stock: { label: 'Ship from Stock', color: '#059669', bg: '#ecfdf5' },
   drop_ship: { label: 'Ship from Supplier', color: '#7c3aed', bg: '#f5f3ff' },
 } as const
+
+export const TEMPLATE_CATEGORY_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  access_control: { label: 'Access Control', color: '#dc2626', bg: '#fef2f2' },
+  environmental: { label: 'Environmental', color: '#059669', bg: '#ecfdf5' },
+  networking: { label: 'Networking', color: '#2563eb', bg: '#eff6ff' },
+  cabling: { label: 'Cabling', color: '#d97706', bg: '#fffbeb' },
+  general: { label: 'General', color: '#6b7280', bg: '#f3f4f6' },
+}
 
 export const ROLE_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   super_admin: { label: 'Super Admin', color: '#dc2626', bg: '#fef2f2' },

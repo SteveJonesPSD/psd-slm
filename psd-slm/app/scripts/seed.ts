@@ -120,6 +120,7 @@ async function seed() {
     contact_id: ctMap['e.richardson@hartwellprop.co.uk'],
     assigned_to: userMap['mark@psdgroup.co.uk'],
     quote_number: 'Q-2026-0001',
+    base_quote_number: 'Q-2026-0001',
     status: 'sent',
     version: 1,
     quote_type: 'business',

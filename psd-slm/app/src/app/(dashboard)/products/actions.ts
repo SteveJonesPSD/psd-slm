@@ -29,6 +29,8 @@ export async function createProduct(formData: FormData) {
   const sellStr = formData.get('default_sell_price') as string
   const serialisedStr = formData.get('is_serialised') as string
 
+  const productType = (formData.get('product_type') as string) || 'goods'
+
   const { data, error } = await supabase
     .from('products')
     .insert({
@@ -42,6 +44,7 @@ export async function createProduct(formData: FormData) {
       default_sell_price: sellStr ? parseFloat(sellStr) : null,
       is_serialised: serialisedStr === 'null' ? null : serialisedStr === 'true',
       is_stocked: formData.get('is_stocked') === 'true',
+      product_type: productType,
     })
     .select()
     .single()
@@ -87,6 +90,8 @@ export async function updateProduct(id: string, formData: FormData) {
   const serialisedStr = formData.get('is_serialised') as string
   const isActiveStr = formData.get('is_active')
 
+  const productType = (formData.get('product_type') as string) || 'goods'
+
   const updates: Record<string, unknown> = {
     sku,
     name,
@@ -97,6 +102,7 @@ export async function updateProduct(id: string, formData: FormData) {
     default_sell_price: sellStr ? parseFloat(sellStr) : null,
     is_serialised: serialisedStr === 'null' ? null : serialisedStr === 'true',
     is_stocked: formData.get('is_stocked') === 'true',
+    product_type: productType,
   }
 
   if (isActiveStr !== null) {
@@ -187,22 +193,38 @@ export async function seedProducts() {
   // Get categories
   const { data: cats } = await supabase
     .from('product_categories')
-    .select('id, name')
+    .select('id, name, sort_order')
     .eq('org_id', user.orgId)
 
   const catMap = Object.fromEntries((cats || []).map((c) => [c.name, c.id]))
 
-  const products = [
-    { sku: 'ES-SENTRY-PRO', name: 'EnviroSentry Pro Unit', manufacturer: 'Innov8iv Labs', category: 'Environmental Sensors', default_buy_price: 145, default_sell_price: 285, is_serialised: true, is_stocked: true },
-    { sku: 'ES-SENTRY-EDU', name: 'EnviroSentry SmartClass', manufacturer: 'Innov8iv Labs', category: 'Environmental Sensors', default_buy_price: 110, default_sell_price: 220, is_serialised: true, is_stocked: true },
-    { sku: 'SEN-SEN55', name: 'Sensirion SEN55 Module', manufacturer: 'Sensirion', category: 'Environmental Sensors', default_buy_price: 28.5, default_sell_price: null, is_serialised: false, is_stocked: true },
-    { sku: 'NET-SW24-POE', name: '24-Port PoE Managed Switch', manufacturer: 'Ubiquiti', category: 'Networking', default_buy_price: 325, default_sell_price: 445, is_serialised: true, is_stocked: false },
-    { sku: 'NET-AP-AC', name: 'WiFi 6 Access Point', manufacturer: 'Ubiquiti', category: 'Networking', default_buy_price: 129, default_sell_price: 195, is_serialised: true, is_stocked: false },
-    { sku: 'CAB-CAT6A-305', name: 'Cat6A Cable 305m Box', manufacturer: 'Excel', category: 'Cabling & Infrastructure', default_buy_price: 165, default_sell_price: 225, is_serialised: false, is_stocked: true },
-    { sku: 'AC-READER-BLE', name: 'IngressaEdge BLE Reader', manufacturer: 'Innov8iv Labs', category: 'Access Control', default_buy_price: 85, default_sell_price: 165, is_serialised: true, is_stocked: true },
-    { sku: 'SW-HA-PRO', name: 'Home Assistant Pro License', manufacturer: 'Nabu Casa', category: 'Software & Licensing', default_buy_price: 0, default_sell_price: 65, is_serialised: false, is_stocked: false },
-    { sku: 'CAB-PATCH-1M', name: 'Cat6A Patch Lead 1m', manufacturer: 'Excel', category: 'Cabling & Infrastructure', default_buy_price: 2.8, default_sell_price: 5.5, is_serialised: false, is_stocked: true },
-    { sku: 'ES-HEAD-CO2', name: 'EnviroSentry CO2 Sensor Head', manufacturer: 'Innov8iv Labs', category: 'Environmental Sensors', default_buy_price: 42, default_sell_price: 89, is_serialised: false, is_stocked: true },
+  // Ensure "Professional Services" category exists for service products
+  if (!catMap['Professional Services']) {
+    const maxSort = (cats || []).reduce((max, c) => Math.max(max, (c as { sort_order?: number }).sort_order ?? 0), -1)
+    const { data: newCat } = await supabase
+      .from('product_categories')
+      .insert({ org_id: user.orgId, name: 'Professional Services', requires_serial: false, sort_order: maxSort + 1 })
+      .select('id')
+      .single()
+    if (newCat) catMap['Professional Services'] = newCat.id
+  }
+
+  const products: { sku: string; name: string; manufacturer: string | null; category: string; default_buy_price: number; default_sell_price: number | null; is_serialised: boolean; is_stocked: boolean; product_type: 'goods' | 'service' }[] = [
+    { sku: 'ES-SENTRY-PRO', name: 'EnviroSentry Pro Unit', manufacturer: 'Innov8iv Labs', category: 'Environmental Sensors', default_buy_price: 145, default_sell_price: 285, is_serialised: true, is_stocked: true, product_type: 'goods' },
+    { sku: 'ES-SENTRY-EDU', name: 'EnviroSentry SmartClass', manufacturer: 'Innov8iv Labs', category: 'Environmental Sensors', default_buy_price: 110, default_sell_price: 220, is_serialised: true, is_stocked: true, product_type: 'goods' },
+    { sku: 'SEN-SEN55', name: 'Sensirion SEN55 Module', manufacturer: 'Sensirion', category: 'Environmental Sensors', default_buy_price: 28.5, default_sell_price: null, is_serialised: false, is_stocked: true, product_type: 'goods' },
+    { sku: 'NET-SW24-POE', name: '24-Port PoE Managed Switch', manufacturer: 'Ubiquiti', category: 'Networking', default_buy_price: 325, default_sell_price: 445, is_serialised: true, is_stocked: false, product_type: 'goods' },
+    { sku: 'NET-AP-AC', name: 'WiFi 6 Access Point', manufacturer: 'Ubiquiti', category: 'Networking', default_buy_price: 129, default_sell_price: 195, is_serialised: true, is_stocked: false, product_type: 'goods' },
+    { sku: 'CAB-CAT6A-305', name: 'Cat6A Cable 305m Box', manufacturer: 'Excel', category: 'Cabling & Infrastructure', default_buy_price: 165, default_sell_price: 225, is_serialised: false, is_stocked: true, product_type: 'goods' },
+    { sku: 'AC-READER-BLE', name: 'IngressaEdge BLE Reader', manufacturer: 'Innov8iv Labs', category: 'Access Control', default_buy_price: 85, default_sell_price: 165, is_serialised: true, is_stocked: true, product_type: 'goods' },
+    { sku: 'SW-HA-PRO', name: 'Home Assistant Pro License', manufacturer: 'Nabu Casa', category: 'Software & Licensing', default_buy_price: 0, default_sell_price: 65, is_serialised: false, is_stocked: false, product_type: 'goods' },
+    { sku: 'CAB-PATCH-1M', name: 'Cat6A Patch Lead 1m', manufacturer: 'Excel', category: 'Cabling & Infrastructure', default_buy_price: 2.8, default_sell_price: 5.5, is_serialised: false, is_stocked: true, product_type: 'goods' },
+    { sku: 'ES-HEAD-CO2', name: 'EnviroSentry CO2 Sensor Head', manufacturer: 'Innov8iv Labs', category: 'Environmental Sensors', default_buy_price: 42, default_sell_price: 89, is_serialised: false, is_stocked: true, product_type: 'goods' },
+    // Service products
+    { sku: 'SVC-INSTALL-DAY', name: 'Installation Day (On-site)', manufacturer: null, category: 'Professional Services', default_buy_price: 200, default_sell_price: 450, is_serialised: false, is_stocked: false, product_type: 'service' },
+    { sku: 'SVC-CONFIG-HR', name: 'Remote Configuration (per hour)', manufacturer: null, category: 'Professional Services', default_buy_price: 0, default_sell_price: 85, is_serialised: false, is_stocked: false, product_type: 'service' },
+    { sku: 'SVC-PM-DAY', name: 'Project Management Day', manufacturer: null, category: 'Professional Services', default_buy_price: 0, default_sell_price: 400, is_serialised: false, is_stocked: false, product_type: 'service' },
+    { sku: 'SVC-DELIVERY', name: 'Delivery & Handling', manufacturer: null, category: 'Professional Services', default_buy_price: 0, default_sell_price: 45, is_serialised: false, is_stocked: false, product_type: 'service' },
   ]
 
   const rows = products.map(({ category, ...p }) => ({

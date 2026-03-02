@@ -45,6 +45,7 @@ export default async function CustomerDetailPage({ params }: PageProps) {
       quote_lines(quantity, sell_price)
     `)
     .eq('customer_id', id)
+    .not('status', 'eq', 'revised')
     .order('created_at', { ascending: false })
 
   if (!customer) notFound()

@@ -1,0 +1,242 @@
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
+import { Modal } from '@/components/ui/modal'
+import { useAuth } from '@/components/auth-provider'
+import { sendQuoteToCustomer, deleteQuote, createRevision, duplicateQuote } from '../actions'
+import { SaveAsTemplateModal } from './save-as-template-modal'
+import type { Quote } from '@/types/database'
+
+interface QuoteDetailActionsProps {
+  quote: Quote
+  portalUrl: string | null
+}
+
+export function QuoteDetailActions({ quote, portalUrl }: QuoteDetailActionsProps) {
+  const router = useRouter()
+  const { hasPermission } = useAuth()
+  const [showSendModal, setShowSendModal] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [showRevisionModal, setShowRevisionModal] = useState(false)
+  const [showSaveAsTemplate, setShowSaveAsTemplate] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [acting, setActing] = useState(false)
+
+  const canEdit = hasPermission('quotes', 'edit_all') || hasPermission('quotes', 'edit_own')
+  const canDelete = hasPermission('quotes', 'delete')
+  const canCreate = hasPermission('quotes', 'create')
+  const canCreateTemplate = hasPermission('templates', 'create')
+
+  const handleSend = async () => {
+    setSending(true)
+    const result = await sendQuoteToCustomer(quote.id)
+    setSending(false)
+    if ('error' in result && result.error) {
+      alert(result.error)
+    } else {
+      setShowSendModal(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    setDeleting(true)
+    const result = await deleteQuote(quote.id)
+    setDeleting(false)
+    if ('error' in result && result.error) {
+      alert(result.error)
+    } else {
+      router.push('/quotes')
+    }
+  }
+
+  const handleDuplicate = async () => {
+    setActing(true)
+    const result = await duplicateQuote(quote.id)
+    setActing(false)
+    if ('error' in result && result.error) {
+      alert(result.error)
+    } else if ('data' in result && result.data) {
+      router.push(`/quotes/${result.data.id}/edit`)
+    }
+  }
+
+  const handleEdit = () => {
+    // Draft/review: direct edit. Sent/declined: confirm revision first.
+    if (['draft', 'review'].includes(quote.status)) {
+      router.push(`/quotes/${quote.id}/edit`)
+    } else if (['sent', 'declined'].includes(quote.status) && canCreate) {
+      setShowRevisionModal(true)
+    }
+  }
+
+  const handleConfirmRevision = async () => {
+    setActing(true)
+    const result = await createRevision(quote.id)
+    setActing(false)
+    if ('error' in result && result.error) {
+      alert(result.error)
+    } else if ('data' in result && result.data) {
+      setShowRevisionModal(false)
+      router.push(`/quotes/${result.data.id}/edit`)
+    }
+  }
+
+  const handleDownloadPdf = () => {
+    window.open(`/api/quotes/${quote.id}/pdf`, '_blank')
+  }
+
+  // Edit button visible for: draft, review (direct edit) AND sent, declined (revision). Not accepted.
+  const showEditButton = canEdit && ['draft', 'review', 'sent', 'declined'].includes(quote.status)
+
+  return (
+    <>
+      <div className="flex items-center gap-2">
+        {/* Edit — for draft/review (direct) and sent/declined (creates revision) */}
+        {showEditButton && (
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={handleEdit}
+            disabled={acting}
+          >
+            Edit
+          </Button>
+        )}
+
+        {/* Send to Customer — only for draft/review */}
+        {canEdit && ['draft', 'review'].includes(quote.status) && (
+          <Button
+            size="sm"
+            variant="blue"
+            onClick={() => setShowSendModal(true)}
+          >
+            Send to Customer
+          </Button>
+        )}
+
+        {/* PDF — not shown for accepted quotes */}
+        {quote.status !== 'accepted' && (
+          <Button size="sm" variant="default" onClick={handleDownloadPdf}>
+            PDF
+          </Button>
+        )}
+
+        {/* Convert to Sales Order — only for acknowledged accepted quotes */}
+        {canEdit && quote.status === 'accepted' && quote.acknowledged_at && (
+          <Button
+            size="sm"
+            variant="blue"
+            disabled
+            title="Coming soon in Module 7"
+          >
+            Convert to Sales Order
+          </Button>
+        )}
+
+        {/* Duplicate */}
+        {canCreate && (
+          <Button
+            size="sm"
+            variant="default"
+            onClick={handleDuplicate}
+            disabled={acting}
+          >
+            Duplicate
+          </Button>
+        )}
+
+        {/* Save as Template */}
+        {canCreateTemplate && (
+          <Button
+            size="sm"
+            variant="default"
+            onClick={() => setShowSaveAsTemplate(true)}
+          >
+            Save as Template
+          </Button>
+        )}
+
+        {/* Delete — only for draft */}
+        {canDelete && quote.status === 'draft' && (
+          <Button
+            size="sm"
+            variant="danger"
+            onClick={() => setShowDeleteModal(true)}
+          >
+            Delete
+          </Button>
+        )}
+      </div>
+
+      {/* Send Modal */}
+      {showSendModal && (
+        <Modal title="Send Quote to Customer" onClose={() => setShowSendModal(false)}>
+          <p className="text-sm text-slate-600 mb-4">
+            This will mark the quote as <strong>Sent</strong> and make it accessible via the customer portal.
+          </p>
+          {portalUrl && (
+            <div className="mb-4 p-3 bg-slate-50 rounded-lg">
+              <div className="text-xs font-medium text-slate-400 mb-1">Portal Link</div>
+              <div className="text-sm text-slate-700 break-all">{portalUrl}</div>
+            </div>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="default" onClick={() => setShowSendModal(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" variant="blue" onClick={handleSend} disabled={sending}>
+              {sending ? 'Sending...' : 'Send Quote'}
+            </Button>
+          </div>
+        </Modal>
+      )}
+
+      {/* Revision Confirmation Modal */}
+      {showRevisionModal && (
+        <Modal title="Create New Revision" onClose={() => setShowRevisionModal(false)}>
+          <p className="text-sm text-slate-600 mb-4">
+            This quote is currently <strong>{quote.status}</strong>. Editing will create a new revision
+            (v{quote.version + 1}) and mark this version as revised. Continue?
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="default" onClick={() => setShowRevisionModal(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" variant="primary" onClick={handleConfirmRevision} disabled={acting}>
+              {acting ? 'Creating...' : 'Create Revision & Edit'}
+            </Button>
+          </div>
+        </Modal>
+      )}
+
+      {/* Delete Modal */}
+      {showDeleteModal && (
+        <Modal title="Delete Quote" onClose={() => setShowDeleteModal(false)}>
+          <p className="text-sm text-slate-600 mb-4">
+            Are you sure you want to delete <strong>{quote.quote_number}</strong>? This action cannot be undone.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="default" onClick={() => setShowDeleteModal(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" variant="danger" onClick={handleDelete} disabled={deleting}>
+              {deleting ? 'Deleting...' : 'Delete Quote'}
+            </Button>
+          </div>
+        </Modal>
+      )}
+
+      {/* Save as Template Modal */}
+      {showSaveAsTemplate && (
+        <SaveAsTemplateModal
+          quoteId={quote.id}
+          defaultName={quote.quote_number}
+          onClose={() => setShowSaveAsTemplate(false)}
+        />
+      )}
+    </>
+  )
+}

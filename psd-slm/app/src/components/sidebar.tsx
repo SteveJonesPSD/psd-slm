@@ -5,12 +5,14 @@ import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import { useAuth } from '@/components/auth-provider'
 import { signOut } from '@/app/auth/actions'
+import { NotificationBell } from '@/components/notification-bell'
 
 type NavLink = {
   href: string
   label: string
   icon: string
   permission?: { module: string; action: string }
+  adminOnly?: boolean
 }
 type NavDivider = { divider: true }
 type NavItem = NavLink | NavDivider
@@ -20,6 +22,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/customers', label: 'Customers', icon: '🏢', permission: { module: 'customers', action: 'view' } },
   { href: '/pipeline', label: 'Pipeline', icon: '📈', permission: { module: 'pipeline', action: 'view' } },
   { href: '/quotes', label: 'Quotes', icon: '📄', permission: { module: 'quotes', action: 'view' } },
+  { href: '/templates', label: 'Templates', icon: '📑', permission: { module: 'templates', action: 'view' } },
   { href: '/products', label: 'Products', icon: '🏷️', permission: { module: 'products', action: 'view' } },
   { href: '/suppliers', label: 'Suppliers', icon: '📦', permission: { module: 'suppliers', action: 'view' } },
   { href: '/deal-registrations', label: 'Deal Regs', icon: '🤝', permission: { module: 'deal_registrations', action: 'view' } },
@@ -27,6 +30,8 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/orders', label: 'Sales Orders', icon: '📋', permission: { module: 'sales_orders', action: 'view' } },
   { divider: true },
   { href: '/team', label: 'Team', icon: '👥', permission: { module: 'team', action: 'view' } },
+  { divider: true },
+  { href: '/settings', label: 'Settings', icon: '⚙️', adminOnly: true },
 ]
 
 function isDivider(item: NavItem): item is NavDivider {
@@ -48,6 +53,7 @@ export function Sidebar() {
   // Filter nav items based on permissions
   const visibleItems = NAV_ITEMS.filter((item) => {
     if (isDivider(item)) return true
+    if (item.adminOnly) return ['super_admin', 'admin'].includes(user.role.name)
     if (!item.permission) return true
     return hasPermission(item.permission.module, item.permission.action)
   })
@@ -115,6 +121,11 @@ export function Sidebar() {
           )
         })}
       </nav>
+
+      {/* Notifications */}
+      <div className="px-2 pb-1">
+        <NotificationBell collapsed={collapsed} />
+      </div>
 
       {/* Footer — User + Sign Out */}
       <div className="border-t border-slate-800 p-3">

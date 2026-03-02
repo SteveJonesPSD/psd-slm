@@ -34,6 +34,7 @@ export function ProductForm({ product, categories: initialCategories, manufactur
 
   const [categories, setCategories] = useState(initialCategories)
   const [form, setForm] = useState({
+    product_type: product?.product_type || 'goods' as 'goods' | 'service',
     sku: product?.sku || '',
     name: product?.name || '',
     description: product?.description || '',
@@ -45,6 +46,11 @@ export function ProductForm({ product, categories: initialCategories, manufactur
     is_stocked: product?.is_stocked ?? false,
     is_active: product?.is_active ?? true,
   })
+
+  const isService = form.product_type === 'service'
+
+  // When switching to service, check for supplier links to warn
+  const [typeWarning, setTypeWarning] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [skuError, setSkuError] = useState('')
@@ -137,8 +143,10 @@ export function ProductForm({ product, categories: initialCategories, manufactur
     fd.set('manufacturer', form.manufacturer)
     fd.set('default_buy_price', form.default_buy_price?.toString() || '')
     fd.set('default_sell_price', form.default_sell_price?.toString() || '')
-    fd.set('is_serialised', form.is_serialised)
-    fd.set('is_stocked', String(form.is_stocked))
+    fd.set('product_type', form.product_type)
+    // Services: force is_serialised=false and is_stocked=false
+    fd.set('is_serialised', isService ? 'false' : form.is_serialised)
+    fd.set('is_stocked', isService ? 'false' : String(form.is_stocked))
     if (isEdit) fd.set('is_active', String(form.is_active))
     fd.set('main_supplier_id', selectedSupplier?.id || '')
 
@@ -166,6 +174,56 @@ export function ProductForm({ product, categories: initialCategories, manufactur
       )}
 
       <div className="grid grid-cols-2 gap-3">
+        {/* Product Type Selector */}
+        <div className="col-span-2 mb-1">
+          <label className="mb-1.5 block text-xs font-medium text-slate-500">
+            Product Type
+          </label>
+          <div className="flex rounded-lg border border-slate-200 overflow-hidden w-fit">
+            <button
+              type="button"
+              onClick={() => {
+                setForm((f) => ({ ...f, product_type: 'goods' }))
+                setTypeWarning('')
+              }}
+              className={`px-4 py-2 text-sm font-medium transition-colors ${
+                form.product_type === 'goods'
+                  ? 'bg-slate-800 text-white'
+                  : 'bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              Goods
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                setForm((f) => ({ ...f, product_type: 'service' }))
+                // Warn if switching from goods with supplier links in edit mode
+                if (isEdit && product?.product_type === 'goods' && preferredSupplier) {
+                  setTypeWarning('This product has linked suppliers. Switching to service type won\u2019t remove these links, but services typically don\u2019t require suppliers.')
+                } else {
+                  setTypeWarning('')
+                }
+              }}
+              className={`px-4 py-2 text-sm font-medium transition-colors ${
+                form.product_type === 'service'
+                  ? 'bg-slate-800 text-white'
+                  : 'bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              Service
+            </button>
+          </div>
+          <p className="mt-1 text-xs text-slate-400">
+            {form.product_type === 'goods'
+              ? 'Physical item (stocked, sourced, serialised)'
+              : 'Labour, delivery, support, or other non-tangible'}
+          </p>
+          {typeWarning && (
+            <p className="mt-1 text-xs text-amber-600">{typeWarning}</p>
+          )}
+        </div>
+
         <div>
           <Input
             label="SKU *"
@@ -215,24 +273,26 @@ export function ProductForm({ product, categories: initialCategories, manufactur
           </div>
         </div>
 
-        {/* Manufacturer dropdown with option to type custom */}
-        <div>
-          <label className="mb-1 block text-xs font-medium text-slate-500">
-            Manufacturer
-          </label>
-          <input
-            list="manufacturer-list"
-            value={form.manufacturer}
-            onChange={(e) => setForm((f) => ({ ...f, manufacturer: e.target.value }))}
-            placeholder="Select or type..."
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
-          />
-          <datalist id="manufacturer-list">
-            {manufacturers.map((m) => (
-              <option key={m} value={m} />
-            ))}
-          </datalist>
-        </div>
+        {/* Manufacturer dropdown with option to type custom — hidden for services */}
+        {!isService && (
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-500">
+              Manufacturer
+            </label>
+            <input
+              list="manufacturer-list"
+              value={form.manufacturer}
+              onChange={(e) => setForm((f) => ({ ...f, manufacturer: e.target.value }))}
+              placeholder="Select or type..."
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+            />
+            <datalist id="manufacturer-list">
+              {manufacturers.map((m) => (
+                <option key={m} value={m} />
+              ))}
+            </datalist>
+          </div>
+        )}
 
         {/* Main Supplier */}
         <div className="col-span-2">
@@ -284,11 +344,16 @@ export function ProductForm({ product, categories: initialCategories, manufactur
         </div>
 
         {/* Prices */}
-        <CurrencyInput
-          label="Default Buy Price"
-          value={form.default_buy_price}
-          onChange={(v) => setForm((f) => ({ ...f, default_buy_price: v }))}
-        />
+        <div>
+          <CurrencyInput
+            label="Default Buy Price"
+            value={form.default_buy_price}
+            onChange={(v) => setForm((f) => ({ ...f, default_buy_price: v }))}
+          />
+          {isService && (
+            <p className="mt-1 text-xs text-slate-400">Internal cost or subcontractor rate (£0 for own labour)</p>
+          )}
+        </div>
         <CurrencyInput
           label="Default Sell Price"
           value={form.default_sell_price}
@@ -309,21 +374,26 @@ export function ProductForm({ product, categories: initialCategories, manufactur
           )}
         </div>
 
-        {/* Serialisation - three-state selector */}
-        <Select
-          label="Serialisation"
-          options={serialisationOptions}
-          value={form.is_serialised}
-          onChange={upd('is_serialised')}
-          className="col-span-2"
-        />
+        {/* Serialisation - three-state selector — hidden for services */}
+        {!isService && (
+          <Select
+            label="Serialisation"
+            options={serialisationOptions}
+            value={form.is_serialised}
+            onChange={upd('is_serialised')}
+            className="col-span-2"
+          />
+        )}
 
-        <Checkbox
-          label="PSD holds this item in stock"
-          checked={form.is_stocked}
-          onChange={(v) => setForm((f) => ({ ...f, is_stocked: v }))}
-          className="col-span-2"
-        />
+        {/* Stocked toggle — hidden for services */}
+        {!isService && (
+          <Checkbox
+            label="PSD holds this item in stock"
+            checked={form.is_stocked}
+            onChange={(v) => setForm((f) => ({ ...f, is_stocked: v }))}
+            className="col-span-2"
+          />
+        )}
 
         {isEdit && (
           <Checkbox

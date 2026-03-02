@@ -34,7 +34,8 @@ export default async function ProductDetailPage({ params }: PageProps) {
 
   const cat = product.product_categories as unknown as { id: string; name: string; requires_serial: boolean } | null
   const categoryRequiresSerial = cat?.requires_serial ?? false
-  const isSerialised = resolveSerialisedStatus(product.is_serialised, categoryRequiresSerial)
+  const isSerialised = resolveSerialisedStatus(product.is_serialised, categoryRequiresSerial, product.product_type)
+  const isService = product.product_type === 'service'
   const suppliers = productSuppliers || []
   const mainSupplier = suppliers.find((s) => s.is_preferred)
   const mainSupplierInfo = mainSupplier?.suppliers as { id: string; name: string; account_number: string | null; is_active: boolean } | undefined
@@ -64,14 +65,21 @@ export default async function ProductDetailPage({ params }: PageProps) {
         subtitle={product.sku}
         actions={
           <div className="flex items-center gap-2">
+            {isService ? (
+              <Badge label="Service" color="#7c3aed" bg="#f5f3ff" />
+            ) : (
+              <Badge label="Goods" color="#475569" bg="#f1f5f9" />
+            )}
             {cat && (
               <Badge label={cat.name} color="#64748b" bg="#f1f5f9" />
             )}
-            <SerialisedBadge
-              productIsSerialised={product.is_serialised}
-              categoryRequiresSerial={categoryRequiresSerial}
-            />
-            {product.is_stocked && (
+            {!isService && (
+              <SerialisedBadge
+                productIsSerialised={product.is_serialised}
+                categoryRequiresSerial={categoryRequiresSerial}
+              />
+            )}
+            {!isService && product.is_stocked && (
               <Badge label="Stocked" color="#059669" bg="#ecfdf5" />
             )}
             {!product.is_active && (
@@ -109,8 +117,9 @@ export default async function ProductDetailPage({ params }: PageProps) {
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-3 text-sm">
           <DetailField label="SKU" value={product.sku} />
           <DetailField label="Name" value={product.name} />
+          <DetailField label="Product Type" value={isService ? 'Service' : 'Goods'} />
           <DetailField label="Category" value={cat?.name} />
-          <DetailField label="Manufacturer" value={product.manufacturer} />
+          {!isService && <DetailField label="Manufacturer" value={product.manufacturer} />}
           <div>
             <div className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-0.5">
               Main Supplier
@@ -125,11 +134,13 @@ export default async function ProductDetailPage({ params }: PageProps) {
               )}
             </div>
           </div>
-          <DetailField label="Stocked" value={product.is_stocked ? 'Yes' : 'No'} />
-          <DetailField
-            label="Serialisation"
-            value={`${isSerialised ? 'Yes' : 'No'} (${serialSource})`}
-          />
+          {!isService && <DetailField label="Stocked" value={product.is_stocked ? 'Yes' : 'No'} />}
+          {!isService && (
+            <DetailField
+              label="Serialisation"
+              value={`${isSerialised ? 'Yes' : 'No'} (${serialSource})`}
+            />
+          )}
           <DetailField label="Created" value={formatDate(product.created_at)} />
           <DetailField label="Updated" value={formatDate(product.updated_at)} />
           {product.description && (
@@ -144,15 +155,20 @@ export default async function ProductDetailPage({ params }: PageProps) {
         productName={product.name}
         productSuppliers={suppliers}
       />
+      {isService && suppliers.length === 0 && (
+        <p className="mt-2 text-xs text-slate-400">Suppliers can be linked for subcontracted services.</p>
+      )}
 
       {/* Future tabs placeholder */}
       <div className="mt-5 flex gap-3">
         <span className="text-xs text-slate-300 border border-slate-200 rounded-lg px-3 py-1.5 cursor-not-allowed" title="Coming in Module 4">
           Deal Registrations
         </span>
-        <span className="text-xs text-slate-300 border border-slate-200 rounded-lg px-3 py-1.5 cursor-not-allowed" title="Coming in Module 8">
-          Stock
-        </span>
+        {!isService && (
+          <span className="text-xs text-slate-300 border border-slate-200 rounded-lg px-3 py-1.5 cursor-not-allowed" title="Coming in Module 8">
+            Stock
+          </span>
+        )}
       </div>
     </div>
   )

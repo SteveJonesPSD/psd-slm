@@ -89,6 +89,11 @@ export interface Database {
         Insert: Omit<QuoteAttribution, 'id' | 'created_at'>
         Update: Partial<Omit<QuoteAttribution, 'id'>>
       }
+      quote_change_requests: {
+        Row: QuoteChangeRequest
+        Insert: Omit<QuoteChangeRequest, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<QuoteChangeRequest, 'id'>>
+      }
       sales_orders: {
         Row: SalesOrder
         Insert: Omit<SalesOrder, 'id' | 'created_at' | 'updated_at'>
@@ -153,6 +158,36 @@ export interface Database {
         Row: GiasSchool
         Insert: Omit<GiasSchool, 'updated_at'>
         Update: Partial<GiasSchool>
+      }
+      org_settings: {
+        Row: OrgSetting
+        Insert: Omit<OrgSetting, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<OrgSetting, 'id'>>
+      }
+      brands: {
+        Row: Brand
+        Insert: Omit<Brand, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<Brand, 'id'>>
+      }
+      notifications: {
+        Row: Notification
+        Insert: Omit<Notification, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<Notification, 'id'>>
+      }
+      quote_templates: {
+        Row: QuoteTemplate
+        Insert: Omit<QuoteTemplate, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<QuoteTemplate, 'id'>>
+      }
+      quote_template_groups: {
+        Row: QuoteTemplateGroup
+        Insert: Omit<QuoteTemplateGroup, 'id' | 'created_at'>
+        Update: Partial<Omit<QuoteTemplateGroup, 'id'>>
+      }
+      quote_template_lines: {
+        Row: QuoteTemplateLine
+        Insert: Omit<QuoteTemplateLine, 'id' | 'created_at'>
+        Update: Partial<Omit<QuoteTemplateLine, 'id'>>
       }
     }
     Views: {
@@ -282,6 +317,7 @@ export interface Product {
   is_serialised: boolean | null
   is_stocked: boolean
   is_active: boolean
+  product_type: 'goods' | 'service'
   created_at: string
   updated_at: string
 }
@@ -370,7 +406,7 @@ export interface Quote {
   contact_id: string | null
   assigned_to: string | null
   quote_number: string
-  status: 'draft' | 'review' | 'sent' | 'accepted' | 'declined' | 'expired' | 'superseded'
+  status: 'draft' | 'review' | 'sent' | 'accepted' | 'declined' | 'expired' | 'superseded' | 'revised'
   version: number
   parent_quote_id: string | null
   quote_type: 'business' | 'education' | 'charity' | 'public_sector' | null
@@ -380,8 +416,15 @@ export interface Quote {
   internal_notes: string | null
   customer_po: string | null
   portal_token: string | null
+  decline_reason: string | null
+  po_document_path: string | null
+  base_quote_number: string
+  status_before_revised: string | null
+  brand_id: string | null
   accepted_at: string | null
   sent_at: string | null
+  acknowledged_at: string | null
+  acknowledged_by: string | null
   created_at: string
   updated_at: string
 }
@@ -408,6 +451,7 @@ export interface QuoteLine {
   sell_price: number
   fulfilment_route: 'from_stock' | 'drop_ship'
   is_optional: boolean
+  requires_contract: boolean
   notes: string | null
   created_at: string
 }
@@ -419,6 +463,22 @@ export interface QuoteAttribution {
   attribution_type: 'direct' | 'involvement' | 'override'
   split_pct: number
   created_at: string
+}
+
+// --- Quote Change Requests ---
+
+export interface QuoteChangeRequest {
+  id: string
+  quote_id: string
+  requested_by: string
+  request_type: 'pricing' | 'specification' | 'quantity' | 'general'
+  message: string
+  status: 'pending' | 'resolved'
+  internal_notes: string | null
+  resolved_by: string | null
+  resolved_at: string | null
+  created_at: string
+  updated_at: string
 }
 
 // --- Sales Orders ---
@@ -457,6 +517,7 @@ export interface SalesOrderLine {
   buy_price: number
   sell_price: number
   fulfilment_route: 'from_stock' | 'drop_ship'
+  requires_contract: boolean
   status: 'pending' | 'ordered' | 'received' | 'delivered' | 'cancelled'
   serial_numbers: string[] | null
   notes: string | null
@@ -675,6 +736,7 @@ export interface CommissionSummary {
 
 export interface ActiveDealPricing {
   deal_reg_id: string
+  deal_reg_line_id: string
   customer_id: string
   customer_name: string
   supplier_id: string
@@ -689,4 +751,108 @@ export interface ActiveDealPricing {
   deal_cost: number
   saving_per_unit: number | null
   max_quantity: number | null
+}
+
+// --- Settings & Brands ---
+
+export interface OrgSetting {
+  id: string
+  org_id: string
+  category: string
+  setting_key: string
+  setting_value: Json | null
+  is_secret: boolean
+  description: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface Brand {
+  id: string
+  org_id: string
+  name: string
+  is_default: boolean
+  legal_entity: string | null
+  company_reg_number: string | null
+  vat_number: string | null
+  address_line1: string | null
+  address_line2: string | null
+  city: string | null
+  county: string | null
+  postcode: string | null
+  country: string
+  phone: string | null
+  fax: string | null
+  email: string | null
+  website: string | null
+  logo_path: string | null
+  logo_width: number
+  footer_text: string | null
+  registered_address: string | null
+  default_terms: string | null
+  default_payment_terms_text: string | null
+  quote_prefix: string
+  is_active: boolean
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+// --- Notifications ---
+
+export interface Notification {
+  id: string
+  org_id: string
+  user_id: string
+  type: string
+  title: string
+  message: string
+  link: string | null
+  entity_type: string | null
+  entity_id: string | null
+  is_read: boolean
+  created_at: string
+  updated_at: string
+}
+
+// --- Quote Templates ---
+
+export interface QuoteTemplate {
+  id: string
+  org_id: string
+  name: string
+  description: string | null
+  category: string | null
+  default_quote_type: 'business' | 'education' | 'charity' | 'public_sector' | null
+  is_active: boolean
+  created_by: string | null
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface QuoteTemplateGroup {
+  id: string
+  template_id: string
+  name: string
+  sort_order: number
+  created_at: string
+}
+
+export interface QuoteTemplateLine {
+  id: string
+  template_id: string
+  group_id: string | null
+  product_id: string | null
+  supplier_id: string | null
+  sort_order: number
+  description: string
+  quantity: number
+  default_buy_price: number
+  default_sell_price: number
+  fulfilment_route: 'from_stock' | 'drop_ship'
+  is_optional: boolean
+  requires_contract: boolean
+  notes: string | null
+  created_at: string
 }

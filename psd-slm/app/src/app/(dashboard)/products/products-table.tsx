@@ -31,6 +31,7 @@ export function ProductsTable({ products, categories }: ProductsTableProps) {
 
   const [search, setSearch] = useState('')
   const [catFilter, setCatFilter] = useState('')
+  const [typeFilter, setTypeFilter] = useState('')
   const [showStocked, setShowStocked] = useState(false)
   const [showActive, setShowActive] = useState(true)
   const [seeding, setSeeding] = useState(false)
@@ -42,12 +43,13 @@ export function ProductsTable({ products, categories }: ProductsTableProps) {
       p.sku.toLowerCase().includes(s) ||
       (p.manufacturer || '').toLowerCase().includes(s)
     const matchesCat = !catFilter || p.category_id === catFilter
+    const matchesType = !typeFilter || p.product_type === typeFilter
     const matchesStocked = !showStocked || p.is_stocked
     const matchesActive = !showActive || p.is_active
-    return matchesSearch && matchesCat && matchesStocked && matchesActive
+    return matchesSearch && matchesCat && matchesType && matchesStocked && matchesActive
   })
 
-  const hasFilters = search || catFilter || showStocked || !showActive
+  const hasFilters = search || catFilter || typeFilter || showStocked || !showActive
 
   const handleSeed = async () => {
     setSeeding(true)
@@ -66,7 +68,16 @@ export function ProductsTable({ products, categories }: ProductsTableProps) {
     {
       key: 'name',
       label: 'Product',
-      render: (r) => <span className="font-semibold">{r.name}</span>,
+      render: (r) => (
+        <span className="font-semibold">
+          {r.name}
+          {r.product_type === 'service' && (
+            <span className="ml-1.5 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-violet-50 text-violet-600 align-middle">
+              SVC
+            </span>
+          )}
+        </span>
+      ),
     },
     {
       key: 'category',
@@ -76,7 +87,7 @@ export function ProductsTable({ products, categories }: ProductsTableProps) {
     {
       key: 'manufacturer',
       label: 'Manufacturer',
-      render: (r) => r.manufacturer || '\u2014',
+      render: (r) => r.product_type === 'service' ? '\u2014' : (r.manufacturer || '\u2014'),
     },
     {
       key: 'main_supplier',
@@ -112,7 +123,7 @@ export function ProductsTable({ products, categories }: ProductsTableProps) {
       key: 'serialised',
       label: 'Serialised',
       align: 'center',
-      render: (r) => (
+      render: (r) => r.product_type === 'service' ? <span className="text-slate-300">\u2014</span> : (
         <SerialisedBadge
           productIsSerialised={r.is_serialised}
           categoryRequiresSerial={r.category_requires_serial}
@@ -124,6 +135,7 @@ export function ProductsTable({ products, categories }: ProductsTableProps) {
       label: 'Stocked',
       align: 'center',
       render: (r) =>
+        r.product_type === 'service' ? <span className="text-slate-300">\u2014</span> :
         r.is_stocked ? <Badge label="Stocked" color="#059669" bg="#ecfdf5" /> : null,
     },
     {
@@ -156,6 +168,15 @@ export function ProductsTable({ products, categories }: ProductsTableProps) {
             </option>
           ))}
         </select>
+        <select
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value)}
+          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
+        >
+          <option value="">All Types</option>
+          <option value="goods">Goods</option>
+          <option value="service">Services</option>
+        </select>
         <label className="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer whitespace-nowrap">
           <input
             type="checkbox"
@@ -176,7 +197,7 @@ export function ProductsTable({ products, categories }: ProductsTableProps) {
         </label>
         {hasFilters && (
           <button
-            onClick={() => { setSearch(''); setCatFilter(''); setShowStocked(false); setShowActive(true) }}
+            onClick={() => { setSearch(''); setCatFilter(''); setTypeFilter(''); setShowStocked(false); setShowActive(true) }}
             className="text-xs text-slate-400 hover:text-slate-600"
           >
             Clear filters

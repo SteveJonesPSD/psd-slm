@@ -1,0 +1,1058 @@
+'use server'
+
+import { createClient } from '@/lib/supabase/server'
+import { requirePermission, requireAuth, hasPermission } from '@/lib/auth'
+import { revalidatePath } from 'next/cache'
+import { logActivity } from '@/lib/activity-log'
+
+// --- Types for structured data passed from the form ---
+
+export interface GroupInput {
+  tempId: string
+  name: string
+  sort_order: number
+}
+
+export interface LineInput {
+  tempGroupId: string
+  product_id: string | null
+  supplier_id: string | null
+  deal_reg_line_id: string | null
+  sort_order: number
+  description: string
+  quantity: number
+  buy_price: number
+  sell_price: number
+  fulfilment_route: 'from_stock' | 'drop_ship'
+  is_optional: boolean
+  requires_contract: boolean
+  notes: string | null
+}
+
+export interface AttributionInput {
+  user_id: string
+  attribution_type: 'direct' | 'involvement' | 'override'
+  split_pct: number
+}
+
+// --- Helpers ---
+
+async function generateQuoteNumber(supabase: Awaited<ReturnType<typeof createClient>>, orgId: string): Promise<string> {
+  const year = new Date().getFullYear()
+  const prefix = `Q-${year}-`
+
+  // Query base_quote_number to avoid versioned suffixes (e.g. -v2) breaking the sequence parser
+  const { data: existing } = await supabase
+    .from('quotes')
+    .select('base_quote_number')
+    .eq('org_id', orgId)
+    .like('base_quote_number', `${prefix}%`)
+    .order('base_quote_number', { ascending: false })
+    .limit(1)
+
+  let seq = 1
+  if (existing && existing.length > 0) {
+    const last = existing[0].base_quote_number
+    const parts = last.split('-')
+    const lastSeq = parseInt(parts[parts.length - 1], 10)
+    if (!isNaN(lastSeq)) seq = lastSeq + 1
+  }
+
+  return `${prefix}${String(seq).padStart(4, '0')}`
+}
+
+// --- Create ---
+
+export async function createQuote(
+  formData: FormData,
+  groups: GroupInput[],
+  lines: LineInput[],
+  attributions: AttributionInput[]
+) {
+  const user = await requirePermission('quotes', 'create')
+  const supabase = await createClient()
+
+  const customer_id = formData.get('customer_id') as string
+  if (!customer_id) return { error: 'Customer is required' }
+  if (lines.length === 0) return { error: 'At least one line item is required' }
+
+  // Validate attribution totals
+  const totalPct = attributions.reduce((sum, a) => sum + a.split_pct, 0)
+  if (Math.abs(totalPct - 100) > 0.01) {
+    return { error: `Attribution must total 100% (currently ${totalPct}%)` }
+  }
+
+  const quote_number = await generateQuoteNumber(supabase, user.orgId)
+  const portal_token = crypto.randomUUID()
+
+  const { data: quote, error } = await supabase
+    .from('quotes')
+    .insert({
+      org_id: user.orgId,
+      customer_id,
+      contact_id: (formData.get('contact_id') as string) || null,
+      opportunity_id: (formData.get('opportunity_id') as string) || null,
+      assigned_to: (formData.get('assigned_to') as string) || user.id,
+      brand_id: (formData.get('brand_id') as string) || null,
+      quote_number,
+      base_quote_number: quote_number,
+      status: 'draft',
+      version: 1,
+      quote_type: (formData.get('quote_type') as string) || null,
+      valid_until: (formData.get('valid_until') as string) || null,
+      vat_rate: parseFloat(formData.get('vat_rate') as string) || 20,
+      customer_notes: (formData.get('customer_notes') as string) || null,
+      internal_notes: (formData.get('internal_notes') as string) || null,
+      portal_token,
+    })
+    .select()
+    .single()
+
+  if (error) return { error: error.message }
+
+  // Insert groups and build tempId→realId map
+  const groupMap = new Map<string, string>()
+
+  if (groups.length > 0) {
+    const groupRows = groups.map((g) => ({
+      quote_id: quote.id,
+      name: g.name,
+      sort_order: g.sort_order,
+    }))
+
+    const { data: insertedGroups, error: groupsError } = await supabase
+      .from('quote_groups')
+      .insert(groupRows)
+      .select()
+
+    if (groupsError) {
+      await supabase.from('quotes').delete().eq('id', quote.id)
+      return { error: groupsError.message }
+    }
+
+    // Map tempIds to real ids by sort_order (groups inserted in order)
+    groups.forEach((g, i) => {
+      if (insertedGroups[i]) {
+        groupMap.set(g.tempId, insertedGroups[i].id)
+      }
+    })
+  }
+
+  // Insert lines
+  const lineRows = lines.map((l) => ({
+    quote_id: quote.id,
+    group_id: groupMap.get(l.tempGroupId) || null,
+    product_id: l.product_id || null,
+    supplier_id: l.supplier_id || null,
+    deal_reg_line_id: l.deal_reg_line_id || null,
+    sort_order: l.sort_order,
+    description: l.description,
+    quantity: l.quantity,
+    buy_price: l.buy_price,
+    sell_price: l.sell_price,
+    fulfilment_route: l.fulfilment_route,
+    is_optional: l.is_optional,
+    requires_contract: l.requires_contract,
+    notes: l.notes,
+  }))
+
+  const { error: linesError } = await supabase
+    .from('quote_lines')
+    .insert(lineRows)
+
+  if (linesError) {
+    await supabase.from('quotes').delete().eq('id', quote.id)
+    return { error: linesError.message }
+  }
+
+  // Insert attributions
+  if (attributions.length > 0) {
+    const attrRows = attributions.map((a) => ({
+      quote_id: quote.id,
+      user_id: a.user_id,
+      attribution_type: a.attribution_type,
+      split_pct: a.split_pct,
+    }))
+
+    const { error: attrError } = await supabase
+      .from('quote_attributions')
+      .insert(attrRows)
+
+    if (attrError) {
+      await supabase.from('quotes').delete().eq('id', quote.id)
+      return { error: attrError.message }
+    }
+  }
+
+  logActivity({
+    supabase,
+    user,
+    entityType: 'quote',
+    entityId: quote.id,
+    action: 'created',
+    details: { quote_number, customer_id, line_count: lines.length },
+  })
+
+  revalidatePath('/quotes')
+  return { data: quote }
+}
+
+// --- Update ---
+
+export async function updateQuote(
+  id: string,
+  formData: FormData,
+  groups: GroupInput[],
+  lines: LineInput[],
+  attributions: AttributionInput[]
+) {
+  const user = await requireAuth()
+  const canEditAll = hasPermission(user, 'quotes', 'edit_all')
+  const canEditOwn = hasPermission(user, 'quotes', 'edit_own')
+  if (!canEditAll && !canEditOwn) throw new Error('Permission denied: quotes.edit')
+  const supabase = await createClient()
+
+  const customer_id = formData.get('customer_id') as string
+  if (!customer_id) return { error: 'Customer is required' }
+  if (lines.length === 0) return { error: 'At least one line item is required' }
+
+  const totalPct = attributions.reduce((sum, a) => sum + a.split_pct, 0)
+  if (Math.abs(totalPct - 100) > 0.01) {
+    return { error: `Attribution must total 100% (currently ${totalPct}%)` }
+  }
+
+  // Update quote header
+  const { error } = await supabase
+    .from('quotes')
+    .update({
+      customer_id,
+      contact_id: (formData.get('contact_id') as string) || null,
+      opportunity_id: (formData.get('opportunity_id') as string) || null,
+      assigned_to: (formData.get('assigned_to') as string) || null,
+      brand_id: (formData.get('brand_id') as string) || null,
+      quote_type: (formData.get('quote_type') as string) || null,
+      valid_until: (formData.get('valid_until') as string) || null,
+      vat_rate: parseFloat(formData.get('vat_rate') as string) || 20,
+      customer_notes: (formData.get('customer_notes') as string) || null,
+      internal_notes: (formData.get('internal_notes') as string) || null,
+    })
+    .eq('id', id)
+
+  if (error) return { error: error.message }
+
+  // Delete-and-reinsert children (established pattern)
+  await supabase.from('quote_attributions').delete().eq('quote_id', id)
+  await supabase.from('quote_lines').delete().eq('quote_id', id)
+  await supabase.from('quote_groups').delete().eq('quote_id', id)
+
+  // Re-insert groups
+  const groupMap = new Map<string, string>()
+  if (groups.length > 0) {
+    const groupRows = groups.map((g) => ({
+      quote_id: id,
+      name: g.name,
+      sort_order: g.sort_order,
+    }))
+
+    const { data: insertedGroups, error: groupsError } = await supabase
+      .from('quote_groups')
+      .insert(groupRows)
+      .select()
+
+    if (groupsError) return { error: groupsError.message }
+
+    groups.forEach((g, i) => {
+      if (insertedGroups[i]) {
+        groupMap.set(g.tempId, insertedGroups[i].id)
+      }
+    })
+  }
+
+  // Re-insert lines
+  const lineRows = lines.map((l) => ({
+    quote_id: id,
+    group_id: groupMap.get(l.tempGroupId) || null,
+    product_id: l.product_id || null,
+    supplier_id: l.supplier_id || null,
+    deal_reg_line_id: l.deal_reg_line_id || null,
+    sort_order: l.sort_order,
+    description: l.description,
+    quantity: l.quantity,
+    buy_price: l.buy_price,
+    sell_price: l.sell_price,
+    fulfilment_route: l.fulfilment_route,
+    is_optional: l.is_optional,
+    requires_contract: l.requires_contract,
+    notes: l.notes,
+  }))
+
+  const { error: linesError } = await supabase.from('quote_lines').insert(lineRows)
+  if (linesError) return { error: linesError.message }
+
+  // Re-insert attributions
+  if (attributions.length > 0) {
+    const attrRows = attributions.map((a) => ({
+      quote_id: id,
+      user_id: a.user_id,
+      attribution_type: a.attribution_type,
+      split_pct: a.split_pct,
+    }))
+
+    const { error: attrError } = await supabase.from('quote_attributions').insert(attrRows)
+    if (attrError) return { error: attrError.message }
+  }
+
+  logActivity({
+    supabase,
+    user,
+    entityType: 'quote',
+    entityId: id,
+    action: 'updated',
+    details: { customer_id, line_count: lines.length },
+  })
+
+  revalidatePath('/quotes')
+  revalidatePath(`/quotes/${id}`)
+  return { success: true }
+}
+
+// --- Delete ---
+
+export async function deleteQuote(id: string) {
+  const user = await requirePermission('quotes', 'delete')
+  const supabase = await createClient()
+
+  const { data: quote } = await supabase
+    .from('quotes')
+    .select('quote_number')
+    .eq('id', id)
+    .single()
+
+  const { error } = await supabase
+    .from('quotes')
+    .delete()
+    .eq('id', id)
+
+  if (error) return { error: error.message }
+
+  logActivity({
+    supabase,
+    user,
+    entityType: 'quote',
+    entityId: id,
+    action: 'deleted',
+    details: { quote_number: quote?.quote_number },
+  })
+
+  revalidatePath('/quotes')
+  return { success: true }
+}
+
+// --- Duplicate ---
+
+export async function duplicateQuote(id: string) {
+  const user = await requirePermission('quotes', 'create')
+  const supabase = await createClient()
+
+  const { data: original } = await supabase
+    .from('quotes')
+    .select('*, quote_groups(*), quote_lines(*), quote_attributions(*)')
+    .eq('id', id)
+    .single()
+
+  if (!original) return { error: 'Quote not found' }
+
+  const quote_number = await generateQuoteNumber(supabase, user.orgId)
+  const portal_token = crypto.randomUUID()
+
+  // Duplicate creates a blank quote with only line items (and groups).
+  // Customer, contact, opportunity, notes, and deal reg links are stripped
+  // so the quote can be raised for a different customer.
+  const { data: newQuote, error } = await supabase
+    .from('quotes')
+    .insert({
+      org_id: user.orgId,
+      customer_id: original.customer_id, // kept (NOT NULL) — user changes in builder
+      contact_id: null,
+      opportunity_id: null,
+      assigned_to: user.id,
+      quote_number,
+      base_quote_number: quote_number,
+      status: 'draft',
+      version: 1,
+      quote_type: original.quote_type,
+      valid_until: null,
+      vat_rate: original.vat_rate,
+      customer_notes: null,
+      internal_notes: null,
+      portal_token,
+      brand_id: original.brand_id,
+    })
+    .select()
+    .single()
+
+  if (error) return { error: error.message }
+
+  // Copy groups
+  const groups = original.quote_groups as { name: string; sort_order: number }[]
+  const oldLines = original.quote_lines as { group_id: string | null; product_id: string | null; supplier_id: string | null; deal_reg_line_id: string | null; sort_order: number; description: string; quantity: number; buy_price: number; sell_price: number; fulfilment_route: string; is_optional: boolean; requires_contract: boolean; notes: string | null }[]
+  const oldGroupIdMap = new Map<string, string>()
+
+  if (groups.length > 0) {
+    const originalGroups = original.quote_groups as { id: string; name: string; sort_order: number }[]
+
+    const groupRows = groups.map((g) => ({
+      quote_id: newQuote.id,
+      name: g.name,
+      sort_order: g.sort_order,
+    }))
+
+    const { data: newGroups } = await supabase
+      .from('quote_groups')
+      .insert(groupRows)
+      .select()
+
+    if (newGroups) {
+      originalGroups.forEach((og, i) => {
+        if (newGroups[i]) {
+          oldGroupIdMap.set(og.id, newGroups[i].id)
+        }
+      })
+    }
+  }
+
+  // Copy lines — strip deal_reg_line_id (customer-specific pricing)
+  if (oldLines.length > 0) {
+    const lineRows = oldLines.map((l) => ({
+      quote_id: newQuote.id,
+      group_id: l.group_id ? (oldGroupIdMap.get(l.group_id) || null) : null,
+      product_id: l.product_id,
+      supplier_id: l.supplier_id,
+      deal_reg_line_id: null,
+      sort_order: l.sort_order,
+      description: l.description,
+      quantity: l.quantity,
+      buy_price: l.buy_price,
+      sell_price: l.sell_price,
+      fulfilment_route: l.fulfilment_route,
+      is_optional: l.is_optional,
+      requires_contract: l.requires_contract,
+      notes: l.notes,
+    }))
+
+    await supabase.from('quote_lines').insert(lineRows)
+  }
+
+  // Default attribution: 100% direct to current user
+  await supabase.from('quote_attributions').insert({
+    quote_id: newQuote.id,
+    user_id: user.id,
+    attribution_type: 'direct',
+    split_pct: 100,
+  })
+
+  logActivity({
+    supabase,
+    user,
+    entityType: 'quote',
+    entityId: newQuote.id,
+    action: 'created',
+    details: { quote_number, duplicated_from: id },
+  })
+
+  revalidatePath('/quotes')
+  return { data: newQuote }
+}
+
+// --- Create Revision ---
+
+export async function createRevision(id: string) {
+  const user = await requirePermission('quotes', 'create')
+  const supabase = await createClient()
+
+  const { data: original } = await supabase
+    .from('quotes')
+    .select('*, quote_groups(*), quote_lines(*), quote_attributions(*)')
+    .eq('id', id)
+    .single()
+
+  if (!original) return { error: 'Quote not found' }
+
+  // Guard against revising draft quotes — use direct edit instead
+  if (original.status === 'draft' || original.status === 'review') {
+    return { error: 'Draft/review quotes should be edited directly, not revised.' }
+  }
+
+  const portal_token = crypto.randomUUID()
+  const newVersion = original.version + 1
+  const baseNumber = original.base_quote_number || original.quote_number
+  const newQuoteNumber = `${baseNumber}-v${newVersion}`
+
+  // Create new version
+  const { data: newQuote, error } = await supabase
+    .from('quotes')
+    .insert({
+      org_id: user.orgId,
+      customer_id: original.customer_id,
+      contact_id: original.contact_id,
+      opportunity_id: original.opportunity_id,
+      assigned_to: original.assigned_to || user.id,
+      quote_number: newQuoteNumber,
+      base_quote_number: baseNumber,
+      status: 'draft',
+      version: newVersion,
+      parent_quote_id: original.id,
+      quote_type: original.quote_type,
+      brand_id: original.brand_id,
+      valid_until: null,
+      vat_rate: original.vat_rate,
+      customer_notes: original.customer_notes,
+      internal_notes: original.internal_notes,
+      portal_token,
+    })
+    .select()
+    .single()
+
+  if (error) return { error: error.message }
+
+  // Mark original as revised, storing its current status for reactivation
+  await supabase
+    .from('quotes')
+    .update({
+      status: 'revised',
+      status_before_revised: original.status,
+    })
+    .eq('id', original.id)
+
+  // Copy groups
+  const groups = original.quote_groups as { id: string; name: string; sort_order: number }[]
+  const oldGroupIdMap = new Map<string, string>()
+
+  if (groups.length > 0) {
+    const groupRows = groups.map((g) => ({
+      quote_id: newQuote.id,
+      name: g.name,
+      sort_order: g.sort_order,
+    }))
+
+    const { data: newGroups } = await supabase
+      .from('quote_groups')
+      .insert(groupRows)
+      .select()
+
+    if (newGroups) {
+      groups.forEach((og, i) => {
+        if (newGroups[i]) {
+          oldGroupIdMap.set(og.id, newGroups[i].id)
+        }
+      })
+    }
+  }
+
+  // Copy lines
+  const oldLines = original.quote_lines as { group_id: string | null; product_id: string | null; supplier_id: string | null; deal_reg_line_id: string | null; sort_order: number; description: string; quantity: number; buy_price: number; sell_price: number; fulfilment_route: string; is_optional: boolean; requires_contract: boolean; notes: string | null }[]
+  if (oldLines.length > 0) {
+    const lineRows = oldLines.map((l) => ({
+      quote_id: newQuote.id,
+      group_id: l.group_id ? (oldGroupIdMap.get(l.group_id) || null) : null,
+      product_id: l.product_id,
+      supplier_id: l.supplier_id,
+      deal_reg_line_id: l.deal_reg_line_id,
+      sort_order: l.sort_order,
+      description: l.description,
+      quantity: l.quantity,
+      buy_price: l.buy_price,
+      sell_price: l.sell_price,
+      fulfilment_route: l.fulfilment_route,
+      is_optional: l.is_optional,
+      requires_contract: l.requires_contract,
+      notes: l.notes,
+    }))
+
+    await supabase.from('quote_lines').insert(lineRows)
+  }
+
+  // Copy attributions
+  const attrs = original.quote_attributions as { user_id: string; attribution_type: string; split_pct: number }[]
+  if (attrs.length > 0) {
+    const attrRows = attrs.map((a) => ({
+      quote_id: newQuote.id,
+      user_id: a.user_id,
+      attribution_type: a.attribution_type,
+      split_pct: a.split_pct,
+    }))
+
+    await supabase.from('quote_attributions').insert(attrRows)
+  }
+
+  logActivity({
+    supabase,
+    user,
+    entityType: 'quote',
+    entityId: newQuote.id,
+    action: 'created',
+    details: {
+      quote_number: newQuoteNumber,
+      version: newVersion,
+      revision_of: id,
+    },
+  })
+
+  revalidatePath('/quotes')
+  revalidatePath(`/quotes/${id}`)
+  return { data: newQuote }
+}
+
+// --- Reactivate Quote ---
+
+export async function reactivateQuote(id: string) {
+  const user = await requireAuth()
+  if (!hasPermission(user, 'quotes', 'edit_all') && !hasPermission(user, 'quotes', 'edit_own')) {
+    throw new Error('Permission denied: quotes.edit')
+  }
+  const supabase = await createClient()
+
+  // Fetch the target quote — must be revised with a stored previous status
+  const { data: target } = await supabase
+    .from('quotes')
+    .select('id, quote_number, base_quote_number, status, status_before_revised')
+    .eq('id', id)
+    .single()
+
+  if (!target) return { error: 'Quote not found' }
+  if (target.status !== 'revised') return { error: 'Only revised quotes can be reactivated' }
+  if (!target.status_before_revised) return { error: 'No previous status stored — cannot reactivate' }
+
+  // Find the current active version(s) in the same family (not revised/superseded)
+  const { data: activeVersions } = await supabase
+    .from('quotes')
+    .select('id, status')
+    .eq('base_quote_number', target.base_quote_number)
+    .not('status', 'in', '("revised","superseded")')
+    .neq('id', id)
+
+  // Demote any active versions to revised
+  if (activeVersions && activeVersions.length > 0) {
+    for (const av of activeVersions) {
+      await supabase
+        .from('quotes')
+        .update({
+          status: 'revised',
+          status_before_revised: av.status,
+        })
+        .eq('id', av.id)
+    }
+  }
+
+  // Promote the target — restore its previous status
+  await supabase
+    .from('quotes')
+    .update({
+      status: target.status_before_revised,
+      status_before_revised: null,
+    })
+    .eq('id', id)
+
+  logActivity({
+    supabase,
+    user,
+    entityType: 'quote',
+    entityId: id,
+    action: 'reactivated',
+    details: {
+      quote_number: target.quote_number,
+      restored_status: target.status_before_revised,
+    },
+  })
+
+  revalidatePath('/quotes')
+  revalidatePath(`/quotes/${id}`)
+  return { success: true }
+}
+
+// --- Send to Customer ---
+
+export async function sendQuoteToCustomer(id: string) {
+  const user = await requireAuth()
+  if (!hasPermission(user, 'quotes', 'edit_all') && !hasPermission(user, 'quotes', 'edit_own')) {
+    throw new Error('Permission denied: quotes.edit')
+  }
+  const supabase = await createClient()
+
+  const { data: quote } = await supabase
+    .from('quotes')
+    .select('portal_token, quote_number')
+    .eq('id', id)
+    .single()
+
+  if (!quote) return { error: 'Quote not found' }
+
+  // Ensure portal token exists
+  let portalToken = quote.portal_token
+  if (!portalToken) {
+    portalToken = crypto.randomUUID()
+  }
+
+  const { error } = await supabase
+    .from('quotes')
+    .update({
+      status: 'sent',
+      sent_at: new Date().toISOString(),
+      portal_token: portalToken,
+    })
+    .eq('id', id)
+
+  if (error) return { error: error.message }
+
+  logActivity({
+    supabase,
+    user,
+    entityType: 'quote',
+    entityId: id,
+    action: 'sent',
+    details: { quote_number: quote.quote_number },
+  })
+
+  revalidatePath('/quotes')
+  revalidatePath(`/quotes/${id}`)
+  return { success: true, portalToken }
+}
+
+// --- Resolve Change Request ---
+
+export async function resolveChangeRequest(requestId: string, notes: string | null) {
+  const user = await requireAuth()
+  if (!hasPermission(user, 'quotes', 'edit_all') && !hasPermission(user, 'quotes', 'edit_own')) {
+    throw new Error('Permission denied: quotes.edit')
+  }
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('quote_change_requests')
+    .update({
+      status: 'resolved',
+      internal_notes: notes,
+      resolved_by: user.id,
+      resolved_at: new Date().toISOString(),
+    })
+    .eq('id', requestId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/quotes')
+  return { success: true }
+}
+
+// --- Acknowledge Acceptance ---
+
+export async function acknowledgeQuoteAcceptance(quoteId: string) {
+  const user = await requireAuth()
+  if (!hasPermission(user, 'quotes', 'edit_all') && !hasPermission(user, 'quotes', 'edit_own')) {
+    throw new Error('Permission denied: quotes.edit')
+  }
+  const supabase = await createClient()
+
+  // Verify quote is accepted and not yet acknowledged
+  const { data: quote } = await supabase
+    .from('quotes')
+    .select('id, quote_number, status, acknowledged_at')
+    .eq('id', quoteId)
+    .single()
+
+  if (!quote) return { error: 'Quote not found' }
+  if (quote.status !== 'accepted') return { error: 'Quote is not in accepted status' }
+  if (quote.acknowledged_at) return { error: 'Quote has already been acknowledged' }
+
+  const { error } = await supabase
+    .from('quotes')
+    .update({
+      acknowledged_at: new Date().toISOString(),
+      acknowledged_by: user.id,
+    })
+    .eq('id', quoteId)
+
+  if (error) return { error: error.message }
+
+  logActivity({
+    supabase,
+    user,
+    entityType: 'quote',
+    entityId: quoteId,
+    action: 'acknowledged acceptance',
+    details: { quote_number: quote.quote_number },
+  })
+
+  revalidatePath('/quotes')
+  revalidatePath(`/quotes/${quoteId}`)
+  return { success: true }
+}
+
+// --- Seed Data ---
+
+export async function seedQuotes() {
+  const user = await requirePermission('quotes', 'create')
+  const supabase = await createClient()
+
+  // Idempotent check
+  const { count } = await supabase
+    .from('quotes')
+    .select('id', { count: 'exact', head: true })
+    .eq('org_id', user.orgId)
+
+  if (count && count > 0) {
+    return { error: 'Quotes already exist. Seed skipped to prevent duplicates.' }
+  }
+
+  // Fetch lookups
+  const [
+    { data: customers },
+    { data: products },
+    { data: suppliers },
+    { data: users },
+    { data: opportunities },
+    { data: contacts },
+    { data: dealPricing },
+  ] = await Promise.all([
+    supabase.from('customers').select('id, name').eq('org_id', user.orgId),
+    supabase.from('products').select('id, sku, name, default_buy_price, default_sell_price').eq('org_id', user.orgId),
+    supabase.from('suppliers').select('id, name').eq('org_id', user.orgId),
+    supabase.from('users').select('id, first_name, last_name').eq('org_id', user.orgId),
+    supabase.from('opportunities').select('id, title, customer_id').eq('org_id', user.orgId),
+    supabase.from('contacts').select('id, customer_id, first_name, last_name').eq('is_active', true),
+    supabase.from('v_active_deal_pricing').select('*'),
+  ])
+
+  const findCustomer = (name: string) => customers?.find((c) => c.name.includes(name))
+  const findProduct = (name: string) => products?.find((p) => p.name.includes(name))
+  const findSupplier = (name: string) => suppliers?.find((s) => s.name.includes(name))
+  const findUser = (firstName: string) => users?.find((u) => u.first_name === firstName)
+  const findOpportunity = (title: string) => opportunities?.find((o) => o.title.includes(title))
+  const findContact = (customerId: string) => contacts?.find((c) => c.customer_id === customerId)
+
+  const hartwell = findCustomer('Hartwell')
+  const meridian = findCustomer('Meridian')
+  const mark = findUser('Mark')
+  const rachel = findUser('Rachel')
+
+  if (!hartwell || !meridian || !mark) {
+    return { error: 'Required lookup data not found. Please seed customers, products, and users first.' }
+  }
+
+  let created = 0
+
+  // Quote 1: Hartwell IAQ System — sent status
+  {
+    const sensirion = findSupplier('Sensirion')
+    const ubiquiti = findSupplier('Ubiquiti')
+    const excel = findSupplier('Excel')
+    const opportunity = findOpportunity('Hartwell') || findOpportunity('IAQ')
+    const contact = hartwell ? findContact(hartwell.id) : null
+
+    const sen55 = findProduct('SEN55')
+    const co2 = findProduct('CO2')
+    const ap = findProduct('Access Point') || findProduct('WiFi')
+    const poe = findProduct('PoE') || findProduct('24-Port')
+    const cat6a = findProduct('Cat6A Cable')
+    const patch = findProduct('Cat6A Patch') || findProduct('Patch')
+
+    const quote_number = await generateQuoteNumber(supabase, user.orgId)
+
+    const { data: q1 } = await supabase
+      .from('quotes')
+      .insert({
+        org_id: user.orgId,
+        customer_id: hartwell.id,
+        contact_id: contact?.id || null,
+        opportunity_id: opportunity?.id || null,
+        assigned_to: mark.id,
+        quote_number,
+        base_quote_number: quote_number,
+        status: 'sent',
+        version: 1,
+        quote_type: 'business',
+        valid_until: '2026-04-01',
+        vat_rate: 20,
+        customer_notes: 'Installation included. 12-month warranty on all hardware.',
+        internal_notes: 'High-value opportunity. Fast-track if accepted.',
+        portal_token: crypto.randomUUID(),
+        sent_at: new Date().toISOString(),
+      })
+      .select()
+      .single()
+
+    if (q1) {
+      // Create 3 groups
+      const { data: g1Groups } = await supabase
+        .from('quote_groups')
+        .insert([
+          { quote_id: q1.id, name: 'IAQ Sensors', sort_order: 0 },
+          { quote_id: q1.id, name: 'Network Infrastructure', sort_order: 1 },
+          { quote_id: q1.id, name: 'Cabling', sort_order: 2 },
+        ])
+        .select()
+
+      if (g1Groups) {
+        // Find deal pricing for Hartwell
+        const getDealLine = (productId: string) =>
+          dealPricing?.find((dp) => dp.customer_id === hartwell!.id && dp.product_id === productId)
+
+        const lineData = [
+          // IAQ Sensors group
+          { group: g1Groups[0], product: sen55, supplier: sensirion, qty: 40, buy: 24, sell: 45, order: 0 },
+          { group: g1Groups[0], product: co2, supplier: sensirion, qty: 20, buy: 38, sell: 65, order: 1 },
+          // Network Infrastructure group
+          { group: g1Groups[1], product: ap, supplier: ubiquiti, qty: 12, buy: 115, sell: 185, order: 0 },
+          { group: g1Groups[1], product: poe, supplier: ubiquiti, qty: 3, buy: 310, sell: 495, order: 1 },
+          // Cabling group
+          { group: g1Groups[2], product: cat6a, supplier: excel, qty: 8, buy: 148, sell: 225, order: 0 },
+          { group: g1Groups[2], product: patch, supplier: excel, qty: 100, buy: 2.4, sell: 4.5, order: 1 },
+        ]
+
+        const lineRows = lineData
+          .filter((l) => l.product)
+          .map((l) => {
+            const dp = getDealLine(l.product!.id)
+            return {
+              quote_id: q1.id,
+              group_id: l.group.id,
+              product_id: l.product!.id,
+              supplier_id: l.supplier?.id || null,
+              deal_reg_line_id: dp ? dp.deal_reg_line_id : null,
+              sort_order: l.order,
+              description: l.product!.name,
+              quantity: l.qty,
+              buy_price: dp ? dp.deal_cost : l.buy,
+              sell_price: l.sell,
+              fulfilment_route: 'from_stock',
+              is_optional: false,
+              requires_contract: false,
+            }
+          })
+
+        await supabase.from('quote_lines').insert(lineRows)
+      }
+
+      // Attributions: Mark 80% direct, Rachel 20% involvement
+      const attrRows = [
+        { quote_id: q1.id, user_id: mark.id, attribution_type: 'direct', split_pct: 80 },
+      ]
+      if (rachel) {
+        attrRows.push({ quote_id: q1.id, user_id: rachel.id, attribution_type: 'involvement', split_pct: 20 })
+      } else {
+        attrRows[0].split_pct = 100
+      }
+
+      await supabase.from('quote_attributions').insert(attrRows)
+      created++
+    }
+  }
+
+  // Quote 2: Meridian SmartClass — draft status
+  {
+    const ubiquiti = findSupplier('Ubiquiti')
+    const opportunity = findOpportunity('Meridian') || findOpportunity('SmartClass')
+    const contact = meridian ? findContact(meridian.id) : null
+    const ap = findProduct('Access Point') || findProduct('WiFi')
+    const poe = findProduct('PoE') || findProduct('24-Port')
+    const screen = findProduct('Display') || findProduct('Screen') || findProduct('Interactive')
+
+    const quote_number = await generateQuoteNumber(supabase, user.orgId)
+
+    const { data: q2 } = await supabase
+      .from('quotes')
+      .insert({
+        org_id: user.orgId,
+        customer_id: meridian.id,
+        contact_id: contact?.id || null,
+        opportunity_id: opportunity?.id || null,
+        assigned_to: mark.id,
+        quote_number,
+        base_quote_number: quote_number,
+        status: 'draft',
+        version: 1,
+        quote_type: 'education',
+        valid_until: '2026-04-15',
+        vat_rate: 20,
+        customer_notes: 'All items subject to term-time installation schedule.',
+        internal_notes: null,
+        portal_token: crypto.randomUUID(),
+      })
+      .select()
+      .single()
+
+    if (q2) {
+      const { data: g2Groups } = await supabase
+        .from('quote_groups')
+        .insert([
+          { quote_id: q2.id, name: 'Wireless Network', sort_order: 0 },
+          { quote_id: q2.id, name: 'Classroom Technology', sort_order: 1 },
+        ])
+        .select()
+
+      if (g2Groups) {
+        const lineData = [
+          { group: g2Groups[0], product: ap, supplier: ubiquiti, qty: 24, buy: 115, sell: 175, order: 0 },
+          { group: g2Groups[0], product: poe, supplier: ubiquiti, qty: 3, buy: 310, sell: 465, order: 1 },
+          { group: g2Groups[1], product: screen, supplier: null, qty: 6, buy: 850, sell: 1350, order: 0 },
+        ]
+
+        const lineRows = lineData
+          .filter((l) => l.product)
+          .map((l) => ({
+            quote_id: q2.id,
+            group_id: l.group.id,
+            product_id: l.product!.id,
+            supplier_id: l.supplier?.id || null,
+            deal_reg_line_id: null,
+            sort_order: l.order,
+            description: l.product!.name,
+            quantity: l.qty,
+            buy_price: l.buy,
+            sell_price: l.sell,
+            fulfilment_route: 'from_stock' as const,
+            is_optional: false,
+            requires_contract: false,
+          }))
+
+        await supabase.from('quote_lines').insert(lineRows)
+      }
+
+      // Attribution: Mark 100% direct
+      await supabase.from('quote_attributions').insert({
+        quote_id: q2.id,
+        user_id: mark.id,
+        attribution_type: 'direct',
+        split_pct: 100,
+      })
+
+      created++
+    }
+  }
+
+  revalidatePath('/quotes')
+  return { success: true, created }
+}
+
+// --- PO Document Download ---
+
+export async function getPoDocumentUrl(quoteId: string) {
+  await requirePermission('quotes', 'view')
+  const supabase = await createClient()
+
+  const { data: quote } = await supabase
+    .from('quotes')
+    .select('po_document_path')
+    .eq('id', quoteId)
+    .single()
+
+  if (!quote?.po_document_path) return { error: 'No PO document found' }
+
+  const { data, error } = await supabase.storage
+    .from('po-documents')
+    .createSignedUrl(quote.po_document_path, 60, {
+      download: true,
+    })
+
+  if (error) return { error: error.message }
+  return { url: data.signedUrl }
+}

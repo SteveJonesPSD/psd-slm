@@ -1,8 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
+import { requirePermission } from '@/lib/auth'
 import { PageHeader } from '@/components/ui/page-header'
 import { QuotesTable } from './quotes-table'
+import { QuotesPageActions } from './quotes-page-actions'
 
 export default async function QuotesPage() {
+  await requirePermission('quotes', 'view')
   const supabase = await createClient()
 
   const { data: quotes } = await supabase
@@ -11,7 +14,8 @@ export default async function QuotesPage() {
       *,
       customers(name),
       users!quotes_assigned_to_fkey(id, first_name, last_name, initials, color),
-      quote_lines(quantity, sell_price)
+      quote_lines(quantity, sell_price, buy_price),
+      opportunities(id, title)
     `)
     .order('created_at', { ascending: false })
 
@@ -20,6 +24,7 @@ export default async function QuotesPage() {
       <PageHeader
         title="All Quotes"
         subtitle={`${quotes?.length || 0} quotes`}
+        actions={<QuotesPageActions />}
       />
       <QuotesTable quotes={quotes || []} />
     </div>

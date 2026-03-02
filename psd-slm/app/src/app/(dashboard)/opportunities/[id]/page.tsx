@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { requirePermission } from '@/lib/auth'
 import { StatCard } from '@/components/ui/stat-card'
-import { Badge } from '@/components/ui/badge'
+import { Badge, QUOTE_STATUS_CONFIG } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { OPPORTUNITY_STAGE_CONFIG, type OpportunityStage } from '@/lib/opportunities'
@@ -57,6 +57,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
       .from('quotes')
       .select('id, quote_number, status, created_at, users!quotes_assigned_to_fkey(first_name, last_name), quote_lines(quantity, sell_price)')
       .eq('opportunity_id', id)
+      .not('status', 'eq', 'revised')
       .order('created_at', { ascending: false }),
     supabase
       .from('activity_log')
@@ -193,7 +194,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
           <h3 className="text-[15px] font-semibold">
             Quotes ({quotes?.length || 0})
           </h3>
-          <NewQuoteButton />
+          <NewQuoteButton opportunityId={opportunity.id} customerId={opportunity.customer_id} />
         </div>
         {quotes && quotes.length > 0 ? (
           <div className="overflow-x-auto">
@@ -218,10 +219,17 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
                 {quotes.map((q) => {
                   const lines = q.quote_lines as { quantity: number; sell_price: number }[]
                   const total = (lines || []).reduce((s, l) => s + l.quantity * l.sell_price, 0)
+                  const qStatusCfg = QUOTE_STATUS_CONFIG[q.status as keyof typeof QUOTE_STATUS_CONFIG]
                   return (
                     <tr key={q.id} className="border-b border-slate-100">
-                      <td className="px-3.5 py-2.5 font-medium">{q.quote_number}</td>
-                      <td className="px-3.5 py-2.5">{q.status}</td>
+                      <td className="px-3.5 py-2.5 font-medium">
+                        <Link href={`/quotes/${q.id}`} className="text-blue-600 hover:text-blue-800 no-underline">
+                          {q.quote_number}
+                        </Link>
+                      </td>
+                      <td className="px-3.5 py-2.5">
+                        {qStatusCfg ? <Badge label={qStatusCfg.label} color={qStatusCfg.color} bg={qStatusCfg.bg} /> : q.status}
+                      </td>
                       <td className="px-3.5 py-2.5 text-right">{formatCurrency(total)}</td>
                       <td className="px-3.5 py-2.5">{formatDate(q.created_at)}</td>
                     </tr>
