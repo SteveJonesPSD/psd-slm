@@ -31,6 +31,8 @@ export async function createProduct(formData: FormData) {
 
   const productType = (formData.get('product_type') as string) || 'goods'
 
+  const defaultDelivery = (formData.get('default_delivery_destination') as string) || 'psd_office'
+
   const { data, error } = await supabase
     .from('products')
     .insert({
@@ -45,6 +47,7 @@ export async function createProduct(formData: FormData) {
       is_serialised: serialisedStr === 'null' ? null : serialisedStr === 'true',
       is_stocked: formData.get('is_stocked') === 'true',
       product_type: productType,
+      default_delivery_destination: defaultDelivery,
     })
     .select()
     .single()
@@ -54,12 +57,38 @@ export async function createProduct(formData: FormData) {
   // Link main supplier if specified
   const mainSupplierId = formData.get('main_supplier_id') as string
   if (mainSupplierId) {
-    await supabase
-      .from('product_suppliers')
-      .insert({ product_id: data.id, supplier_id: mainSupplierId, is_preferred: true })
+    const supplierSku = (formData.get('supplier_sku') as string) || null
+    const supplierCostStr = formData.get('supplier_standard_cost') as string
+    const supplierCost = supplierCostStr ? parseFloat(supplierCostStr) : null
+    const isPreferred = formData.get('supplier_is_preferred') !== 'false'
+    const supplierUrlStr = (formData.get('supplier_url') as string) || null
+
+    const linkRow: Record<string, unknown> = {
+      product_id: data.id,
+      supplier_id: mainSupplierId,
+      is_preferred: isPreferred,
+      supplier_sku: supplierSku,
+      standard_cost: supplierCostStr && !isNaN(Number(supplierCostStr)) ? supplierCost : null,
+    }
+
+    // Try with url column first, fall back without if column doesn't exist yet
+    let linkResult = await supabase.from('product_suppliers').insert({ ...linkRow, url: supplierUrlStr })
+    if (linkResult.error?.message?.includes('url')) {
+      linkResult = await supabase.from('product_suppliers').insert(linkRow)
+    }
+    if (linkResult.error) {
+      console.error('[createProduct] Failed to link supplier:', linkResult.error)
+    }
   }
 
-  logActivity({ supabase, user, entityType: 'product', entityId: data.id, action: 'created', details: { sku, name } })
+  // Activity log with optional source tracking
+  const source = (formData.get('source') as string) || null
+  const sourceUrl = (formData.get('source_url') as string) || null
+  const activityDetails: Record<string, unknown> = { sku, name }
+  if (source) activityDetails.source = source
+  if (sourceUrl) activityDetails.source_url = sourceUrl
+
+  logActivity({ supabase, user, entityType: 'product', entityId: data.id, action: 'created', details: activityDetails })
   revalidatePath('/products')
   return { data }
 }
@@ -92,6 +121,8 @@ export async function updateProduct(id: string, formData: FormData) {
 
   const productType = (formData.get('product_type') as string) || 'goods'
 
+  const defaultDelivery = (formData.get('default_delivery_destination') as string) || 'psd_office'
+
   const updates: Record<string, unknown> = {
     sku,
     name,
@@ -103,6 +134,7 @@ export async function updateProduct(id: string, formData: FormData) {
     is_serialised: serialisedStr === 'null' ? null : serialisedStr === 'true',
     is_stocked: formData.get('is_stocked') === 'true',
     product_type: productType,
+    default_delivery_destination: defaultDelivery,
   }
 
   if (isActiveStr !== null) {
@@ -241,6 +273,86 @@ export async function seedProducts() {
 
   revalidatePath('/products')
   return { success: true }
+}
+
+export async function findSerial(serialNumber: string) {
+  await requirePermission('stock', 'view')
+  const supabase = await createClient()
+
+  const trimmed = serialNumber.trim()
+  if (!trimmed) return { data: [] }
+
+  const { data: entries, error } = await supabase
+    .from('serial_number_registry')
+    .select(`
+      *,
+      products(id, name, sku),
+      stock_locations(id, name),
+      purchase_order_lines(id, purchase_orders(id, po_number)),
+      delivery_notes(id, dn_number, dispatched_at)
+    `)
+    .ilike('serial_number', trimmed)
+
+  if (error) return { error: error.message }
+  if (!entries || entries.length === 0) return { data: [] }
+
+  // For entries with an SO line, fetch SO + customer info and linked jobs
+  const results = await Promise.all(
+    entries.map(async (entry) => {
+      let salesOrder: { id: string; so_number: string; order_date: string; customer_id: string; customers: { id: string; name: string } | null } | null = null
+      let job: { id: string; job_number: string; status: string; scheduled_date: string | null; completed_at: string | null } | null = null
+
+      if (entry.so_line_id) {
+        const { data: soLine } = await supabase
+          .from('sales_order_lines')
+          .select('id, sales_orders!inner(id, so_number, order_date, customer_id, customers(id, name))')
+          .eq('id', entry.so_line_id)
+          .maybeSingle()
+
+        if (soLine) {
+          // Supabase !inner join may return array or object depending on types
+          const so = Array.isArray(soLine.sales_orders)
+            ? soLine.sales_orders[0]
+            : soLine.sales_orders
+          if (so) {
+            const cust = Array.isArray(so.customers) ? so.customers[0] : so.customers
+            salesOrder = { ...so, customers: cust || null }
+          }
+        }
+
+        // Find linked job via source_type
+        if (salesOrder) {
+          const { data: linkedJob } = await supabase
+            .from('jobs')
+            .select('id, job_number, status, scheduled_date, completed_at')
+            .eq('source_type', 'sales_order')
+            .eq('source_id', salesOrder.id)
+            .maybeSingle()
+          if (linkedJob) job = linkedJob
+        }
+      }
+
+      return {
+        id: entry.id,
+        serial_number: entry.serial_number,
+        status: entry.status,
+        product: entry.products as { id: string; name: string; sku: string } | null,
+        location: entry.stock_locations as { id: string; name: string } | null,
+        po_number: (entry.purchase_order_lines as { id: string; purchase_orders: { id: string; po_number: string } | null } | null)
+          ?.purchase_orders?.po_number || null,
+        sales_order: salesOrder ? {
+          id: salesOrder.id,
+          so_number: salesOrder.so_number,
+          order_date: salesOrder.order_date,
+        } : null,
+        customer: salesOrder?.customers || null,
+        job,
+        delivery_note: entry.delivery_notes as { id: string; dn_number: string; dispatched_at: string | null } | null,
+      }
+    })
+  )
+
+  return { data: results }
 }
 
 async function seedProductSupplierLinks(

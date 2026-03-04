@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { Badge } from '@/components/ui/badge'
@@ -10,6 +10,8 @@ import { MarginIndicator } from '@/components/ui/margin-indicator'
 import { SerialisedBadge } from '@/components/ui/serialised-badge'
 import { formatCurrency } from '@/lib/utils'
 import { seedProducts } from './actions'
+import { AiCreateModal } from './ai-create-modal'
+import { FindSerialModal } from './find-serial-modal'
 import type { Product, ProductCategory } from '@/types/database'
 
 type ProductWithExtras = Product & {
@@ -35,6 +37,10 @@ export function ProductsTable({ products, categories }: ProductsTableProps) {
   const [showStocked, setShowStocked] = useState(false)
   const [showActive, setShowActive] = useState(true)
   const [seeding, setSeeding] = useState(false)
+  const [aiModalMode, setAiModalMode] = useState<'url' | 'paste' | 'screenshot' | null>(null)
+  const [showAiDropdown, setShowAiDropdown] = useState(false)
+  const [showFindSerial, setShowFindSerial] = useState(false)
+  const aiDropdownRef = useRef<HTMLDivElement>(null)
 
   const filtered = products.filter((p) => {
     const s = search.toLowerCase()
@@ -57,6 +63,16 @@ export function ProductsTable({ products, categories }: ProductsTableProps) {
     setSeeding(false)
     router.refresh()
   }
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (aiDropdownRef.current && !aiDropdownRef.current.contains(e.target as Node)) {
+        setShowAiDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const columns: Column<ProductWithExtras>[] = [
     {
@@ -123,6 +139,7 @@ export function ProductsTable({ products, categories }: ProductsTableProps) {
       key: 'serialised',
       label: 'Serialised',
       align: 'center',
+      nowrap: true,
       render: (r) => r.product_type === 'service' ? <span className="text-slate-300">\u2014</span> : (
         <SerialisedBadge
           productIsSerialised={r.is_serialised}
@@ -134,6 +151,7 @@ export function ProductsTable({ products, categories }: ProductsTableProps) {
       key: 'stocked',
       label: 'Stocked',
       align: 'center',
+      nowrap: true,
       render: (r) =>
         r.product_type === 'service' ? <span className="text-slate-300">\u2014</span> :
         r.is_stocked ? <Badge label="Stocked" color="#059669" bg="#ecfdf5" /> : null,
@@ -142,13 +160,14 @@ export function ProductsTable({ products, categories }: ProductsTableProps) {
       key: 'suppliers',
       label: 'Suppliers',
       align: 'center',
+      nowrap: true,
       render: (r) => r.supplier_count || '\u2014',
     },
   ]
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-4 flex-wrap">
+      <div className="flex items-center gap-3 mb-6 flex-wrap">
         <input
           type="text"
           placeholder="Search name, SKU, manufacturer..."
@@ -203,11 +222,62 @@ export function ProductsTable({ products, categories }: ProductsTableProps) {
             Clear filters
           </button>
         )}
+        <Button variant="default" onClick={() => setShowFindSerial(true)}>
+          Find Serial
+        </Button>
         <div className="flex-1" />
         {canCreate && (
-          <Button variant="primary" onClick={() => router.push('/products/new')}>
-            + New Product
-          </Button>
+          <>
+            <div ref={aiDropdownRef} className="relative flex">
+              <button
+                type="button"
+                onClick={() => setAiModalMode('screenshot')}
+                className="inline-flex items-center rounded-l-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Create with AI
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAiDropdown((v) => !v)}
+                className="inline-flex items-center rounded-r-lg border border-l-0 border-slate-200 bg-white px-1.5 py-2 text-slate-500 hover:bg-slate-50"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {showAiDropdown && (
+                <div className="absolute right-0 z-20 mt-1 top-full w-56 rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+                  <button
+                    type="button"
+                    onClick={() => { setShowAiDropdown(false); setAiModalMode('screenshot') }}
+                    className="w-full px-3 py-2 text-left hover:bg-slate-50"
+                  >
+                    <span className="block text-sm font-medium text-slate-700">From Screenshot</span>
+                    <span className="block text-xs text-slate-400">Upload or paste an image</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowAiDropdown(false); setAiModalMode('url') }}
+                    className="w-full px-3 py-2 text-left hover:bg-slate-50"
+                  >
+                    <span className="block text-sm font-medium text-slate-700">From URL</span>
+                    <span className="block text-xs text-slate-400">Fetch a product page</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowAiDropdown(false); setAiModalMode('paste') }}
+                    className="w-full px-3 py-2 text-left hover:bg-slate-50"
+                  >
+                    <span className="block text-sm font-medium text-slate-700">From Web Page</span>
+                    <span className="block text-xs text-slate-400">Paste page content</span>
+                  </button>
+                </div>
+              )}
+            </div>
+            <Button variant="primary" onClick={() => router.push('/products/new')}>
+              + New Product
+            </Button>
+          </>
         )}
       </div>
 
@@ -228,6 +298,8 @@ export function ProductsTable({ products, categories }: ProductsTableProps) {
           emptyMessage="No products match your filters."
         />
       )}
+      {aiModalMode && <AiCreateModal initialMode={aiModalMode} onClose={() => setAiModalMode(null)} />}
+      {showFindSerial && <FindSerialModal onClose={() => setShowFindSerial(false)} />}
     </div>
   )
 }
