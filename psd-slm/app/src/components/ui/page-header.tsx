@@ -8,7 +8,7 @@ interface PageHeaderProps {
 
 export function PageHeader({ title, subtitle, actions }: PageHeaderProps) {
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-8">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-10">
       <div>
         <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{title}</h2>
         {subtitle && (

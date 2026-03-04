@@ -23,7 +23,7 @@ export default async function DashboardLayout({
             <Sidebar agentAvatars={agentAvatars} />
             <div className="flex-1 flex flex-col overflow-hidden">
               <MobileHeader />
-              <main className="flex-1 overflow-auto px-4 py-4 md:px-8 md:py-6 lg:px-12 lg:py-8">
+              <main className="flex-1 overflow-auto px-6 py-6 md:px-8 md:py-8 lg:px-12 lg:py-10">
                 {children}
               </main>
             </div>

@@ -22,6 +22,7 @@ import { MergedTicketsSection } from './merged-tickets-section'
 import { MergeTicketModal } from './merge-ticket-modal'
 import { useTicketPresence } from './use-ticket-presence'
 import { PresenceBanner } from './presence-banner'
+import { AutogrumpBanner } from '@/components/helpdesk/autogrump-badge'
 import type { HelenDraftType } from '@/types/database'
 
 interface DepartmentOption {
@@ -45,9 +46,10 @@ interface TicketDetailProps {
   mergedMessages: Record<string, unknown>[]
   mergeRecordId: string | null
   currentUserId: string
+  helenAvatarUrl?: string | null
 }
 
-export function TicketDetail({ ticket, teamMembers, categories, tags, cannedResponses, drafts, departments, scratchpadNotes, assistHistory, mergedTickets, mergedMessages, mergeRecordId, currentUserId }: TicketDetailProps) {
+export function TicketDetail({ ticket, teamMembers, categories, tags, cannedResponses, drafts, departments, scratchpadNotes, assistHistory, mergedTickets, mergedMessages, mergeRecordId, currentUserId, helenAvatarUrl }: TicketDetailProps) {
   const t = ticket as Record<string, unknown>
   const statusCfg = TICKET_STATUS_CONFIG[t.status as string]
   const priorityCfg = TICKET_PRIORITY_CONFIG[t.priority as string]
@@ -114,7 +116,7 @@ export function TicketDetail({ ticket, teamMembers, categories, tags, cannedResp
   return (
     <div>
       {/* Header */}
-      <div className="mb-6 flex items-start justify-between">
+      <div className="mb-8 flex items-start justify-between">
         <div>
           <div className="flex items-center gap-3">
             <Link href="/helpdesk" className="text-sm text-slate-400 hover:text-slate-600 no-underline">
@@ -127,6 +129,15 @@ export function TicketDetail({ ticket, teamMembers, categories, tags, cannedResp
             {typeCfg && <Badge label={typeCfg.label} color={typeCfg.color} bg={typeCfg.bg} />}
             {Boolean(t.hold_open) && <Badge label="Hold Open" color="#b45309" bg="#fef3c7" />}
           </div>
+          {(t.tone_score as number | null) && (t.tone_score as number) >= 3 && (
+            <div className="mt-2">
+              <AutogrumpBanner
+                toneScore={t.tone_score as number | null}
+                toneTrend={t.tone_trend as string | null}
+                toneSummary={t.tone_summary as string | null}
+              />
+            </div>
+          )}
           <h3 className="mt-1 text-lg text-slate-700">{t.subject as string}</h3>
           <div className="mt-1 flex items-center gap-4 text-xs text-slate-400">
             <span>{(t.customers as Record<string, unknown>)?.name as string}</span>
@@ -178,7 +189,7 @@ export function TicketDetail({ ticket, teamMembers, categories, tags, cannedResp
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Left: Conversation + Reply */}
         <div className="flex-1 min-w-0 space-y-4">
-          <ConversationThread messages={allMessages} />
+          <ConversationThread messages={allMessages} helenAvatarUrl={helenAvatarUrl} />
           {!isMergedSource && (
             <>
               <DraftResponseBanner drafts={drafts} ticketId={t.id as string} />
