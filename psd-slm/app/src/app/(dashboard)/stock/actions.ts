@@ -130,7 +130,9 @@ export async function getPoLinkedSerials(productId: string, soLineId: string) {
   if (!poLines || poLines.length === 0) return { serials: [], poNumber: null }
 
   const poLineIds = poLines.map(pl => pl.id)
-  const poNumber = (poLines[0].purchase_orders as { po_number: string } | null)?.po_number || null
+  const po = poLines[0].purchase_orders as unknown
+  const poObj = Array.isArray(po) ? po[0] : po
+  const poNumber = (poObj as { po_number: string } | null)?.po_number || null
 
   // Find serials in registry that came from these PO lines and are in_stock
   const { data: serials } = await supabase
