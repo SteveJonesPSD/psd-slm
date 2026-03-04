@@ -164,7 +164,7 @@ export function ContractsTable({ contracts, hideCompany }: ContractsTableProps) 
   return (
     <div>
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 mb-4">
+      <div className="flex flex-wrap items-center gap-3 mb-6">
         <input
           type="text"
           placeholder="Search contracts..."

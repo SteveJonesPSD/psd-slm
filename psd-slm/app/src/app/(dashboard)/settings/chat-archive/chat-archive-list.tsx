@@ -66,7 +66,7 @@ export function ChatArchiveList({ initialSessions }: { initialSessions: Archived
 
   return (
     <div>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-8">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Chat Archive</h2>
           <p className="mt-1 text-sm text-slate-400">View all AI agent conversations across the team</p>
@@ -104,7 +104,7 @@ export function ChatArchiveList({ initialSessions }: { initialSessions: Archived
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 mb-4">
+      <div className="flex flex-wrap items-center gap-3 mb-6">
         <input
           type="text"
           placeholder="Search by user or message..."

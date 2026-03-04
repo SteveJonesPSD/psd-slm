@@ -325,7 +325,7 @@ export function ChatPanel({ agentAvatars }: { agentAvatars?: AgentAvatars }) {
                 </div>
               )}
               <div
-                className={`max-w-[92%] rounded-xl px-4 py-2.5 text-xs leading-relaxed overflow-hidden ${
+                className={`max-w-[92%] rounded-xl px-4 py-3 text-xs leading-relaxed overflow-hidden ${
                   msg.role === 'user'
                     ? 'text-white'
                     : 'text-slate-700'

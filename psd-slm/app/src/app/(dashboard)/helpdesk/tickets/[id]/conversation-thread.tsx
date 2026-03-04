@@ -48,8 +48,8 @@ export function ConversationThread({ messages }: { messages: Record<string, unkn
 
         if (msg.is_internal) {
           return (
-            <div key={msg.id} className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-              <div className="mb-6 flex items-center justify-between">
+            <div key={msg.id} className="rounded-xl border border-amber-200 bg-amber-50 p-5">
+              <div className="mb-2 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   {msg.sender && (
                     <div
@@ -85,11 +85,11 @@ export function ConversationThread({ messages }: { messages: Record<string, unkn
         return (
           <div
             key={msg.id}
-            className={`rounded-xl border p-4 ${
+            className={`rounded-xl border p-5 ${
               isAgent ? 'border-gray-200 bg-white ml-8' : 'border-gray-200 bg-slate-50 mr-8'
             }`}
           >
-            <div className="mb-6 flex items-center justify-between">
+            <div className="mb-2 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 {isAgent && msg.sender ? (
                   <div

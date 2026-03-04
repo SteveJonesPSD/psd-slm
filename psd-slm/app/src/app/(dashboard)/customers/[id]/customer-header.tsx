@@ -151,7 +151,7 @@ export function CustomerHeader({ customer }: CustomerHeaderProps) {
 
   return (
     <>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6 md:mb-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-8">
         <div>
           <div className="flex items-center gap-2.5">
             <h2 className="text-2xl font-bold text-slate-900">{customer.name}</h2>
