@@ -95,7 +95,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
       </Link>
 
       {/* Header */}
-      <div className="flex items-start justify-between mb-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6 md:mb-8">
         <div>
           <div className="flex items-center gap-3 mb-1">
             <h2 className="text-2xl font-bold text-slate-900">{opportunity.title}</h2>
@@ -127,7 +127,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
       </div>
 
       {/* Stats row */}
-      <div className="flex flex-wrap gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-5 mb-6">
         <StatCard
           label="Estimated Value"
           value={formatCurrency(opportunity.estimated_value || 0)}
@@ -156,9 +156,9 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
       </div>
 
       {/* Details card */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-5">
+      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
         <h3 className="text-[15px] font-semibold mb-3">Details</h3>
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-3 text-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-3 text-sm">
           <DetailField label="Company" value={customer?.name} />
           <DetailField
             label="Contact"
@@ -189,7 +189,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
       <NotesEditor opportunityId={opportunity.id} initialNotes={opportunity.notes || ''} />
 
       {/* Quotes section */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-5">
+      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-[15px] font-semibold">
             Quotes ({quotes?.length || 0})
@@ -201,16 +201,16 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr>
-                  <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-3.5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-left">
+                  <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-left">
                     Quote #
                   </th>
-                  <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-3.5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-left">
+                  <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-left">
                     Status
                   </th>
-                  <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-3.5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-right">
+                  <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-right">
                     Value
                   </th>
-                  <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-3.5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-left">
+                  <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-left">
                     Created
                   </th>
                 </tr>
@@ -222,16 +222,16 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
                   const qStatusCfg = QUOTE_STATUS_CONFIG[q.status as keyof typeof QUOTE_STATUS_CONFIG]
                   return (
                     <tr key={q.id} className="border-b border-slate-100">
-                      <td className="px-3.5 py-2.5 font-medium">
+                      <td className="px-5 py-3 font-medium whitespace-nowrap">
                         <Link href={`/quotes/${q.id}`} className="text-blue-600 hover:text-blue-800 no-underline">
                           {q.quote_number}
                         </Link>
                       </td>
-                      <td className="px-3.5 py-2.5">
+                      <td className="px-5 py-3 whitespace-nowrap">
                         {qStatusCfg ? <Badge label={qStatusCfg.label} color={qStatusCfg.color} bg={qStatusCfg.bg} /> : q.status}
                       </td>
-                      <td className="px-3.5 py-2.5 text-right">{formatCurrency(total)}</td>
-                      <td className="px-3.5 py-2.5">{formatDate(q.created_at)}</td>
+                      <td className="px-5 py-3 text-right whitespace-nowrap">{formatCurrency(total)}</td>
+                      <td className="px-5 py-3 whitespace-nowrap">{formatDate(q.created_at)}</td>
                     </tr>
                   )
                 })}

@@ -44,6 +44,7 @@ export function ProductForm({ product, categories: initialCategories, manufactur
     default_sell_price: product?.default_sell_price ?? null,
     is_serialised: product?.is_serialised === null ? 'null' : product?.is_serialised ? 'true' : product ? 'false' : 'null',
     is_stocked: product?.is_stocked ?? false,
+    default_delivery_destination: product?.default_delivery_destination || 'psd_office' as 'psd_office' | 'customer_site',
     is_active: product?.is_active ?? true,
   })
 
@@ -147,6 +148,7 @@ export function ProductForm({ product, categories: initialCategories, manufactur
     // Services: force is_serialised=false and is_stocked=false
     fd.set('is_serialised', isService ? 'false' : form.is_serialised)
     fd.set('is_stocked', isService ? 'false' : String(form.is_stocked))
+    fd.set('default_delivery_destination', isService ? 'psd_office' : form.default_delivery_destination)
     if (isEdit) fd.set('is_active', String(form.is_active))
     fd.set('main_supplier_id', selectedSupplier?.id || '')
 
@@ -173,7 +175,7 @@ export function ProductForm({ product, categories: initialCategories, manufactur
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {/* Product Type Selector */}
         <div className="col-span-2 mb-1">
           <label className="mb-1.5 block text-xs font-medium text-slate-500">
@@ -393,6 +395,26 @@ export function ProductForm({ product, categories: initialCategories, manufactur
             onChange={(v) => setForm((f) => ({ ...f, is_stocked: v }))}
             className="col-span-2"
           />
+        )}
+
+        {/* Default Delivery Destination — hidden for services */}
+        {!isService && (
+          <div className="col-span-2">
+            <Select
+              label="Default Delivery Destination"
+              options={[
+                { value: 'psd_office', label: 'Warehouse' },
+                { value: 'customer_site', label: 'Customer Site (Ship Direct)' },
+              ]}
+              value={form.default_delivery_destination}
+              onChange={(v) => setForm((f) => ({ ...f, default_delivery_destination: v as 'psd_office' | 'customer_site' }))}
+            />
+            {form.default_delivery_destination === 'customer_site' && (
+              <p className="mt-1 text-xs text-amber-600">
+                This product will default to ship direct to customer site when creating sales orders.
+              </p>
+            )}
+          </div>
         )}
 
         {isEdit && (

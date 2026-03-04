@@ -76,7 +76,7 @@ export function ActivityTimeline({ activities }: ActivityTimelineProps) {
   if (activities.length === 0) return null
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white mb-5">
+    <div className="rounded-xl border border-gray-200 bg-white mb-6">
       <button
         onClick={() => setOpen(!open)}
         className="flex items-center justify-between w-full px-5 py-4 text-left"

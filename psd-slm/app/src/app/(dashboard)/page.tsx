@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { formatCurrency } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/page-header'
@@ -20,6 +21,51 @@ export default async function DashboardPage() {
   const { data: customers } = await supabase
     .from('customers')
     .select('*')
+
+  // Visit scheduling stats
+  let visitStats = { todayCount: 0, weekCount: 0, unconfirmedCount: 0, bankHolidayPending: 0 }
+  try {
+    const { getVisitStats } = await import('@/app/(dashboard)/visit-scheduling/actions')
+    visitStats = await getVisitStats()
+  } catch {
+    // Visit scheduling module may not be deployed yet
+  }
+
+  // Contracts due for renewal (within 90 days)
+  let contractsDueRenewal = 0
+  let contractsDueUrgent = false
+  try {
+    const now = new Date()
+    const in90Days = new Date()
+    in90Days.setDate(in90Days.getDate() + 90)
+    const in30Days = new Date()
+    in30Days.setDate(in30Days.getDate() + 30)
+
+    const { data: dueContracts } = await supabase
+      .from('customer_contracts')
+      .select('end_date')
+      .eq('status', 'active')
+      .lte('end_date', in90Days.toISOString().split('T')[0])
+
+    contractsDueRenewal = dueContracts?.length || 0
+    contractsDueUrgent = (dueContracts || []).some(
+      (c: { end_date: string }) => new Date(c.end_date) <= in30Days
+    )
+  } catch {
+    // Contracts module may not be deployed yet
+  }
+
+  // Pending collections
+  let pendingCollections = 0
+  let collectedToday = 0
+  try {
+    const { getCollectionStats } = await import('@/lib/collections/actions')
+    const colStats = await getCollectionStats()
+    pendingCollections = colStats.pending
+    collectedToday = colStats.collectedToday
+  } catch {
+    // Collections module may not be deployed yet
+  }
 
   // For quotes with status 'sent', get their line totals
   const sentQuoteIds = (quotes || []).filter((q: { status: string; id: string }) => q.status === 'sent').map((q: { id: string }) => q.id)
@@ -70,7 +116,7 @@ export default async function DashboardPage() {
       <PageHeader title="Dashboard" subtitle="Sales pipeline overview" />
 
       {/* Stats row */}
-      <div className="flex flex-wrap gap-4 mb-7">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5 mb-6 md:mb-8">
         <StatCard
           label="Pipeline Value"
           value={formatCurrency(pipelineValue)}
@@ -95,8 +141,65 @@ export default async function DashboardPage() {
         />
       </div>
 
+      {/* Contracts due for renewal */}
+      {contractsDueRenewal > 0 && (
+        <Link href="/contracts?status=active" className="no-underline block mb-6">
+          <div className={`rounded-xl border p-4 flex items-center justify-between ${
+            contractsDueUrgent ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'
+          }`}>
+            <div>
+              <div className={`text-sm font-semibold ${contractsDueUrgent ? 'text-red-700' : 'text-amber-700'}`}>
+                {contractsDueRenewal} Contract{contractsDueRenewal !== 1 ? 's' : ''} Due for Renewal
+              </div>
+              <div className={`text-xs ${contractsDueUrgent ? 'text-red-500' : 'text-amber-500'}`}>
+                {contractsDueUrgent ? 'Some expire within 30 days' : 'Within the next 90 days'}
+              </div>
+            </div>
+            <span className={`text-xs font-medium ${contractsDueUrgent ? 'text-red-600' : 'text-amber-600'}`}>
+              View &rarr;
+            </span>
+          </div>
+        </Link>
+      )}
+
+      {/* Visit scheduling banner */}
+      {(visitStats.todayCount > 0 || visitStats.unconfirmedCount > 0) && (
+        <Link href="/visit-scheduling" className="no-underline block mb-6">
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 flex items-center justify-between">
+            <div>
+              <div className="text-sm font-semibold text-blue-700">
+                {visitStats.todayCount > 0
+                  ? `${visitStats.todayCount} Visit${visitStats.todayCount !== 1 ? 's' : ''} Today`
+                  : `${visitStats.unconfirmedCount} Unconfirmed Visit${visitStats.unconfirmedCount !== 1 ? 's' : ''}`}
+              </div>
+              <div className="text-xs text-blue-500">
+                {visitStats.weekCount} this week{visitStats.bankHolidayPending > 0 ? ` · ${visitStats.bankHolidayPending} on bank holidays` : ''}
+              </div>
+            </div>
+            <span className="text-xs font-medium text-blue-600">View Calendar &rarr;</span>
+          </div>
+        </Link>
+      )}
+
+      {/* Pending collections banner */}
+      {pendingCollections > 0 && (
+        <Link href="/collections?status=pending" className="no-underline block mb-6">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 flex items-center justify-between">
+            <div>
+              <div className="text-sm font-semibold text-amber-700">
+                {pendingCollections} Collection{pendingCollections !== 1 ? 's' : ''} Pending Pickup
+              </div>
+              <div className="text-xs text-amber-500">
+                {collectedToday > 0 ? `${collectedToday} collected today` : 'Awaiting engineer collection'}
+              </div>
+            </div>
+            <span className="text-xs font-medium text-amber-600">View &rarr;</span>
+          </div>
+        </Link>
+      )}
+
       {/* Two-column grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Pipeline by Stage */}
         <div className="rounded-xl border border-gray-200 bg-white p-5">
           <h3 className="text-[15px] font-semibold mb-4">Pipeline by Stage</h3>

@@ -202,7 +202,7 @@ export function TemplateEditor({
       />
 
       {/* Template Header Fields */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-4">
+      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
         <h3 className="text-[15px] font-semibold text-slate-900 mb-4">Template Details</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Name */}

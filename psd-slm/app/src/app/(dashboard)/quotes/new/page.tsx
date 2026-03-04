@@ -24,13 +24,13 @@ export default async function NewQuotePage({ searchParams }: PageProps) {
     { data: productSuppliers },
     { data: opportunity },
   ] = await Promise.all([
-    supabase.from('customers').select('id, name').eq('is_active', true).order('name'),
+    supabase.from('customers').select('id, name, customer_type').eq('is_active', true).order('name'),
     supabase.from('contacts').select('id, customer_id, first_name, last_name, email').eq('is_active', true),
     supabase.from('products').select('id, sku, name, category_id, default_buy_price, default_sell_price, product_categories(name)').eq('is_active', true).order('name'),
     supabase.from('product_categories').select('id, name').order('sort_order'),
     supabase.from('suppliers').select('id, name').eq('is_active', true).order('name'),
     supabase.from('users').select('id, first_name, last_name, initials, color').eq('is_active', true).order('first_name'),
-    supabase.from('brands').select('id, name, logo_path, is_default').eq('is_active', true).order('sort_order'),
+    supabase.from('brands').select('id, name, logo_path, is_default, customer_type').eq('is_active', true).order('sort_order'),
     supabase.from('v_active_deal_pricing').select('*'),
     supabase.from('product_suppliers').select('product_id, supplier_id, standard_cost, is_preferred'),
     opportunity_id

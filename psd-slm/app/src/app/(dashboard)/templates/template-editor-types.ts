@@ -1,4 +1,5 @@
 import type { FormGroup, FormLine } from '../quotes/builder/quote-builder-types'
+import { generateUUID } from '@/lib/utils'
 
 // Re-export for convenience
 export type { FormGroup, FormLine }
@@ -55,7 +56,7 @@ export function templateFormReducer(state: TemplateFormState, action: TemplateAc
 
     case 'ADD_GROUP': {
       const newGroup: FormGroup = {
-        tempId: crypto.randomUUID(),
+        tempId: generateUUID(),
         name: action.name || `Group ${state.groups.length + 1}`,
         sort_order: state.groups.length,
       }
@@ -126,7 +127,7 @@ export function templateFormReducer(state: TemplateFormState, action: TemplateAc
 // --- Initial state ---
 
 export function createInitialTemplateState(): TemplateFormState {
-  const defaultGroupId = crypto.randomUUID()
+  const defaultGroupId = generateUUID()
   return {
     name: '',
     description: '',
@@ -154,18 +155,18 @@ export function loadExistingTemplate(
 ): Partial<TemplateFormState> {
   const groupTempMap = new Map<string, string>()
   const formGroups: FormGroup[] = groups.map((g) => {
-    const tempId = crypto.randomUUID()
+    const tempId = generateUUID()
     groupTempMap.set(g.id, tempId)
     return { tempId, name: g.name, sort_order: g.sort_order }
   })
 
   if (formGroups.length === 0) {
-    const tempId = crypto.randomUUID()
+    const tempId = generateUUID()
     formGroups.push({ tempId, name: 'General', sort_order: 0 })
   }
 
   const formLines: FormLine[] = lines.map((l) => ({
-    tempId: crypto.randomUUID(),
+    tempId: generateUUID(),
     tempGroupId: l.group_id ? (groupTempMap.get(l.group_id) || formGroups[0].tempId) : formGroups[0].tempId,
     product_id: l.product_id,
     supplier_id: l.supplier_id,

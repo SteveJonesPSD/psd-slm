@@ -6,15 +6,16 @@ import { CurrencyInput } from '@/components/ui/currency-input'
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency } from '@/lib/utils'
 import { getMarginColor } from '@/lib/margin'
-import type { FormLine, QuoteAction, SupplierLookup } from './quote-builder-types'
+import type { FormLine, QuoteAction, SupplierLookup, ProductLookup } from './quote-builder-types'
 
 interface LineItemRowProps {
   line: FormLine
   dispatch: React.Dispatch<QuoteAction>
   suppliers: SupplierLookup[]
+  products?: ProductLookup[]
 }
 
-export function LineItemRow({ line, dispatch, suppliers }: LineItemRowProps) {
+export function LineItemRow({ line, dispatch, suppliers, products }: LineItemRowProps) {
   const {
     attributes,
     listeners,
@@ -68,6 +69,10 @@ export function LineItemRow({ line, dispatch, suppliers }: LineItemRowProps) {
           className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm outline-none focus:border-slate-400"
           placeholder="Description"
         />
+        {line.product_id && products && (() => {
+          const p = products.find((pr) => pr.id === line.product_id)
+          return p?.sku ? <div className="text-[10px] text-slate-400 mt-0.5 px-1">{p.sku}</div> : null
+        })()}
       </td>
 
       {/* Fulfilment Route */}

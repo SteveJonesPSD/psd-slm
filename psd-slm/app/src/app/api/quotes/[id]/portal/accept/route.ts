@@ -13,9 +13,15 @@ export async function POST(
   const token = formData.get('token') as string
   const poNumber = formData.get('po_number') as string
   const poFile = formData.get('po_file') as File | null
+  const signedByName = formData.get('signed_by_name') as string | null
+  const signatureData = formData.get('signature_data') as string | null
 
   if (!token || !poNumber) {
     return NextResponse.json({ error: 'Token and PO number are required' }, { status: 400 })
+  }
+
+  if (!signedByName || !signatureData) {
+    return NextResponse.json({ error: 'Name and signature are required' }, { status: 400 })
   }
 
   // Validate token matches quote
@@ -49,6 +55,27 @@ export async function POST(
     }
   }
 
+  // Upload signature PNG
+  let signatureImagePath: string | null = null
+  if (signatureData) {
+    // signatureData is a data URL: "data:image/png;base64,..."
+    const base64Match = signatureData.match(/^data:image\/png;base64,(.+)$/)
+    if (base64Match) {
+      const buffer = Buffer.from(base64Match[1], 'base64')
+      const sigPath = `${id}/signature-${Date.now()}.png`
+
+      const { error: sigUploadError } = await supabase.storage
+        .from('e-signatures')
+        .upload(sigPath, buffer, {
+          contentType: 'image/png',
+        })
+
+      if (!sigUploadError) {
+        signatureImagePath = sigPath
+      }
+    }
+  }
+
   // Update quote
   const { error } = await supabase
     .from('quotes')
@@ -56,7 +83,10 @@ export async function POST(
       status: 'accepted',
       customer_po: poNumber,
       accepted_at: new Date().toISOString(),
+      accepted_by_type: 'customer_portal',
       po_document_path: poDocumentPath,
+      signed_by_name: signedByName,
+      signature_image_path: signatureImagePath,
     })
     .eq('id', id)
 

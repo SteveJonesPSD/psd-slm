@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
-import { getUnreadCount, getNotifications, markAsRead, markAllAsRead } from '@/app/(dashboard)/notifications/actions'
+import { getNotifications, markAsRead, markAllAsRead } from '@/app/(dashboard)/notifications/actions'
 import { formatRelativeTime } from '@/lib/utils'
 import type { Notification } from '@/types/database'
 
@@ -28,8 +29,11 @@ export function NotificationBell({ collapsed }: NotificationBellProps) {
 
   const fetchCount = useCallback(async () => {
     try {
-      const count = await getUnreadCount()
-      setUnreadCount(count)
+      const res = await fetch('/api/notifications/unread-count')
+      if (res.ok) {
+        const data = await res.json()
+        setUnreadCount(data.count)
+      }
     } catch {
       // Silently fail — user may not be authenticated yet
     }
@@ -123,8 +127,8 @@ export function NotificationBell({ collapsed }: NotificationBellProps) {
         {!collapsed && <span className="whitespace-nowrap">Notifications</span>}
       </button>
 
-      {/* Dropdown — rendered with fixed positioning so it escapes sidebar overflow */}
-      {open && (
+      {/* Dropdown — rendered via portal to escape sidebar transform/overflow */}
+      {open && createPortal(
         <div
           ref={dropdownRef}
           className="fixed w-80 rounded-xl border border-slate-700 bg-slate-800 shadow-xl z-50"
@@ -191,7 +195,8 @@ export function NotificationBell({ collapsed }: NotificationBellProps) {
               View all notifications
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   )

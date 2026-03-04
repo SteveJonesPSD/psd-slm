@@ -15,7 +15,7 @@ export default async function SettingsLayout({
   }
 
   return (
-    <div className="flex gap-8">
+    <div className="flex flex-col md:flex-row gap-6 md:gap-8">
       <SettingsNav />
       <div className="min-w-0 flex-1">{children}</div>
     </div>

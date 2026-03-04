@@ -7,12 +7,12 @@ interface StatCardProps {
 
 export function StatCard({ label, value, sub, accent = '#1e293b' }: StatCardProps) {
   return (
-    <div className="flex-1 min-w-[160px] rounded-xl border border-gray-200 bg-white p-5">
-      <div className="text-xs font-medium uppercase tracking-wide text-slate-400 mb-1.5">
+    <div className="flex-1 min-w-[120px] rounded-xl border border-gray-200 bg-white px-4 py-2.5 sm:px-4 sm:py-3 md:px-5 md:py-4">
+      <div className="text-[10px] sm:text-xs font-medium uppercase tracking-wide text-slate-400 mb-1">
         {label}
       </div>
       <div
-        className="text-[28px] font-bold leading-tight tracking-tight"
+        className="text-lg sm:text-xl md:text-2xl font-bold leading-tight tracking-tight"
         style={{ color: accent }}
       >
         {value}

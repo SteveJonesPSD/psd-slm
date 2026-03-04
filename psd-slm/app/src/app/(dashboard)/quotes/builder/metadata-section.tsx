@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { SearchableSelect } from '@/components/ui/form-fields'
 import type { QuoteFormState, QuoteAction, CustomerLookup, ContactLookup, UserLookup, BrandLookup } from './quote-builder-types'
 
 interface MetadataSectionProps {
@@ -19,10 +20,39 @@ export function MetadataSection({ state, dispatch, customers, contacts, users, b
     ? contacts.filter((c) => c.customer_id === state.customer_id)
     : []
 
+  // Get the selected customer's type for brand filtering
+  const selectedCustomer = customers.find((c) => c.id === state.customer_id)
+  const customerType = selectedCustomer?.customer_type || null
+
+  // Filter brands: show matching brands + universal brands (no customer_type set)
+  const filteredBrands = customerType
+    ? brands.filter((b) => !b.customer_type || b.customer_type === customerType)
+    : brands
+
   const handleCustomerChange = (value: string) => {
     dispatch({ type: 'SET_FIELD', field: 'customer_id', value })
     // Reset contact when customer changes
     dispatch({ type: 'SET_FIELD', field: 'contact_id', value: '' })
+
+    // Auto-populate quote_type and brand from customer type
+    const customer = customers.find((c) => c.id === value)
+    if (customer?.customer_type) {
+      dispatch({ type: 'SET_FIELD', field: 'quote_type', value: customer.customer_type })
+
+      // Filter brands for this customer type
+      const matching = brands.filter((b) => !b.customer_type || b.customer_type === customer.customer_type)
+      // If current brand is not in the filtered list, auto-select best match
+      if (!matching.some((b) => b.id === state.brand_id)) {
+        const preferred = matching.find((b) => b.is_default) || matching[0]
+        if (preferred) {
+          dispatch({ type: 'SET_FIELD', field: 'brand_id', value: preferred.id })
+        }
+      }
+      // If exactly one matching brand, auto-select it
+      if (matching.length === 1) {
+        dispatch({ type: 'SET_FIELD', field: 'brand_id', value: matching[0].id })
+      }
+    }
   }
 
   return (
@@ -40,55 +70,33 @@ export function MetadataSection({ state, dispatch, customers, contacts, users, b
         <div className="border-t border-gray-100 px-5 py-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* Customer */}
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-500">Customer *</label>
-              <select
-                value={state.customer_id}
-                onChange={(e) => handleCustomerChange(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
-              >
-                <option value="">Select customer...</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            </div>
+            <SearchableSelect
+              label="Customer"
+              required
+              value={state.customer_id}
+              options={customers.map((c) => ({ value: c.id, label: c.name }))}
+              placeholder="Search customers..."
+              onChange={handleCustomerChange}
+            />
 
             {/* Contact */}
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-500">Contact</label>
-              <select
-                value={state.contact_id}
-                onChange={(e) => dispatch({ type: 'SET_FIELD', field: 'contact_id', value: e.target.value })}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
-                disabled={!state.customer_id}
-              >
-                <option value="">Select contact...</option>
-                {filteredContacts.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.first_name} {c.last_name}
-                    {c.email ? ` (${c.email})` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <SearchableSelect
+              label="Contact"
+              value={state.contact_id}
+              options={filteredContacts.map((c) => ({ value: c.id, label: `${c.first_name} ${c.last_name}${c.email ? ` (${c.email})` : ''}` }))}
+              placeholder="Search contacts..."
+              onChange={(val) => dispatch({ type: 'SET_FIELD', field: 'contact_id', value: val })}
+              disabled={!state.customer_id}
+            />
 
             {/* Assigned To */}
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-500">Assigned To</label>
-              <select
-                value={state.assigned_to}
-                onChange={(e) => dispatch({ type: 'SET_FIELD', field: 'assigned_to', value: e.target.value })}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
-              >
-                <option value="">Select user...</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.first_name} {u.last_name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <SearchableSelect
+              label="Assigned To"
+              value={state.assigned_to}
+              options={users.map((u) => ({ value: u.id, label: `${u.first_name} ${u.last_name}` }))}
+              placeholder="Search users..."
+              onChange={(val) => dispatch({ type: 'SET_FIELD', field: 'assigned_to', value: val })}
+            />
 
             {/* Quote Type */}
             <div>
@@ -107,21 +115,14 @@ export function MetadataSection({ state, dispatch, customers, contacts, users, b
             </div>
 
             {/* Brand */}
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-500">Brand *</label>
-              <select
-                value={state.brand_id}
-                onChange={(e) => dispatch({ type: 'SET_FIELD', field: 'brand_id', value: e.target.value })}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
-              >
-                <option value="">Select brand...</option>
-                {brands.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}{b.is_default ? ' (Default)' : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <SearchableSelect
+              label="Brand"
+              required
+              value={state.brand_id}
+              options={filteredBrands.map((b) => ({ value: b.id, label: `${b.name}${b.is_default ? ' (Default)' : ''}` }))}
+              placeholder="Search brands..."
+              onChange={(val) => dispatch({ type: 'SET_FIELD', field: 'brand_id', value: val })}
+            />
 
             {/* Valid Until */}
             <div>

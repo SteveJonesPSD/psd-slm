@@ -27,6 +27,13 @@ const API_KEYS: ApiKeyInfo[] = [
     placeholder: 're_...',
   },
   {
+    key: 'ideal_postcodes_api_key',
+    label: 'Ideal Postcodes',
+    description: 'UK postcode address lookup for customer forms',
+    testable: true,
+    placeholder: 'ak_...',
+  },
+  {
     key: 'halopsa_api_url',
     label: 'HaloPSA URL',
     description: 'Helpdesk/PSA integration base URL',

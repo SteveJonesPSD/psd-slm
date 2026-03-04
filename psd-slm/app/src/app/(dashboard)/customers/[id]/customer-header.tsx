@@ -9,6 +9,14 @@ import { Input, Select, Textarea } from '@/components/ui/form-fields'
 import { updateCustomer } from '../actions'
 import type { Customer } from '@/types/database'
 
+interface AddressResult {
+  line_1: string
+  line_2: string
+  city: string
+  county: string
+  postcode: string
+}
+
 interface CustomerHeaderProps {
   customer: Customer
 }
@@ -27,6 +35,7 @@ export function CustomerHeader({ customer }: CustomerHeaderProps) {
     customer_type: customer.customer_type || '',
     dfe_number: customer.dfe_number || '',
     account_number: customer.account_number || '',
+    xero_reference: customer.xero_reference || '',
     address_line1: customer.address_line1 || '',
     address_line2: customer.address_line2 || '',
     city: customer.city || '',
@@ -42,6 +51,10 @@ export function CustomerHeader({ customer }: CustomerHeaderProps) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [lookingUp, setLookingUp] = useState(false)
+  const [lookingUpPostcode, setLookingUpPostcode] = useState(false)
+  const [postcodeError, setPostcodeError] = useState('')
+  const [addressResults, setAddressResults] = useState<AddressResult[]>([])
+  const [showAddressPicker, setShowAddressPicker] = useState(false)
 
   const upd = (field: string) => (value: string) =>
     setForm((f) => ({ ...f, [field]: value }))
@@ -74,6 +87,42 @@ export function CustomerHeader({ customer }: CustomerHeaderProps) {
     setLookingUp(false)
   }
 
+  const handlePostcodeLookup = async () => {
+    if (!form.postcode.trim()) return
+    setLookingUpPostcode(true)
+    setPostcodeError('')
+    setAddressResults([])
+    setShowAddressPicker(false)
+    try {
+      const res = await fetch(`/api/address-lookup?postcode=${encodeURIComponent(form.postcode.trim())}`)
+      const data = await res.json()
+      if (data.error) {
+        setPostcodeError(data.error)
+      } else if (data.addresses?.length > 0) {
+        setAddressResults(data.addresses)
+        setShowAddressPicker(true)
+      } else {
+        setPostcodeError('No addresses found')
+      }
+    } catch {
+      setPostcodeError('Address lookup failed')
+    }
+    setLookingUpPostcode(false)
+  }
+
+  const handleSelectAddress = (addr: AddressResult) => {
+    setForm((f) => ({
+      ...f,
+      address_line1: addr.line_1,
+      address_line2: addr.line_2,
+      city: addr.city,
+      county: addr.county,
+      postcode: addr.postcode,
+    }))
+    setShowAddressPicker(false)
+    setAddressResults([])
+  }
+
   const handleSave = async () => {
     setSaving(true)
     setError('')
@@ -102,7 +151,7 @@ export function CustomerHeader({ customer }: CustomerHeaderProps) {
 
   return (
     <>
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6 md:mb-8">
         <div>
           <div className="flex items-center gap-2.5">
             <h2 className="text-2xl font-bold text-slate-900">{customer.name}</h2>
@@ -160,11 +209,50 @@ export function CustomerHeader({ customer }: CustomerHeaderProps) {
               onChange={upd('account_number')}
             />
             <Input
+              label="Xero Reference"
+              value={form.xero_reference}
+              onChange={upd('xero_reference')}
+            />
+            <Input
               label="Payment Terms (days)"
               type="number"
               value={form.payment_terms}
               onChange={upd('payment_terms')}
             />
+            <div className="col-span-2">
+              <div className="flex gap-2 items-end">
+                <Input label="Postcode" value={form.postcode} onChange={(v) => { upd('postcode')(v); setShowAddressPicker(false); setPostcodeError('') }} className="flex-1" />
+                <button
+                  type="button"
+                  onClick={handlePostcodeLookup}
+                  disabled={!form.postcode.trim() || lookingUpPostcode}
+                  className="mb-[1px] rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-500 hover:bg-slate-50 hover:text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Find address"
+                >
+                  {lookingUpPostcode ? 'Searching...' : 'Find Address'}
+                </button>
+              </div>
+              {postcodeError && (
+                <p className="mt-1 text-xs text-red-600">{postcodeError}</p>
+              )}
+              {showAddressPicker && addressResults.length > 0 && (
+                <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-white">
+                  <div className="px-3 py-1.5 text-xs font-medium text-slate-400 border-b border-slate-100">
+                    {addressResults.length} address{addressResults.length !== 1 ? 'es' : ''} found — select one
+                  </div>
+                  {addressResults.map((addr, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => handleSelectAddress(addr)}
+                      className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 border-b border-slate-50 last:border-b-0"
+                    >
+                      {[addr.line_1, addr.line_2, addr.city, addr.county].filter(Boolean).join(', ')}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <Input
               label="Address Line 1"
               value={form.address_line1}
@@ -179,16 +267,16 @@ export function CustomerHeader({ customer }: CustomerHeaderProps) {
             />
             <Input label="City" value={form.city} onChange={upd('city')} />
             <Input label="County" value={form.county} onChange={upd('county')} />
-            <Input label="Postcode" value={form.postcode} onChange={upd('postcode')} />
             <Input label="Phone" value={form.phone} onChange={upd('phone')} />
             <Input label="Email" value={form.email} onChange={upd('email')} />
             <Input label="Website" value={form.website} onChange={upd('website')} />
-            <Input
-              label="VAT Number"
-              value={form.vat_number}
-              onChange={upd('vat_number')}
-              disabled={isEducation || isCharity}
-            />
+            {!isEducation && !isCharity && (
+              <Input
+                label="VAT Number"
+                value={form.vat_number}
+                onChange={upd('vat_number')}
+              />
+            )}
             <Textarea
               label="Notes"
               value={form.notes}

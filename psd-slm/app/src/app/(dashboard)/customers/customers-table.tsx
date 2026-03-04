@@ -22,6 +22,14 @@ const CUSTOMER_TYPE_OPTIONS = [
   { value: 'charity', label: 'Charity' },
 ]
 
+interface AddressResult {
+  line_1: string
+  line_2: string
+  city: string
+  county: string
+  postcode: string
+}
+
 const EMPTY_FORM = {
   name: '',
   customer_type: '',
@@ -48,6 +56,10 @@ export function CustomersTable({ customers }: CustomersTableProps) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [lookingUp, setLookingUp] = useState(false)
+  const [lookingUpPostcode, setLookingUpPostcode] = useState(false)
+  const [postcodeError, setPostcodeError] = useState('')
+  const [addressResults, setAddressResults] = useState<AddressResult[]>([])
+  const [showAddressPicker, setShowAddressPicker] = useState(false)
 
   const filtered = customers.filter((c) =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -85,6 +97,42 @@ export function CustomersTable({ customers }: CustomersTableProps) {
     setLookingUp(false)
   }
 
+  const handlePostcodeLookup = async () => {
+    if (!form.postcode.trim()) return
+    setLookingUpPostcode(true)
+    setPostcodeError('')
+    setAddressResults([])
+    setShowAddressPicker(false)
+    try {
+      const res = await fetch(`/api/address-lookup?postcode=${encodeURIComponent(form.postcode.trim())}`)
+      const data = await res.json()
+      if (data.error) {
+        setPostcodeError(data.error)
+      } else if (data.addresses?.length > 0) {
+        setAddressResults(data.addresses)
+        setShowAddressPicker(true)
+      } else {
+        setPostcodeError('No addresses found')
+      }
+    } catch {
+      setPostcodeError('Address lookup failed')
+    }
+    setLookingUpPostcode(false)
+  }
+
+  const handleSelectAddress = (addr: AddressResult) => {
+    setForm((f) => ({
+      ...f,
+      address_line1: addr.line_1,
+      address_line2: addr.line_2,
+      city: addr.city,
+      county: addr.county,
+      postcode: addr.postcode,
+    }))
+    setShowAddressPicker(false)
+    setAddressResults([])
+  }
+
   const handleSave = async () => {
     setSaving(true)
     setError('')
@@ -120,6 +168,7 @@ export function CustomersTable({ customers }: CustomersTableProps) {
     {
       key: 'customer_type',
       label: 'Type',
+      nowrap: true,
       render: (r) => {
         if (!r.customer_type) return null
         const cfg = CUSTOMER_TYPE_CONFIG[r.customer_type as keyof typeof CUSTOMER_TYPE_CONFIG]
@@ -127,34 +176,36 @@ export function CustomersTable({ customers }: CustomersTableProps) {
       },
     },
     { key: 'city', label: 'City' },
-    { key: 'postcode', label: 'Postcode' },
-    { key: 'phone', label: 'Phone' },
+    { key: 'postcode', label: 'Postcode', nowrap: true },
+    { key: 'phone', label: 'Phone', nowrap: true },
     {
       key: 'payment_terms',
       label: 'Terms',
       align: 'center',
+      nowrap: true,
       render: (r) => `${r.payment_terms} days`,
     },
     {
       key: 'contacts',
       label: 'Contacts',
       align: 'center',
+      nowrap: true,
       render: (r) => r.contacts?.length || 0,
     },
   ]
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6">
         <input
           type="text"
           placeholder="Search customers..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="max-w-xs w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+          className="w-full sm:max-w-xs rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
         />
-        <div className="flex-1" />
-        <Button variant="primary" onClick={() => setShowForm(true)}>
+        <div className="hidden sm:block flex-1" />
+        <Button variant="primary" onClick={() => setShowForm(true)} className="w-full sm:w-auto">
           + New Customer
         </Button>
       </div>
@@ -173,7 +224,7 @@ export function CustomersTable({ customers }: CustomersTableProps) {
               {error}
             </div>
           )}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Select
               label="Customer Type *"
               options={CUSTOMER_TYPE_OPTIONS}
@@ -209,6 +260,8 @@ export function CustomersTable({ customers }: CustomersTableProps) {
               label="Account Number"
               value={form.account_number}
               onChange={upd('account_number')}
+              readOnly
+              placeholder="Auto-generated on save"
             />
             <Input
               label="Payment Terms (days)"
@@ -216,6 +269,40 @@ export function CustomersTable({ customers }: CustomersTableProps) {
               value={form.payment_terms}
               onChange={upd('payment_terms')}
             />
+            <div className="col-span-2">
+              <div className="flex gap-2 items-end">
+                <Input label="Postcode" value={form.postcode} onChange={(v) => { upd('postcode')(v); setShowAddressPicker(false); setPostcodeError('') }} className="flex-1" />
+                <button
+                  type="button"
+                  onClick={handlePostcodeLookup}
+                  disabled={!form.postcode.trim() || lookingUpPostcode}
+                  className="mb-[1px] rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-500 hover:bg-slate-50 hover:text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Find address"
+                >
+                  {lookingUpPostcode ? 'Searching...' : 'Find Address'}
+                </button>
+              </div>
+              {postcodeError && (
+                <p className="mt-1 text-xs text-red-600">{postcodeError}</p>
+              )}
+              {showAddressPicker && addressResults.length > 0 && (
+                <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-white">
+                  <div className="px-3 py-1.5 text-xs font-medium text-slate-400 border-b border-slate-100">
+                    {addressResults.length} address{addressResults.length !== 1 ? 'es' : ''} found — select one
+                  </div>
+                  {addressResults.map((addr, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => handleSelectAddress(addr)}
+                      className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 border-b border-slate-50 last:border-b-0"
+                    >
+                      {[addr.line_1, addr.line_2, addr.city, addr.county].filter(Boolean).join(', ')}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <Input
               label="Address Line 1"
               value={form.address_line1}
@@ -230,16 +317,16 @@ export function CustomersTable({ customers }: CustomersTableProps) {
             />
             <Input label="City" value={form.city} onChange={upd('city')} />
             <Input label="County" value={form.county} onChange={upd('county')} />
-            <Input label="Postcode" value={form.postcode} onChange={upd('postcode')} />
             <Input label="Phone" value={form.phone} onChange={upd('phone')} />
             <Input label="Email" value={form.email} onChange={upd('email')} />
             <Input label="Website" value={form.website} onChange={upd('website')} />
-            <Input
-              label="VAT Number"
-              value={form.vat_number}
-              onChange={upd('vat_number')}
-              disabled={isEducation || isCharity}
-            />
+            {!isEducation && !isCharity && (
+              <Input
+                label="VAT Number"
+                value={form.vat_number}
+                onChange={upd('vat_number')}
+              />
+            )}
             <Textarea
               label="Notes"
               value={form.notes}

@@ -1,0 +1,228 @@
+'use client'
+
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
+import { addMessage } from '../../actions'
+import type { PresenceViewer } from '../../actions'
+import { AiSuggestModal } from './ai-suggest-modal'
+import type { TicketContext } from './ai-suggest-modal'
+
+interface ReplyBoxProps {
+  ticketId: string
+  ticketStatus: string
+  cannedResponses: { id: string; title: string; body: string; category: string | null }[]
+  ticketContext?: TicketContext
+  composeRef?: React.MutableRefObject<((text: string) => void) | null>
+  viewers?: PresenceViewer[]
+}
+
+export function ReplyBox({ ticketId, ticketStatus, cannedResponses, ticketContext, composeRef, viewers }: ReplyBoxProps) {
+  const router = useRouter()
+  const [body, setBody] = useState('')
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Auto-resize textarea when content changes (especially after AI/Helen injection)
+  const autoResize = useCallback(() => {
+    const ta = textareaRef.current
+    if (!ta) return
+    ta.style.height = 'auto'
+    const minHeight = 112 // ~6 rows baseline
+    const maxHeight = 320
+    ta.style.height = `${Math.min(maxHeight, Math.max(minHeight, ta.scrollHeight))}px`
+  }, [])
+
+  useEffect(() => { autoResize() }, [body, autoResize])
+
+  // Expose a compose function so parent/siblings can inject text into the reply box
+  if (composeRef) {
+    composeRef.current = (text: string) => {
+      setBody(prev => prev ? `${prev}\n\n${text}` : text)
+    }
+  }
+  const [isInternal, setIsInternal] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [showCanned, setShowCanned] = useState(false)
+  const [showAiSuggest, setShowAiSuggest] = useState(false)
+  const [showPresenceConfirm, setShowPresenceConfirm] = useState(false)
+
+  const isClosed = ['closed', 'cancelled'].includes(ticketStatus)
+
+  async function doSend() {
+    setSending(true)
+    try {
+      const result = await addMessage(ticketId, {
+        body: body.trim(),
+        is_internal: isInternal,
+      })
+      if (!result.error) {
+        setBody('')
+        router.refresh()
+      }
+    } finally {
+      setSending(false)
+    }
+  }
+
+  async function handleSend() {
+    if (!body.trim()) return
+    // Warn if other agents are viewing this ticket (skip for internal notes)
+    if (!isInternal && viewers && viewers.length > 0) {
+      setShowPresenceConfirm(true)
+      return
+    }
+    doSend()
+  }
+
+  function insertCannedResponse(responseBody: string) {
+    setBody(prev => prev ? `${prev}\n\n${responseBody}` : responseBody)
+    setShowCanned(false)
+  }
+
+  if (isClosed) {
+    return (
+      <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-center text-sm text-slate-400">
+        This ticket is {ticketStatus}. Reopen it to add messages.
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-4">
+      {/* Mode toggle */}
+      <div className="mb-3 flex items-center gap-2">
+        <button
+          onClick={() => setIsInternal(false)}
+          className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+            !isInternal ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Reply
+        </button>
+        <button
+          onClick={() => setIsInternal(true)}
+          className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+            isInternal ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Internal Note
+        </button>
+
+        <div className="ml-auto flex items-center gap-2 relative">
+          {ticketContext && (
+            <button
+              onClick={() => setShowAiSuggest(true)}
+              className="rounded-md border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-100"
+            >
+              AI Suggest
+            </button>
+          )}
+          <button
+            onClick={() => setShowCanned(!showCanned)}
+            className="rounded-md border border-gray-200 px-3 py-1.5 text-xs text-slate-500 hover:bg-gray-50"
+          >
+            Canned Response
+          </button>
+          {showCanned && (
+            <div className="absolute right-0 top-full mt-1 z-10 w-72 rounded-lg border border-gray-200 bg-white shadow-lg max-h-64 overflow-y-auto">
+              {cannedResponses.length === 0 ? (
+                <div className="p-3 text-xs text-slate-400">No canned responses available</div>
+              ) : (
+                cannedResponses.map(cr => (
+                  <button
+                    key={cr.id}
+                    onClick={() => insertCannedResponse(cr.body)}
+                    className="w-full text-left px-3 py-2 hover:bg-gray-50 border-b border-gray-50 last:border-0"
+                  >
+                    <div className="text-xs font-medium text-slate-700">{cr.title}</div>
+                    <div className="text-[10px] text-slate-400 truncate">{cr.body.substring(0, 60)}...</div>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Text area */}
+      <textarea
+        ref={textareaRef}
+        value={body}
+        onChange={e => setBody(e.target.value)}
+        placeholder={isInternal ? 'Add an internal note...' : 'Type your reply...'}
+        style={{ minHeight: '112px', maxHeight: '320px' }}
+        className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-1 resize-none overflow-y-auto ${
+          isInternal
+            ? 'border-amber-200 bg-amber-50/50 focus:border-amber-400 focus:ring-amber-400'
+            : 'border-gray-300 focus:border-indigo-500 focus:ring-indigo-500'
+        }`}
+      />
+
+      {/* Send */}
+      <div className="mt-3 flex items-center justify-between">
+        <div className="text-xs text-slate-400">
+          {isInternal && 'Internal notes are not visible to the customer'}
+        </div>
+        <button
+          onClick={handleSend}
+          disabled={sending || !body.trim()}
+          className={`rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50 ${
+            isInternal
+              ? 'bg-amber-600 hover:bg-amber-700'
+              : 'bg-indigo-600 hover:bg-indigo-700'
+          }`}
+        >
+          {sending ? 'Sending...' : isInternal ? 'Add Note' : 'Send Reply'}
+        </button>
+      </div>
+
+      {showAiSuggest && ticketContext && (
+        <AiSuggestModal
+          ticketContext={ticketContext}
+          onClose={() => setShowAiSuggest(false)}
+          onUseSuggestion={(text) => {
+            setBody(prev => prev ? `${prev}\n\n${text}` : text)
+            setShowAiSuggest(false)
+          }}
+        />
+      )}
+
+      {showPresenceConfirm && viewers && viewers.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100">
+                <svg className="h-5 w-5 text-amber-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-slate-900">Someone else is on this ticket</h3>
+            </div>
+            <p className="mb-5 text-sm text-slate-600">
+              <span className="font-medium text-slate-800">
+                {viewers.map(v => `${v.firstName} ${v.lastName}`).join(', ')}
+              </span>
+              {' '}{viewers.length === 1 ? 'is' : 'are'} currently viewing this ticket. Are you sure you want to send your reply?
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowPresenceConfirm(false)}
+                className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowPresenceConfirm(false)
+                  doSend()
+                }}
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+              >
+                Send Anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

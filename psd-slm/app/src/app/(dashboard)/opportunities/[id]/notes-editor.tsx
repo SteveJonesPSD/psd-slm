@@ -39,7 +39,7 @@ export function NotesEditor({ opportunityId, initialNotes }: NotesEditorProps) {
   }
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 mb-5">
+    <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-[15px] font-semibold">Notes</h3>
         {canEdit && !editing && (

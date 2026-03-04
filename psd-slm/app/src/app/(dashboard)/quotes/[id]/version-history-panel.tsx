@@ -46,7 +46,7 @@ export function VersionHistoryPanel({ versions, currentQuoteId }: VersionHistory
   }
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white mb-5">
+    <div className="rounded-xl border border-gray-200 bg-white mb-6">
       <button
         onClick={() => setCollapsed(!collapsed)}
         className="w-full flex items-center justify-between px-5 py-4 text-left"
@@ -66,16 +66,16 @@ export function VersionHistoryPanel({ versions, currentQuoteId }: VersionHistory
       </button>
 
       {!collapsed && (
-        <div className="border-t border-gray-200">
-          <table className="w-full text-sm">
+        <div className="border-t border-gray-200 overflow-x-auto">
+          <table className="w-full text-sm min-w-[600px]">
             <thead>
               <tr>
-                <th className="px-5 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Version</th>
-                <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Quote #</th>
-                <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Status</th>
-                <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Date</th>
-                <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Owner</th>
-                <th className="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500"></th>
+                <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Version</th>
+                <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Quote #</th>
+                <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Status</th>
+                <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Date</th>
+                <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Owner</th>
+                <th className="px-5 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500"></th>
               </tr>
             </thead>
             <tbody>
@@ -96,15 +96,15 @@ export function VersionHistoryPanel({ versions, currentQuoteId }: VersionHistory
                         {isCurrent && <span className="ml-1.5 text-xs text-blue-500">(current)</span>}
                       </span>
                     </td>
-                    <td className="px-3 py-2.5 font-medium">{v.quote_number}</td>
-                    <td className="px-3 py-2.5">
+                    <td className="px-5 py-2.5 font-medium">{v.quote_number}</td>
+                    <td className="px-5 py-2.5">
                       {statusCfg ? <Badge label={statusCfg.label} color={statusCfg.color} bg={statusCfg.bg} /> : v.status}
                     </td>
-                    <td className="px-3 py-2.5 text-slate-500">{formatDate(v.created_at)}</td>
-                    <td className="px-3 py-2.5 text-slate-500">
+                    <td className="px-5 py-2.5 text-slate-500">{formatDate(v.created_at)}</td>
+                    <td className="px-5 py-2.5 text-slate-500">
                       {v.users ? `${v.users.first_name} ${v.users.last_name}` : '\u2014'}
                     </td>
-                    <td className="px-3 py-2.5 text-right">
+                    <td className="px-5 py-2.5 text-right">
                       {isRevised && !isCurrent && (
                         <Button
                           size="sm"

@@ -11,6 +11,7 @@ import { Checkbox } from '@/components/ui/form-fields'
 import { useAuth } from '@/components/auth-provider'
 import { formatCurrency } from '@/lib/utils'
 import { linkSupplier, updateProductSupplierLink, removeProductSupplierLink } from './link-actions'
+import { createSupplier } from '../../suppliers/actions'
 
 interface ProductSupplierRow {
   id: string
@@ -20,6 +21,7 @@ interface ProductSupplierRow {
   standard_cost: number | null
   lead_time_days: number | null
   is_preferred: boolean
+  url: string | null
   suppliers: { id: string; name: string; account_number: string | null; is_active: boolean }
 }
 
@@ -39,9 +41,13 @@ export function ProductSuppliers({ productId, productName, productSuppliers }: P
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<{ id: string; name: string; account_number: string | null }[]>([])
   const [selectedSupplier, setSelectedSupplier] = useState<{ id: string; name: string; account_number: string | null } | null>(null)
-  const [linkForm, setLinkForm] = useState({ supplier_sku: '', standard_cost: null as number | null, lead_time_days: '', is_preferred: false })
+  const [linkForm, setLinkForm] = useState({ supplier_sku: '', standard_cost: null as number | null, lead_time_days: '', is_preferred: false, url: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [showQuickAdd, setShowQuickAdd] = useState(false)
+  const [quickAddName, setQuickAddName] = useState('')
+  const [quickAddSaving, setQuickAddSaving] = useState(false)
+  const [quickAddError, setQuickAddError] = useState('')
 
   const handleSearch = async (query: string) => {
     setSearchQuery(query)
@@ -65,7 +71,7 @@ export function ProductSuppliers({ productId, productName, productSuppliers }: P
     setSelectedSupplier(null)
     setSearchQuery('')
     setSearchResults([])
-    setLinkForm({ supplier_sku: '', standard_cost: null, lead_time_days: '', is_preferred: false })
+    setLinkForm({ supplier_sku: '', standard_cost: null, lead_time_days: '', is_preferred: false, url: '' })
     setError('')
   }
 
@@ -76,6 +82,7 @@ export function ProductSuppliers({ productId, productName, productSuppliers }: P
       standard_cost: ps.standard_cost,
       lead_time_days: ps.lead_time_days?.toString() || '',
       is_preferred: ps.is_preferred,
+      url: ps.url || '',
     })
     setError('')
   }
@@ -91,6 +98,7 @@ export function ProductSuppliers({ productId, productName, productSuppliers }: P
     fd.set('standard_cost', linkForm.standard_cost?.toString() || '')
     fd.set('lead_time_days', linkForm.lead_time_days)
     fd.set('is_preferred', String(linkForm.is_preferred))
+    fd.set('url', linkForm.url)
 
     const result = await linkSupplier(fd)
     setSaving(false)
@@ -110,6 +118,7 @@ export function ProductSuppliers({ productId, productName, productSuppliers }: P
     fd.set('standard_cost', linkForm.standard_cost?.toString() || '')
     fd.set('lead_time_days', linkForm.lead_time_days)
     fd.set('is_preferred', String(linkForm.is_preferred))
+    fd.set('url', linkForm.url)
 
     const result = await updateProductSupplierLink(editing.id, editing.product_id, fd)
     setSaving(false)
@@ -163,6 +172,17 @@ export function ProductSuppliers({ productId, productName, productSuppliers }: P
       align: 'center',
       render: (r) => r.is_preferred ? <span className="text-amber-500" title="Preferred supplier">★</span> : null,
     },
+    {
+      key: 'url',
+      label: 'URL',
+      align: 'center',
+      nowrap: true,
+      render: (r) => r.url ? (
+        <a href={r.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-blue-600 hover:text-blue-800" title={r.url}>
+          <svg className="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+        </a>
+      ) : <span className="text-slate-300">&mdash;</span>,
+    },
     ...(canEdit
       ? [{
           key: 'actions' as const,
@@ -182,7 +202,7 @@ export function ProductSuppliers({ productId, productName, productSuppliers }: P
   ]
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 mb-5">
+    <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-[15px] font-semibold">Suppliers ({productSuppliers.length})</h3>
         {canEdit && (
@@ -231,6 +251,15 @@ export function ProductSuppliers({ productId, productName, productSuppliers }: P
                   ))}
                 </div>
               )}
+              {searchQuery.length >= 2 && searchResults.length === 0 && (
+                <button
+                  type="button"
+                  onClick={() => { setQuickAddName(searchQuery); setQuickAddError(''); setShowQuickAdd(true) }}
+                  className="mt-2 text-sm text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  + Add &ldquo;{searchQuery}&rdquo; as new supplier
+                </button>
+              )}
             </div>
           ) : (
             <div>
@@ -243,7 +272,7 @@ export function ProductSuppliers({ productId, productName, productSuppliers }: P
                   Change
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Input
                   label="Supplier SKU"
                   value={linkForm.supplier_sku}
@@ -267,6 +296,12 @@ export function ProductSuppliers({ productId, productName, productSuppliers }: P
                   className="self-end pb-2"
                 />
               </div>
+              <Input
+                label="Product URL"
+                value={linkForm.url}
+                onChange={(v) => setLinkForm((f) => ({ ...f, url: v }))}
+                placeholder="https://www.supplier.com/product/..."
+              />
               {error && (
                 <div className="mt-3 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
                   {error}
@@ -283,10 +318,52 @@ export function ProductSuppliers({ productId, productName, productSuppliers }: P
         </Modal>
       )}
 
+      {/* Quick Add Supplier Modal */}
+      {showQuickAdd && (
+        <Modal title="Add New Supplier" onClose={() => setShowQuickAdd(false)} width={400}>
+          <Input
+            label="Supplier Name *"
+            value={quickAddName}
+            onChange={(v) => setQuickAddName(v)}
+            placeholder="Enter supplier name..."
+          />
+          {quickAddError && (
+            <div className="mt-3 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+              {quickAddError}
+            </div>
+          )}
+          <div className="mt-5 flex justify-end gap-2">
+            <Button onClick={() => setShowQuickAdd(false)}>Cancel</Button>
+            <Button
+              variant="primary"
+              disabled={!quickAddName.trim() || quickAddSaving}
+              onClick={async () => {
+                setQuickAddSaving(true)
+                setQuickAddError('')
+                const fd = new FormData()
+                fd.set('name', quickAddName.trim())
+                const result = await createSupplier(fd)
+                setQuickAddSaving(false)
+                if (result.error) {
+                  setQuickAddError(result.error)
+                } else if ('data' in result && result.data) {
+                  setSelectedSupplier({ id: result.data.id, name: result.data.name, account_number: result.data.account_number })
+                  setShowQuickAdd(false)
+                  setSearchQuery('')
+                  setSearchResults([])
+                }
+              }}
+            >
+              {quickAddSaving ? 'Creating...' : 'Create Supplier'}
+            </Button>
+          </div>
+        </Modal>
+      )}
+
       {/* Edit Link Modal */}
       {editing && (
         <Modal title={`Edit Link \u2014 ${editing.suppliers.name}`} onClose={() => setEditing(null)} width={500}>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
               label="Supplier SKU"
               value={linkForm.supplier_sku}
@@ -310,6 +387,12 @@ export function ProductSuppliers({ productId, productName, productSuppliers }: P
               className="self-end pb-2"
             />
           </div>
+          <Input
+            label="Product URL"
+            value={linkForm.url}
+            onChange={(v) => setLinkForm((f) => ({ ...f, url: v }))}
+            placeholder="https://www.supplier.com/product/..."
+          />
           {error && (
             <div className="mt-3 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
               {error}

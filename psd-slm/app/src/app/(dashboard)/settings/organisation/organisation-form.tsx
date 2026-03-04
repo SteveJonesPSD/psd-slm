@@ -82,7 +82,7 @@ export function OrganisationForm({ initialSettings }: OrganisationFormProps) {
           placeholder="PSD Group"
         />
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Select
             label="Timezone"
             value={settings.timezone}
@@ -97,7 +97,7 @@ export function OrganisationForm({ initialSettings }: OrganisationFormProps) {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Select
             label="Currency"
             value={settings.currency}
@@ -112,7 +112,7 @@ export function OrganisationForm({ initialSettings }: OrganisationFormProps) {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input
             label="Default VAT Rate (%)"
             type="number"

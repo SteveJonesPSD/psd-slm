@@ -36,6 +36,8 @@ export async function POST(request: Request) {
         return await testAnthropicKey(value)
       case 'resend_api_key':
         return await testResendKey(value)
+      case 'ideal_postcodes_api_key':
+        return await testIdealPostcodesKey(value)
       default:
         return NextResponse.json({ success: false, message: 'No test available for this key.' })
     }
@@ -69,6 +71,27 @@ async function testAnthropicKey(apiKey: string) {
     return NextResponse.json({ success: false, message: `Anthropic API error: ${errorMsg}` })
   } catch {
     return NextResponse.json({ success: false, message: 'Failed to connect to Anthropic API.' })
+  }
+}
+
+async function testIdealPostcodesKey(apiKey: string) {
+  try {
+    // Test with a well-known postcode (10 Downing Street)
+    const res = await fetch(`https://api.ideal-postcodes.co.uk/v1/postcodes/SW1A2AA?api_key=${apiKey}`)
+    const data = await res.json()
+
+    if (data.code === 2000) {
+      return NextResponse.json({ success: true, message: 'Ideal Postcodes API key is valid. Connection successful.' })
+    }
+    if (data.code === 4010 || data.code === 4012) {
+      return NextResponse.json({ success: false, message: 'Invalid API key. Check the key and try again.' })
+    }
+    if (data.code === 4020) {
+      return NextResponse.json({ success: false, message: 'Key valid but no remaining lookups. Top up your balance.' })
+    }
+    return NextResponse.json({ success: false, message: `Ideal Postcodes error: ${data.message || res.status}` })
+  } catch {
+    return NextResponse.json({ success: false, message: 'Failed to connect to Ideal Postcodes API.' })
   }
 }
 

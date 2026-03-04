@@ -24,6 +24,16 @@ export function formatDate(date: string): string {
   })
 }
 
+/** crypto.randomUUID() fallback for non-secure contexts (HTTP over LAN) */
+export function generateUUID(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, c =>
+    (+c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (+c / 4)))).toString(16)
+  )
+}
+
 export function formatRelativeTime(date: string): string {
   const now = Date.now()
   const then = new Date(date).getTime()

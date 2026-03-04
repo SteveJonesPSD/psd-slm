@@ -28,6 +28,7 @@ export function QuotesSection({ quotes }: QuotesSectionProps) {
     {
       key: 'quote_number',
       label: 'Quote #',
+      nowrap: true,
       render: (r) => <span className="font-semibold">{r.quote_number}</span>,
     },
     {
@@ -49,6 +50,7 @@ export function QuotesSection({ quotes }: QuotesSectionProps) {
     {
       key: 'type',
       label: 'Type',
+      nowrap: true,
       render: (r) => {
         if (!r.quote_type) return null
         const cfg = QUOTE_TYPE_CONFIG[r.quote_type as keyof typeof QUOTE_TYPE_CONFIG]
@@ -58,6 +60,7 @@ export function QuotesSection({ quotes }: QuotesSectionProps) {
     {
       key: 'status',
       label: 'Status',
+      nowrap: true,
       render: (r) => {
         const cfg = QUOTE_STATUS_CONFIG[r.status as keyof typeof QUOTE_STATUS_CONFIG]
         return cfg ? <Badge label={cfg.label} color={cfg.color} bg={cfg.bg} /> : r.status
@@ -67,12 +70,14 @@ export function QuotesSection({ quotes }: QuotesSectionProps) {
       key: 'version',
       label: 'Ver.',
       align: 'center',
+      nowrap: true,
       render: (r) => `v${r.version}`,
     },
     {
       key: 'lines',
       label: 'Lines',
       align: 'center',
+      nowrap: true,
       render: (r) => r.quote_lines?.length || 0,
     },
     {
@@ -95,7 +100,7 @@ export function QuotesSection({ quotes }: QuotesSectionProps) {
   ]
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 mb-5">
+    <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
       <h3 className="text-[15px] font-semibold mb-3">
         Quotes ({quotes.length})
       </h3>

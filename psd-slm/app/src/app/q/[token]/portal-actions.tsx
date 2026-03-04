@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { SignaturePadComponent } from './signature-pad'
 
 interface PortalActionsProps {
   quoteId: string
@@ -19,6 +20,8 @@ export function PortalActions({ quoteId, token }: PortalActionsProps) {
   const [poFile, setPoFile] = useState<File | null>(null)
   const [dragActive, setDragActive] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [signedByName, setSignedByName] = useState('')
+  const [signatureData, setSignatureData] = useState<string | null>(null)
 
   // Change request form state
   const [crName, setCrName] = useState('')
@@ -69,6 +72,14 @@ export function PortalActions({ quoteId, token }: PortalActionsProps) {
   }, [handleFileDrop])
 
   const handleAccept = async () => {
+    if (!signedByName.trim()) {
+      setError('Your full name is required')
+      return
+    }
+    if (!signatureData) {
+      setError('Please provide your signature')
+      return
+    }
     if (!poNumber.trim()) {
       setError('Purchase order number is required')
       return
@@ -79,6 +90,8 @@ export function PortalActions({ quoteId, token }: PortalActionsProps) {
     const formData = new FormData()
     formData.set('po_number', poNumber)
     formData.set('token', token)
+    formData.set('signed_by_name', signedByName)
+    formData.set('signature_data', signatureData)
     if (poFile) formData.set('po_file', poFile)
 
     const res = await fetch(`/api/quotes/${quoteId}/portal/accept`, {
@@ -193,6 +206,23 @@ export function PortalActions({ quoteId, token }: PortalActionsProps) {
       {mode === 'accept' && (
         <div>
           <div className="mb-3">
+            <label className="block text-xs font-medium text-slate-500 mb-1">Your Full Name *</label>
+            <input
+              type="text"
+              value={signedByName}
+              onChange={(e) => setSignedByName(e.target.value)}
+              placeholder="Enter your full name..."
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+              autoFocus
+            />
+          </div>
+
+          <div className="mb-3">
+            <label className="block text-xs font-medium text-slate-500 mb-1">Signature *</label>
+            <SignaturePadComponent onSignatureChange={setSignatureData} />
+          </div>
+
+          <div className="mb-3">
             <label className="block text-xs font-medium text-slate-500 mb-1">Purchase Order Number *</label>
             <input
               type="text"
@@ -200,7 +230,6 @@ export function PortalActions({ quoteId, token }: PortalActionsProps) {
               onChange={(e) => setPoNumber(e.target.value)}
               placeholder="Enter your PO number..."
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
-              autoFocus
             />
           </div>
 

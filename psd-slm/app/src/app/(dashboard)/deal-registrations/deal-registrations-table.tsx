@@ -112,6 +112,7 @@ export function DealRegistrationsTable({ dealRegs, customerOptions, supplierOpti
     {
       key: 'status',
       label: 'Status',
+      nowrap: true,
       render: (r) => {
         const cfg = STATUS_CONFIG[r.status] || STATUS_CONFIG.pending
         return <Badge label={r.status} color={cfg.color} bg={cfg.bg} />
@@ -142,6 +143,7 @@ export function DealRegistrationsTable({ dealRegs, customerOptions, supplierOpti
       key: 'line_count',
       label: 'Lines',
       align: 'center',
+      nowrap: true,
       render: (r) => r.line_count,
     },
     {
@@ -166,7 +168,7 @@ export function DealRegistrationsTable({ dealRegs, customerOptions, supplierOpti
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex flex-wrap items-center gap-3 mb-6">
         <input
           type="text"
           placeholder="Search deal registrations..."

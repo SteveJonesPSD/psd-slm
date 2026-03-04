@@ -265,6 +265,7 @@ interface QuotePdfLine {
   sell_price: number
   is_optional: boolean
   requires_contract: boolean
+  is_hidden_service?: boolean
 }
 
 interface QuotePdfGroup {
@@ -323,8 +324,10 @@ interface QuotePdfDocumentProps {
 
 export function QuotePdfDocument({ quote, customer, contact, brand, groups, lines, portalUrl }: QuotePdfDocumentProps) {
   const sortedGroups = [...groups].sort((a, b) => a.sort_order - b.sort_order)
-  const nonOptionalLines = lines.filter((l) => !l.is_optional)
-  const optionalLines = lines.filter((l) => l.is_optional)
+  // Hide £0 service lines (e.g. absorbed delivery costs) from customer-facing PDF
+  const visibleLines = lines.filter((l) => !l.is_hidden_service)
+  const nonOptionalLines = visibleLines.filter((l) => !l.is_optional)
+  const optionalLines = visibleLines.filter((l) => l.is_optional)
 
   const subtotal = nonOptionalLines.reduce((sum, l) => sum + l.quantity * l.sell_price, 0)
   const vatAmount = subtotal * (quote.vat_rate / 100)
@@ -401,46 +404,34 @@ export function QuotePdfDocument({ quote, customer, contact, brand, groups, line
           </View>
         </View>
 
-        {/* Grouped Lines */}
-        {sortedGroups.map((group) => {
-          const groupLines = nonOptionalLines
+        {/* Line Items (grouped for ordering, no group headers shown to customer) */}
+        <View style={styles.tableHeader}>
+          <Text style={[styles.tableHeaderText, styles.colDescription]}>Description</Text>
+          <Text style={[styles.tableHeaderText, styles.colQty]}>Qty</Text>
+          <Text style={[styles.tableHeaderText, styles.colPrice]}>Unit Price</Text>
+          <Text style={[styles.tableHeaderText, styles.colTotal]}>Total</Text>
+        </View>
+
+        {sortedGroups.flatMap((group) =>
+          nonOptionalLines
             .filter((l) => l.group_id === group.id)
             .sort((a, b) => a.sort_order - b.sort_order)
-
-          if (groupLines.length === 0) return null
-
-          return (
-            <View key={group.id}>
-              <View style={styles.groupHeader}>
-                <Text style={styles.groupName}>{group.name}</Text>
-              </View>
-
-              <View style={styles.tableHeader}>
-                <Text style={[styles.tableHeaderText, styles.colDescription]}>Description</Text>
-                <Text style={[styles.tableHeaderText, styles.colQty]}>Qty</Text>
-                <Text style={[styles.tableHeaderText, styles.colPrice]}>Unit Price</Text>
-                <Text style={[styles.tableHeaderText, styles.colTotal]}>Total</Text>
-              </View>
-
-              {groupLines.map((line) => (
-                <View key={line.id} style={styles.tableRow}>
-                  <View style={styles.colDescription}>
-                    <Text>
-                      {line.description}
-                      {line.requires_contract ? ' *' : ''}
-                    </Text>
-                    {line.requires_contract && (
-                      <Text style={styles.contractBadge}>* Contract Required</Text>
-                    )}
-                  </View>
-                  <Text style={styles.colQty}>{line.quantity}</Text>
-                  <Text style={styles.colPrice}>{formatCurrency(line.sell_price)}</Text>
-                  <Text style={styles.colTotal}>{formatCurrency(line.quantity * line.sell_price)}</Text>
-                </View>
-              ))}
+        ).map((line) => (
+          <View key={line.id} style={styles.tableRow}>
+            <View style={styles.colDescription}>
+              <Text>
+                {line.description}
+                {line.requires_contract ? ' *' : ''}
+              </Text>
+              {line.requires_contract && (
+                <Text style={styles.contractBadge}>* Contract Required</Text>
+              )}
             </View>
-          )
-        })}
+            <Text style={styles.colQty}>{line.quantity}</Text>
+            <Text style={styles.colPrice}>{formatCurrency(line.sell_price)}</Text>
+            <Text style={styles.colTotal}>{formatCurrency(line.quantity * line.sell_price)}</Text>
+          </View>
+        ))}
 
         {/* Optional Items */}
         {optionalLines.length > 0 && (

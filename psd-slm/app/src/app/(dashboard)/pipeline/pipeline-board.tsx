@@ -292,7 +292,7 @@ export function PipelineBoard({ opportunities, customers, contacts, users, curre
   return (
     <div>
       {/* Stats bar */}
-      <div className="flex flex-wrap gap-4 mb-5">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5 mb-6">
         <StatCard label="Pipeline Value" value={formatCurrency(totalPipeline)} accent="#6366f1" />
         <StatCard label="Weighted Value" value={formatCurrency(weightedValue)} accent="#059669" />
         <StatCard label="Active Deals" value={activeFiltered.length} accent="#d97706" />
@@ -304,38 +304,38 @@ export function PipelineBoard({ opportunities, customers, contacts, users, curre
       </div>
 
       {/* Filters + view toggle */}
-      <div className="flex flex-wrap items-end gap-3 mb-4">
+      <div className="flex flex-wrap items-end gap-3 mb-6">
         <Select
           label="Assigned to"
           value={assignedTo}
           onChange={setAssignedTo}
           placeholder="All users"
           options={userOptions}
-          className="w-48"
+          className="w-full sm:w-48"
         />
         <Input
           label="Company"
           value={companySearch}
           onChange={setCompanySearch}
           placeholder="Search..."
-          className="w-40"
+          className="w-full sm:w-40"
         />
         <Input
           label="Close from"
           type="date"
           value={closeDateFrom}
           onChange={setCloseDateFrom}
-          className="w-40"
+          className="w-full sm:w-40"
         />
         <Input
           label="Close to"
           type="date"
           value={closeDateTo}
           onChange={setCloseDateTo}
-          className="w-40"
+          className="w-full sm:w-40"
         />
 
-        <div className="flex items-center gap-3 ml-auto">
+        <div className="flex items-center gap-3 w-full sm:w-auto sm:ml-auto">
           <label className="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer">
             <input
               type="checkbox"
@@ -387,9 +387,10 @@ export function PipelineBoard({ opportunities, customers, contacts, users, curre
           </Button>
         </div>
       ) : view === 'kanban' ? (
+        <div className="overflow-x-auto pb-2">
         <div
           className="grid gap-4"
-          style={{ gridTemplateColumns: `repeat(${kanbanStages.length}, minmax(0, 1fr))` }}
+          style={{ gridTemplateColumns: `repeat(${kanbanStages.length}, minmax(240px, 1fr))` }}
         >
           {kanbanStages.map((stage) => {
             const cfg = OPPORTUNITY_STAGE_CONFIG[stage]
@@ -468,6 +469,7 @@ export function PipelineBoard({ opportunities, customers, contacts, users, curre
             )
           })}
         </div>
+        </div>
       ) : sortedFiltered.length === 0 ? (
         <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-slate-400">
           No opportunities match your filters.
@@ -480,7 +482,7 @@ export function PipelineBoard({ opportunities, customers, contacts, users, curre
                 {listColumns.map((col) => (
                   <th
                     key={col.key}
-                    className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-3.5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 cursor-pointer hover:text-slate-700 select-none"
+                    className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 cursor-pointer hover:text-slate-700 select-none"
                     style={{ textAlign: col.align || 'left' }}
                     onClick={() => handleSort(col.key)}
                   >
@@ -504,7 +506,7 @@ export function PipelineBoard({ opportunities, customers, contacts, users, curre
                   {listColumns.map((col) => (
                     <td
                       key={col.key}
-                      className={`px-3.5 py-2.5 ${col.nowrap ? 'whitespace-nowrap' : ''}`}
+                      className={`px-5 py-3 ${col.nowrap ? 'whitespace-nowrap' : ''}`}
                       style={{ textAlign: col.align || 'left' }}
                     >
                       {col.render ? col.render(row) : (row as unknown as Record<string, unknown>)[col.key] as React.ReactNode}

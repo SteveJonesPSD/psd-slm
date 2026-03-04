@@ -141,7 +141,7 @@ export default async function DealRegistrationDetailPage({ params }: PageProps) 
       />
 
       {/* Stats */}
-      <div className="flex flex-wrap gap-4 mb-6">
+      <div className="flex flex-wrap gap-5 mb-6">
         <StatCard label="Products Covered" value={lineRows.length} />
         <StatCard
           label="Total Saving"
@@ -175,9 +175,9 @@ export default async function DealRegistrationDetailPage({ params }: PageProps) 
       </div>
 
       {/* Details Card */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-5">
+      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
         <h3 className="text-[15px] font-semibold mb-3">Registration Details</h3>
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-3 text-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-3 text-sm">
           <DetailField
             label="Customer"
             value={customer?.name}
@@ -215,48 +215,48 @@ export default async function DealRegistrationDetailPage({ params }: PageProps) 
       />
 
       {/* Product Lines */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-5">
+      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
         <h3 className="text-[15px] font-semibold mb-3">Product Lines</h3>
         {lineRows.length === 0 ? (
           <p className="text-sm text-slate-400">No product lines.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[650px]">
               <thead>
                 <tr className="border-b border-slate-100 text-left">
-                  <th className="pb-2 pr-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Product</th>
-                  <th className="pb-2 pr-3 text-xs font-medium text-slate-400 uppercase tracking-wide">SKU</th>
-                  <th className="pb-2 pr-3 text-xs font-medium text-slate-400 uppercase tracking-wide text-right">Catalogue Price</th>
-                  <th className="pb-2 pr-3 text-xs font-medium text-slate-400 uppercase tracking-wide text-right">Deal Price</th>
-                  <th className="pb-2 pr-3 text-xs font-medium text-slate-400 uppercase tracking-wide text-right">Saving</th>
-                  <th className="pb-2 pr-3 text-xs font-medium text-slate-400 uppercase tracking-wide text-right">Saving %</th>
-                  <th className="pb-2 text-xs font-medium text-slate-400 uppercase tracking-wide text-right">Max Qty</th>
+                  <th className="px-5 pb-2 text-xs font-medium text-slate-400 uppercase tracking-wide whitespace-nowrap">Product</th>
+                  <th className="px-5 pb-2 text-xs font-medium text-slate-400 uppercase tracking-wide whitespace-nowrap">SKU</th>
+                  <th className="px-5 pb-2 text-xs font-medium text-slate-400 uppercase tracking-wide text-right whitespace-nowrap">Catalogue Price</th>
+                  <th className="px-5 pb-2 text-xs font-medium text-slate-400 uppercase tracking-wide text-right whitespace-nowrap">Deal Price</th>
+                  <th className="px-5 pb-2 text-xs font-medium text-slate-400 uppercase tracking-wide text-right whitespace-nowrap">Saving</th>
+                  <th className="px-5 pb-2 text-xs font-medium text-slate-400 uppercase tracking-wide text-right whitespace-nowrap">Saving %</th>
+                  <th className="px-5 pb-2 text-xs font-medium text-slate-400 uppercase tracking-wide text-right whitespace-nowrap">Max Qty</th>
                 </tr>
               </thead>
               <tbody>
                 {lineRows.map((line) => (
                   <tr key={line.id} className="border-b border-slate-50">
-                    <td className="py-2.5 pr-3 font-medium">{line.product_name}</td>
-                    <td className="py-2.5 pr-3 font-mono text-xs text-slate-400">{line.product_sku}</td>
-                    <td className="py-2.5 pr-3 text-right text-slate-500">
+                    <td className="px-5 py-2.5 font-medium">{line.product_name}</td>
+                    <td className="px-5 py-2.5 font-mono text-xs text-slate-400 whitespace-nowrap">{line.product_sku}</td>
+                    <td className="px-5 py-2.5 text-right text-slate-500 whitespace-nowrap">
                       {line.catalogue_price != null ? formatCurrency(line.catalogue_price) : '\u2014'}
                     </td>
-                    <td className="py-2.5 pr-3 text-right font-medium">{formatCurrency(line.registered_buy_price)}</td>
-                    <td className="py-2.5 pr-3 text-right">
+                    <td className="px-5 py-2.5 text-right font-medium whitespace-nowrap">{formatCurrency(line.registered_buy_price)}</td>
+                    <td className="px-5 py-2.5 text-right whitespace-nowrap">
                       {line.saving != null ? (
                         <span className={line.saving > 0 ? 'text-emerald-600 font-medium' : line.saving < 0 ? 'text-red-600' : 'text-slate-400'}>
                           {formatCurrency(line.saving)}
                         </span>
                       ) : '\u2014'}
                     </td>
-                    <td className="py-2.5 pr-3 text-right">
+                    <td className="px-5 py-2.5 text-right whitespace-nowrap">
                       {line.saving_pct != null ? (
                         <span className={line.saving_pct >= 10 ? 'text-emerald-600' : line.saving_pct >= 5 ? 'text-amber-600' : 'text-slate-400'}>
                           {line.saving_pct.toFixed(1)}%
                         </span>
                       ) : '\u2014'}
                     </td>
-                    <td className="py-2.5 text-right">{line.max_quantity ?? '\u2014'}</td>
+                    <td className="px-5 py-2.5 text-right whitespace-nowrap">{line.max_quantity ?? '\u2014'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -266,7 +266,7 @@ export default async function DealRegistrationDetailPage({ params }: PageProps) 
       </div>
 
       {/* Usage Section */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-5">
+      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
         <h3 className="text-[15px] font-semibold mb-3">Quote Usage</h3>
         {usageCount === 0 ? (
           <p className="text-sm text-slate-400">No quotes have used this deal registration yet.</p>
@@ -275,11 +275,11 @@ export default async function DealRegistrationDetailPage({ params }: PageProps) 
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 text-left">
-                  <th className="pb-2 pr-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Quote #</th>
-                  <th className="pb-2 pr-3 text-xs font-medium text-slate-400 uppercase tracking-wide">Customer</th>
-                  <th className="pb-2 pr-3 text-xs font-medium text-slate-400 uppercase tracking-wide text-right">Qty</th>
-                  <th className="pb-2 pr-3 text-xs font-medium text-slate-400 uppercase tracking-wide text-right">Deal Price Used</th>
-                  <th className="pb-2 text-xs font-medium text-slate-400 uppercase tracking-wide">Quote Date</th>
+                  <th className="px-5 pb-2 text-xs font-medium text-slate-400 uppercase tracking-wide">Quote #</th>
+                  <th className="px-5 pb-2 text-xs font-medium text-slate-400 uppercase tracking-wide">Customer</th>
+                  <th className="px-5 pb-2 text-xs font-medium text-slate-400 uppercase tracking-wide text-right">Qty</th>
+                  <th className="px-5 pb-2 text-xs font-medium text-slate-400 uppercase tracking-wide text-right">Deal Price Used</th>
+                  <th className="px-5 pb-2 text-xs font-medium text-slate-400 uppercase tracking-wide">Quote Date</th>
                 </tr>
               </thead>
               <tbody>
@@ -287,17 +287,17 @@ export default async function DealRegistrationDetailPage({ params }: PageProps) 
                   const quote = ql.quotes as unknown as { id: string; quote_number: string; customers: { name: string } } | null
                   return (
                     <tr key={ql.id} className="border-b border-slate-50">
-                      <td className="py-2.5 pr-3">
+                      <td className="px-5 py-2.5">
                         {quote ? (
                           <Link href={`/quotes/${quote.id}`} className="text-blue-600 hover:underline font-mono text-xs">
                             {quote.quote_number}
                           </Link>
                         ) : '\u2014'}
                       </td>
-                      <td className="py-2.5 pr-3">{quote?.customers?.name || '\u2014'}</td>
-                      <td className="py-2.5 pr-3 text-right">{ql.quantity}</td>
-                      <td className="py-2.5 pr-3 text-right">{formatCurrency(ql.buy_price)}</td>
-                      <td className="py-2.5">{formatDate(ql.created_at)}</td>
+                      <td className="px-5 py-2.5">{quote?.customers?.name || '\u2014'}</td>
+                      <td className="px-5 py-2.5 text-right">{ql.quantity}</td>
+                      <td className="px-5 py-2.5 text-right">{formatCurrency(ql.buy_price)}</td>
+                      <td className="px-5 py-2.5">{formatDate(ql.created_at)}</td>
                     </tr>
                   )
                 })}

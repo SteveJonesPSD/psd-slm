@@ -5,22 +5,30 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Modal } from '@/components/ui/modal'
 import { useAuth } from '@/components/auth-provider'
-import { sendQuoteToCustomer, deleteQuote, createRevision, duplicateQuote } from '../actions'
+import { sendQuoteToCustomer, deleteQuote, createRevision, duplicateQuote, addSupplierLinesToQuote, manuallyAcceptQuote } from '../actions'
+import { SupplierQuoteModal, type MergeLinesData } from '../supplier-quote-modal'
 import { SaveAsTemplateModal } from './save-as-template-modal'
+import { AiAcceptModal } from './ai-accept-modal'
 import type { Quote } from '@/types/database'
 
 interface QuoteDetailActionsProps {
   quote: Quote
   portalUrl: string | null
+  existingSoId: string | null
 }
 
-export function QuoteDetailActions({ quote, portalUrl }: QuoteDetailActionsProps) {
+export function QuoteDetailActions({ quote, portalUrl, existingSoId }: QuoteDetailActionsProps) {
   const router = useRouter()
   const { hasPermission } = useAuth()
   const [showSendModal, setShowSendModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [showRevisionModal, setShowRevisionModal] = useState(false)
   const [showSaveAsTemplate, setShowSaveAsTemplate] = useState(false)
+  const [showSupplierImport, setShowSupplierImport] = useState(false)
+  const [showAcceptModal, setShowAcceptModal] = useState(false)
+  const [showAiAcceptModal, setShowAiAcceptModal] = useState(false)
+  const [acceptPo, setAcceptPo] = useState('')
+  const [accepting, setAccepting] = useState(false)
   const [sending, setSending] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [acting, setActing] = useState(false)
@@ -84,8 +92,46 @@ export function QuoteDetailActions({ quote, portalUrl }: QuoteDetailActionsProps
     }
   }
 
+  const handleAcceptQuote = async () => {
+    setAccepting(true)
+    const result = await manuallyAcceptQuote(quote.id, acceptPo.trim() || undefined)
+    setAccepting(false)
+    if ('error' in result && result.error) {
+      alert(result.error)
+    } else {
+      setShowAcceptModal(false)
+      router.refresh()
+    }
+  }
+
   const handleDownloadPdf = () => {
     window.open(`/api/quotes/${quote.id}/pdf`, '_blank')
+  }
+
+  const handleMergeSupplierLines = async (data: MergeLinesData) => {
+    const result = await addSupplierLinesToQuote({
+      quoteId: quote.id,
+      groupName: data.groupName,
+      supplierId: data.supplierId,
+      newSupplierName: data.newSupplierName,
+      lines: data.lines.map((l) => ({
+        product_id: l.product_id,
+        description: l.description,
+        quantity: l.quantity,
+        buy_price: l.buy_price,
+        sell_price: l.sell_price,
+        supplier_id: l.supplier_id,
+      })),
+      pdfStoragePath: data.pdfStoragePath,
+      pdfFileName: data.pdfFileName,
+    })
+
+    if ('error' in result && result.error) {
+      alert(result.error)
+    } else {
+      setShowSupplierImport(false)
+      router.refresh()
+    }
   }
 
   // Edit button visible for: draft, review (direct edit) AND sent, declined (revision). Not accepted.
@@ -106,6 +152,20 @@ export function QuoteDetailActions({ quote, portalUrl }: QuoteDetailActionsProps
           </Button>
         )}
 
+        {/* AI Quote — add supplier lines, only for draft/review */}
+        {canEdit && ['draft', 'review'].includes(quote.status) && (
+          <Button
+            size="sm"
+            variant="purple"
+            onClick={() => setShowSupplierImport(true)}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
+            </svg>
+            AI Quote
+          </Button>
+        )}
+
         {/* Send to Customer — only for draft/review */}
         {canEdit && ['draft', 'review'].includes(quote.status) && (
           <Button
@@ -117,6 +177,31 @@ export function QuoteDetailActions({ quote, portalUrl }: QuoteDetailActionsProps
           </Button>
         )}
 
+        {/* Accept Quote — only for sent quotes */}
+        {canEdit && quote.status === 'sent' && (
+          <Button
+            size="sm"
+            variant="success"
+            onClick={() => setShowAcceptModal(true)}
+          >
+            Accept Quote
+          </Button>
+        )}
+
+        {/* AI Accept — only for sent quotes */}
+        {canEdit && quote.status === 'sent' && (
+          <Button
+            size="sm"
+            variant="purple"
+            onClick={() => setShowAiAcceptModal(true)}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
+            </svg>
+            AI Accept
+          </Button>
+        )}
+
         {/* PDF — not shown for accepted quotes */}
         {quote.status !== 'accepted' && (
           <Button size="sm" variant="default" onClick={handleDownloadPdf}>
@@ -124,15 +209,23 @@ export function QuoteDetailActions({ quote, portalUrl }: QuoteDetailActionsProps
           </Button>
         )}
 
-        {/* Convert to Sales Order — only for acknowledged accepted quotes */}
-        {canEdit && quote.status === 'accepted' && quote.acknowledged_at && (
+        {/* Create / View Sales Order — only for acknowledged accepted quotes */}
+        {canEdit && quote.status === 'accepted' && quote.acknowledged_at && !existingSoId && (
           <Button
             size="sm"
             variant="blue"
-            disabled
-            title="Coming soon in Module 7"
+            onClick={() => router.push(`/orders/new?quote_id=${quote.id}`)}
           >
-            Convert to Sales Order
+            Create Sales Order
+          </Button>
+        )}
+        {quote.status === 'accepted' && existingSoId && (
+          <Button
+            size="sm"
+            variant="blue"
+            onClick={() => router.push(`/orders/${existingSoId}`)}
+          >
+            View Sales Order
           </Button>
         )}
 
@@ -237,6 +330,54 @@ export function QuoteDetailActions({ quote, portalUrl }: QuoteDetailActionsProps
           onClose={() => setShowSaveAsTemplate(false)}
         />
       )}
+
+      {/* Accept Quote Modal */}
+      {showAcceptModal && (
+        <Modal title="Accept Quote" onClose={() => setShowAcceptModal(false)}>
+          <p className="text-sm text-slate-600 mb-4">
+            Mark <strong>{quote.quote_number}</strong> as accepted. This will auto-acknowledge and allow
+            Sales Order creation.
+          </p>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Customer PO Number <span className="text-xs text-slate-400">(optional — can add later)</span>
+            </label>
+            <input
+              type="text"
+              value={acceptPo}
+              onChange={(e) => setAcceptPo(e.target.value)}
+              placeholder="e.g. PO-12345"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="default" onClick={() => setShowAcceptModal(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" variant="success" onClick={handleAcceptQuote} disabled={accepting}>
+              {accepting ? 'Accepting...' : 'Accept Quote'}
+            </Button>
+          </div>
+        </Modal>
+      )}
+
+      {/* AI Accept Modal */}
+      {showAiAcceptModal && (
+        <AiAcceptModal
+          quoteId={quote.id}
+          quoteNumber={quote.quote_number}
+          onClose={() => setShowAiAcceptModal(false)}
+        />
+      )}
+
+      {/* AI Quote — Supplier Import Modal */}
+      <SupplierQuoteModal
+        open={showSupplierImport}
+        onClose={() => setShowSupplierImport(false)}
+        mode="merge"
+        existingQuoteId={quote.id}
+        onMergeLines={handleMergeSupplierLines}
+      />
     </>
   )
 }

@@ -2,6 +2,7 @@
 
 import type { QuoteAction, FormAttribution, UserLookup } from './quote-builder-types'
 import { Button } from '@/components/ui/button'
+import { SearchableSelect } from '@/components/ui/form-fields'
 
 interface AttributionEditorProps {
   attributions: FormAttribution[]
@@ -53,24 +54,19 @@ export function AttributionEditor({ attributions, dispatch, users }: Attribution
               return (
                 <tr key={attr.tempId} className={`border-t border-gray-100 ${bgClass}`}>
                   <td className="px-5 py-2">
-                    <select
+                    <SearchableSelect
+                      size="sm"
                       value={attr.user_id}
-                      onChange={(e) =>
+                      options={users.map((u) => ({ value: u.id, label: `${u.first_name} ${u.last_name}` }))}
+                      placeholder="Select user..."
+                      onChange={(val) =>
                         dispatch({
                           type: 'UPDATE_ATTRIBUTION',
                           tempId: attr.tempId,
-                          updates: { user_id: e.target.value },
+                          updates: { user_id: val },
                         })
                       }
-                      className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm outline-none focus:border-slate-400"
-                    >
-                      <option value="">Select user...</option>
-                      {users.map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {u.first_name} {u.last_name}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </td>
                   <td className="px-5 py-2">
                     <select

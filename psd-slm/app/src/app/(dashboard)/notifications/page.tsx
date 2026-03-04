@@ -16,7 +16,7 @@ export default async function NotificationsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex items-center justify-between mb-8">
         <h2 className="text-2xl font-bold text-slate-900">Notifications</h2>
       </div>
 

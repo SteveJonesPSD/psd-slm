@@ -77,6 +77,7 @@ export async function updateUser(id: string, formData: FormData) {
   const roleId = formData.get('role_id') as string
   const color = (formData.get('color') as string) || '#6366f1'
   const initials = (formData.get('initials') as string)?.trim() || (firstName[0] + lastName[0]).toUpperCase()
+  const avatarUrl = formData.get('avatar_url') as string | null
 
   if (!email || !firstName || !lastName || !roleId) {
     return { error: 'All fields are required.' }
@@ -103,6 +104,7 @@ export async function updateUser(id: string, formData: FormData) {
       role_id: roleId,
       initials,
       color,
+      avatar_url: avatarUrl || null,
     })
     .eq('id', id)
 
@@ -168,6 +170,56 @@ export async function deactivateUser(id: string) {
   }
 
   logActivity({ supabase, user, entityType: 'user', entityId: id, action: 'deactivated' })
+
+  revalidatePath('/team')
+  return { success: true }
+}
+
+export async function resetPassword(id: string, newPassword: string) {
+  const user = await requirePermission('team', 'edit_all')
+  const adminClient = createAdminClient()
+  const supabase = await createClient()
+
+  if (id === user.id) {
+    return { error: 'Use the change password page to change your own password.' }
+  }
+
+  if (!newPassword || newPassword.length < 8) {
+    return { error: 'Password must be at least 8 characters.' }
+  }
+
+  // Fetch target user
+  const { data: target } = await supabase
+    .from('users')
+    .select('auth_id, first_name, last_name, email')
+    .eq('id', id)
+    .single()
+
+  if (!target || !target.auth_id) {
+    return { error: 'User not found.' }
+  }
+
+  // Update auth password
+  const { error: authError } = await adminClient.auth.admin.updateUserById(
+    target.auth_id,
+    { password: newPassword }
+  )
+
+  if (authError) {
+    return { error: authError.message }
+  }
+
+  // Set must_change_password flag
+  const { error: flagError } = await supabase
+    .from('users')
+    .update({ must_change_password: true })
+    .eq('id', id)
+
+  if (flagError) {
+    return { error: `Password changed but flag update failed: ${flagError.message}` }
+  }
+
+  logActivity({ supabase, user, entityType: 'user', entityId: id, action: 'password_reset', details: { email: target.email, name: `${target.first_name} ${target.last_name}` } })
 
   revalidatePath('/team')
   return { success: true }

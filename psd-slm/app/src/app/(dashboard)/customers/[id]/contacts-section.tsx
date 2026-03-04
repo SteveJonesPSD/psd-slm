@@ -23,6 +23,7 @@ const EMPTY_FORM = {
   phone: '',
   mobile: '',
   is_primary: false,
+  is_billing: false,
 }
 
 export function ContactsSection({ contacts, customerId }: ContactsSectionProps) {
@@ -38,7 +39,8 @@ export function ContactsSection({ contacts, customerId }: ContactsSectionProps) 
 
   const openAdd = () => {
     setEditing(null)
-    setForm(EMPTY_FORM)
+    const isFirst = contacts.length === 0
+    setForm({ ...EMPTY_FORM, is_primary: isFirst, is_billing: isFirst })
     setError('')
     setShowForm(true)
   }
@@ -53,6 +55,7 @@ export function ContactsSection({ contacts, customerId }: ContactsSectionProps) 
       phone: contact.phone || '',
       mobile: contact.mobile || '',
       is_primary: contact.is_primary,
+      is_billing: contact.is_billing,
     })
     setError('')
     setShowForm(true)
@@ -69,6 +72,7 @@ export function ContactsSection({ contacts, customerId }: ContactsSectionProps) 
     fd.append('phone', form.phone)
     fd.append('mobile', form.mobile)
     fd.append('is_primary', String(form.is_primary))
+    fd.append('is_billing', String(form.is_billing))
 
     const result = editing
       ? await updateContact(editing.id, customerId, fd)
@@ -114,12 +118,14 @@ export function ContactsSection({ contacts, customerId }: ContactsSectionProps) 
     },
     {
       key: 'is_primary',
-      label: 'Primary',
+      label: 'Role',
       align: 'center',
-      render: (r) =>
-        r.is_primary ? (
-          <Badge label="Primary" color="#059669" bg="#ecfdf5" />
-        ) : null,
+      render: (r) => (
+        <div className="flex items-center gap-1 justify-center">
+          {r.is_primary && <Badge label="Primary" color="#059669" bg="#ecfdf5" />}
+          {r.is_billing && <Badge label="Billing" color="#7c3aed" bg="#f5f3ff" />}
+        </div>
+      ),
     },
     {
       key: 'actions',
@@ -144,7 +150,7 @@ export function ContactsSection({ contacts, customerId }: ContactsSectionProps) 
   ]
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 mb-5">
+    <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-[15px] font-semibold">Contacts</h3>
         <Button size="sm" variant="primary" onClick={openAdd}>
@@ -168,7 +174,7 @@ export function ContactsSection({ contacts, customerId }: ContactsSectionProps) 
               {error}
             </div>
           )}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
               label="First Name *"
               value={form.first_name}
@@ -188,11 +194,16 @@ export function ContactsSection({ contacts, customerId }: ContactsSectionProps) 
             <Input label="Email" value={form.email} onChange={upd('email')} />
             <Input label="Phone" value={form.phone} onChange={upd('phone')} />
             <Input label="Mobile" value={form.mobile} onChange={upd('mobile')} />
-            <div className="flex items-end pb-1">
+            <div className="flex items-end gap-4 pb-1 col-span-2">
               <Checkbox
                 label="Primary contact"
                 checked={form.is_primary}
                 onChange={(v) => setForm((f) => ({ ...f, is_primary: v }))}
+              />
+              <Checkbox
+                label="Billing contact"
+                checked={form.is_billing}
+                onChange={(v) => setForm((f) => ({ ...f, is_billing: v }))}
               />
             </div>
           </div>

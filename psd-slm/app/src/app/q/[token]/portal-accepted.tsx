@@ -1,7 +1,7 @@
 import { formatDate } from '@/lib/utils'
 
 interface PortalAcceptedProps {
-  quote: { quote_number: string; accepted_at: string | null; customer_po: string | null }
+  quote: { quote_number: string; accepted_at: string | null; customer_po: string | null; signed_by_name: string | null }
 }
 
 export function PortalAccepted({ quote }: PortalAcceptedProps) {
@@ -20,6 +20,11 @@ export function PortalAccepted({ quote }: PortalAcceptedProps) {
       {quote.customer_po && (
         <p className="text-sm text-slate-500">
           PO Reference: <strong>{quote.customer_po}</strong>
+        </p>
+      )}
+      {quote.signed_by_name && (
+        <p className="text-sm text-slate-500">
+          Signed by: <strong>{quote.signed_by_name}</strong>
         </p>
       )}
       <p className="text-sm text-slate-400 mt-4">

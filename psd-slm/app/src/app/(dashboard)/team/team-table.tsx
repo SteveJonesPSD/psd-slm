@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { Avatar } from '@/components/ui/avatar'
@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Modal } from '@/components/ui/modal'
 import { Input, Select, Checkbox } from '@/components/ui/form-fields'
 import { useAuth } from '@/components/auth-provider'
-import { inviteUser, updateUser, deactivateUser, reactivateUser } from './actions'
+import { inviteUser, updateUser, deactivateUser, reactivateUser, resetPassword } from './actions'
 import type { User, Role } from '@/types/database'
 
 type UserWithRole = User & { roles: { id: string; name: string; display_name: string } }
@@ -32,6 +32,7 @@ const EMPTY_FORM = {
   role_id: '',
   color: '#6366f1',
   initials: '',
+  avatar_url: '' as string | null,
 }
 
 export function TeamTable({ users, roles }: TeamTableProps) {
@@ -51,6 +52,13 @@ export function TeamTable({ users, roles }: TeamTableProps) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [tempPassword, setTempPassword] = useState<string | null>(null)
+  const [resetTarget, setResetTarget] = useState<UserWithRole | null>(null)
+  const [resetPwd, setResetPwd] = useState('')
+  const [resetConfirm, setResetConfirm] = useState('')
+  const [resetting, setResetting] = useState(false)
+  const [resetError, setResetError] = useState('')
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const avatarInputRef = useRef<HTMLInputElement>(null)
 
   const filtered = users.filter((u) => {
     if (!showInactive && !u.is_active) return false
@@ -82,10 +90,58 @@ export function TeamTable({ users, roles }: TeamTableProps) {
       role_id: u.role_id,
       color: u.color || '#6366f1',
       initials: u.initials || '',
+      avatar_url: u.avatar_url || null,
     })
     setError('')
     setTempPassword(null)
     setShowForm(true)
+  }
+
+  const handleAvatarUpload = async (file: File) => {
+    if (!editing) return
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      setError('Invalid file type. Use PNG, JPG, or WebP.')
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setError('File too large. Maximum 2MB.')
+      return
+    }
+    setAvatarUploading(true)
+    setError('')
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('type', 'user')
+      fd.append('targetId', editing.id)
+      if (form.avatar_url) fd.append('oldPath', form.avatar_url)
+      const res = await fetch('/api/avatars/upload', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error || 'Upload failed'); return }
+      setForm((f) => ({ ...f, avatar_url: data.url }))
+    } catch {
+      setError('Upload failed.')
+    } finally {
+      setAvatarUploading(false)
+    }
+  }
+
+  const handleAvatarRemove = async () => {
+    if (!editing || !form.avatar_url) return
+    setAvatarUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('type', 'user')
+      fd.append('targetId', editing.id)
+      fd.append('delete', '1')
+      fd.append('oldPath', form.avatar_url)
+      await fetch('/api/avatars/upload', { method: 'POST', body: fd })
+      setForm((f) => ({ ...f, avatar_url: null }))
+    } catch {
+      setError('Failed to remove avatar.')
+    } finally {
+      setAvatarUploading(false)
+    }
   }
 
   const handleSave = async () => {
@@ -99,6 +155,9 @@ export function TeamTable({ users, roles }: TeamTableProps) {
     fd.append('role_id', form.role_id)
     fd.append('color', form.color)
     fd.append('initials', form.initials || (form.first_name[0] + form.last_name[0]).toUpperCase())
+    if (form.avatar_url) {
+      fd.append('avatar_url', form.avatar_url)
+    }
 
     if (editing) {
       const result = await updateUser(editing.id, fd)
@@ -142,6 +201,35 @@ export function TeamTable({ users, roles }: TeamTableProps) {
     }
   }
 
+  const openResetPassword = (u: UserWithRole) => {
+    setResetTarget(u)
+    setResetPwd('')
+    setResetConfirm('')
+    setResetError('')
+  }
+
+  const handleResetPassword = async () => {
+    if (!resetTarget) return
+    if (resetPwd.length < 8) {
+      setResetError('Password must be at least 8 characters.')
+      return
+    }
+    if (resetPwd !== resetConfirm) {
+      setResetError('Passwords do not match.')
+      return
+    }
+    setResetting(true)
+    setResetError('')
+    const result = await resetPassword(resetTarget.id, resetPwd)
+    setResetting(false)
+    if (result.error) {
+      setResetError(result.error)
+    } else {
+      setResetTarget(null)
+      router.refresh()
+    }
+  }
+
   const previewInitials = form.initials || (form.first_name && form.last_name
     ? (form.first_name[0] + form.last_name[0]).toUpperCase()
     : '??')
@@ -179,6 +267,7 @@ export function TeamTable({ users, roles }: TeamTableProps) {
     {
       key: 'role',
       label: 'Role',
+      nowrap: true,
       render: (r) => {
         const role = r.roles as unknown as { name: string; display_name: string }
         const cfg = role ? ROLE_CONFIG[role.name] : null
@@ -192,6 +281,7 @@ export function TeamTable({ users, roles }: TeamTableProps) {
     {
       key: 'status',
       label: 'Status',
+      nowrap: true,
       render: (r) =>
         r.is_active ? (
           <Badge label="Active" color="#059669" bg="#ecfdf5" />
@@ -217,6 +307,15 @@ export function TeamTable({ users, roles }: TeamTableProps) {
                 onClick={(e) => { e.stopPropagation(); openEdit(r) }}
               >
                 Edit
+              </Button>
+            )}
+            {canEdit && !isSelf && r.is_active && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={(e) => { e.stopPropagation(); openResetPassword(r) }}
+              >
+                Reset Password
               </Button>
             )}
             {canDelete && !isSelf && r.is_active && (
@@ -245,7 +344,7 @@ export function TeamTable({ users, roles }: TeamTableProps) {
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex flex-wrap items-center gap-3 mb-6">
         <input
           type="text"
           placeholder="Search team..."
@@ -271,6 +370,48 @@ export function TeamTable({ users, roles }: TeamTableProps) {
         data={filtered}
         emptyMessage="No team members found."
       />
+
+      {resetTarget && (
+        <Modal
+          title={`Reset Password — ${resetTarget.first_name} ${resetTarget.last_name}`}
+          onClose={() => setResetTarget(null)}
+          width={440}
+        >
+          {resetError && (
+            <div className="mb-4 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+              {resetError}
+            </div>
+          )}
+          <p className="text-sm text-slate-600 mb-4">
+            Set a new password for this user. They will be required to change it on next login.
+          </p>
+          <div className="space-y-3">
+            <Input
+              label="New Password *"
+              type="password"
+              value={resetPwd}
+              onChange={setResetPwd}
+              placeholder="Minimum 8 characters"
+            />
+            <Input
+              label="Confirm Password *"
+              type="password"
+              value={resetConfirm}
+              onChange={setResetConfirm}
+            />
+          </div>
+          <div className="mt-5 flex justify-end gap-2">
+            <Button onClick={() => setResetTarget(null)}>Cancel</Button>
+            <Button
+              variant="primary"
+              onClick={handleResetPassword}
+              disabled={!resetPwd || !resetConfirm || resetting}
+            >
+              {resetting ? 'Resetting...' : 'Reset Password'}
+            </Button>
+          </div>
+        </Modal>
+      )}
 
       {showForm && (
         <Modal
@@ -312,7 +453,7 @@ export function TeamTable({ users, roles }: TeamTableProps) {
               {/* Avatar preview */}
               <div className="flex items-center gap-3 mb-5">
                 <div
-                  className="inline-flex items-center justify-center rounded-full font-bold text-white shrink-0"
+                  className="inline-flex items-center justify-center rounded-full font-bold text-white shrink-0 overflow-hidden"
                   style={{
                     width: 48,
                     height: 48,
@@ -320,16 +461,58 @@ export function TeamTable({ users, roles }: TeamTableProps) {
                     fontSize: 19,
                   }}
                 >
-                  {previewInitials}
+                  {form.avatar_url ? (
+                    <img src={form.avatar_url} alt="Avatar" className="h-full w-full object-cover" />
+                  ) : (
+                    previewInitials
+                  )}
                 </div>
-                <div className="text-sm text-slate-500">
-                  {form.first_name || form.last_name
-                    ? `${form.first_name} ${form.last_name}`.trim()
-                    : 'Preview'}
+                <div>
+                  <div className="text-sm text-slate-500">
+                    {form.first_name || form.last_name
+                      ? `${form.first_name} ${form.last_name}`.trim()
+                      : 'Preview'}
+                  </div>
+                  {editing && (
+                    <div className="flex items-center gap-2 mt-1">
+                      <button
+                        type="button"
+                        onClick={() => avatarInputRef.current?.click()}
+                        disabled={avatarUploading}
+                        className="text-[11px] font-medium text-indigo-600 hover:text-indigo-800 disabled:opacity-50"
+                      >
+                        {avatarUploading ? 'Uploading...' : form.avatar_url ? 'Replace photo' : 'Upload photo'}
+                      </button>
+                      {form.avatar_url && (
+                        <>
+                          <span className="text-slate-300">|</span>
+                          <button
+                            type="button"
+                            onClick={handleAvatarRemove}
+                            disabled={avatarUploading}
+                            className="text-[11px] font-medium text-red-500 hover:text-red-700 disabled:opacity-50"
+                          >
+                            Remove
+                          </button>
+                        </>
+                      )}
+                      <input
+                        ref={avatarInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) handleAvatarUpload(file)
+                          e.target.value = ''
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Input
                   label="First Name *"
                   value={form.first_name}

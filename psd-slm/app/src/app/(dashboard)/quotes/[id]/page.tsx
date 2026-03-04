@@ -14,6 +14,7 @@ import { ActivitySection } from './activity-section'
 import { PoDownloadButton } from './po-download-button'
 import { VersionHistoryPanel } from './version-history-panel'
 import { RevisedBanner } from './revised-banner'
+import { QuoteAttachmentsSection } from './attachments-section'
 import type { User } from '@/types/database'
 
 interface PageProps {
@@ -47,6 +48,8 @@ export default async function QuoteDetailPage({ params }: PageProps) {
     { data: activities },
     { data: acknowledgedByUser },
     { data: versionSiblings },
+    { data: existingSo },
+    { data: attachmentsRaw },
   ] = await Promise.all([
     supabase.from('customers').select('id, name').eq('id', quote.customer_id).single(),
     quote.contact_id
@@ -75,6 +78,18 @@ export default async function QuoteDetailPage({ params }: PageProps) {
       .select('id, quote_number, version, status, created_at, assigned_to, users!quotes_assigned_to_fkey(first_name, last_name)')
       .eq('base_quote_number', quote.base_quote_number)
       .order('version', { ascending: false }),
+    // Check if a sales order already exists for this quote
+    supabase
+      .from('sales_orders')
+      .select('id')
+      .eq('quote_id', id)
+      .maybeSingle(),
+    // Fetch attachments
+    supabase
+      .from('quote_attachments')
+      .select('*, users!quote_attachments_uploaded_by_fkey(first_name, last_name)')
+      .eq('quote_id', id)
+      .order('created_at', { ascending: false }),
   ])
 
   // Find the active version in the family (for revised banner)
@@ -85,6 +100,22 @@ export default async function QuoteDetailPage({ params }: PageProps) {
   }))
   const activeVersion = siblingVersions.find((v) => v.id !== id && !['revised', 'superseded'].includes(v.status))
 
+  // Map attachment rows
+  const attachmentRows = (attachmentsRaw || []).map((a: { id: string; file_name: string; file_size: number; mime_type: string; uploaded_by: string; label: string | null; source: string; created_at: string; users: { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null }) => {
+    const uploader = Array.isArray(a.users) ? a.users[0] : a.users
+    return {
+      id: a.id,
+      file_name: a.file_name,
+      file_size: a.file_size,
+      mime_type: a.mime_type,
+      uploaded_by: a.uploaded_by,
+      uploader_name: uploader ? `${uploader.first_name} ${uploader.last_name}` : '\u2014',
+      label: a.label,
+      source: a.source,
+      created_at: a.created_at,
+    }
+  })
+
   const statusCfg = QUOTE_STATUS_CONFIG[quote.status as keyof typeof QUOTE_STATUS_CONFIG]
   const typeCfg = quote.quote_type ? QUOTE_TYPE_CONFIG[quote.quote_type as keyof typeof QUOTE_TYPE_CONFIG] : null
 
@@ -93,6 +124,7 @@ export default async function QuoteDetailPage({ params }: PageProps) {
     id: string; group_id: string | null; sort_order: number; description: string; quantity: number;
     buy_price: number; sell_price: number; fulfilment_route: string; is_optional: boolean;
     requires_contract: boolean; deal_reg_line_id: string | null; notes: string | null;
+    product_id: string | null;
     products: { name: string; sku: string } | null; suppliers: { name: string } | null
   }
   const allLines = (lines || []) as LineRow[]
@@ -151,13 +183,15 @@ export default async function QuoteDetailPage({ params }: PageProps) {
               ? `${acknowledgedByUser.first_name} ${acknowledgedByUser.last_name}`
               : null
           }
+          signedByName={quote.signed_by_name}
+          hasSignature={!!quote.signature_image_path}
         />
       )}
 
       {/* Header */}
-      <div className="flex items-start justify-between mb-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6 md:mb-8">
         <div>
-          <div className="flex items-center gap-3 mb-1">
+          <div className="flex items-center gap-3 flex-wrap mb-1">
             <h2 className="text-2xl font-bold text-slate-900">{quote.quote_number}</h2>
             {statusCfg && <Badge label={statusCfg.label} color={statusCfg.color} bg={statusCfg.bg} />}
             {typeCfg && <Badge label={typeCfg.label} color={typeCfg.color} bg={typeCfg.bg} />}
@@ -165,7 +199,7 @@ export default async function QuoteDetailPage({ params }: PageProps) {
               <Badge label={`v${quote.version}`} color="#6b7280" bg="#f3f4f6" />
             )}
           </div>
-          <div className="flex items-center gap-4 text-sm text-slate-500">
+          <div className="flex items-center gap-4 flex-wrap gap-y-1 text-sm text-slate-500">
             {customer && (
               <Link href={`/customers/${customer.id}`} className="hover:text-slate-700 no-underline">
                 {customer.name}
@@ -196,11 +230,11 @@ export default async function QuoteDetailPage({ params }: PageProps) {
           </div>
         </div>
 
-        <QuoteDetailActions quote={quote} portalUrl={portalUrl} />
+        <QuoteDetailActions quote={quote} portalUrl={portalUrl} existingSoId={existingSo?.id || null} />
       </div>
 
       {/* Stats */}
-      <div className="flex flex-wrap gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5 mb-6">
         <StatCard label="Subtotal" value={formatCurrency(subtotal)} accent="#1e293b" />
         <StatCard label="VAT" value={formatCurrency(vatAmount)} sub={`${quote.vat_rate}%`} accent="#6b7280" />
         <StatCard label="Grand Total" value={formatCurrency(grandTotal)} accent="#6366f1" />
@@ -213,7 +247,7 @@ export default async function QuoteDetailPage({ params }: PageProps) {
       </div>
 
       {/* Info cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
         {/* Attribution */}
         <div className="rounded-xl border border-gray-200 bg-white p-5">
           <h3 className="text-[15px] font-semibold mb-3">Sales Attribution</h3>
@@ -264,16 +298,26 @@ export default async function QuoteDetailPage({ params }: PageProps) {
         </div>
       </div>
 
+      {/* Attachments */}
+      <div className="mb-6">
+        <QuoteAttachmentsSection
+          quoteId={id}
+          attachments={attachmentRows}
+          canUpload={quote.status === 'draft' || quote.status === 'review'}
+          canDelete={quote.status === 'draft' || quote.status === 'review'}
+        />
+      </div>
+
       {/* Notes */}
       {quote.customer_notes && (
-        <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-5 mb-4">
+        <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-5 mb-6">
           <h3 className="text-[13px] font-semibold text-blue-800 mb-2">Customer Notes</h3>
           <p className="text-sm text-blue-900 whitespace-pre-wrap">{quote.customer_notes}</p>
         </div>
       )}
 
       {quote.internal_notes && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-5 mb-4">
+        <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-5 mb-6">
           <h3 className="text-[13px] font-semibold text-amber-800 mb-2">Internal Notes</h3>
           <p className="text-sm text-amber-900 whitespace-pre-wrap">{quote.internal_notes}</p>
         </div>
@@ -281,7 +325,7 @@ export default async function QuoteDetailPage({ params }: PageProps) {
 
       {/* Portal link */}
       {portalUrl && (
-        <div className="rounded-xl border border-purple-200 bg-purple-50/50 p-5 mb-4">
+        <div className="rounded-xl border border-purple-200 bg-purple-50/50 p-5 mb-6">
           <h3 className="text-[13px] font-semibold text-purple-800 mb-2">Customer Portal Link</h3>
           <a href={portalUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-purple-700 underline hover:text-purple-900 break-all">{portalUrl}</a>
         </div>
@@ -291,7 +335,7 @@ export default async function QuoteDetailPage({ params }: PageProps) {
       <VersionHistoryPanel versions={siblingVersions} currentQuoteId={id} />
 
       {/* Grouped line items */}
-      <div className="rounded-xl border border-gray-200 bg-white mb-5">
+      <div className="rounded-xl border border-gray-200 bg-white mb-6">
         <div className="px-5 py-4">
           <h3 className="text-[15px] font-semibold">Line Items</h3>
         </div>
@@ -308,14 +352,14 @@ export default async function QuoteDetailPage({ params }: PageProps) {
                   <thead>
                     <tr>
                       <th className="px-5 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Description</th>
-                      <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Route</th>
-                      <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Supplier</th>
-                      <th className="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Qty</th>
-                      <th className="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Buy</th>
-                      <th className="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Sell</th>
-                      <th className="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Margin</th>
-                      <th className="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Total</th>
-                      <th className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Flags</th>
+                      <th className="px-5 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Route</th>
+                      <th className="px-5 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Supplier</th>
+                      <th className="px-5 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Qty</th>
+                      <th className="px-5 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Buy</th>
+                      <th className="px-5 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Sell</th>
+                      <th className="px-5 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Margin</th>
+                      <th className="px-5 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Total</th>
+                      <th className="px-5 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Flags</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -332,28 +376,42 @@ export default async function QuoteDetailPage({ params }: PageProps) {
                         <tr key={line.id} className={`border-t border-slate-100 ${line.is_optional ? 'bg-slate-50/50' : ''}`}>
                           <td className="px-5 py-2.5">
                             <div className="flex items-center gap-2">
-                              <span className={line.is_optional ? 'text-slate-500' : 'font-medium'}>{line.description}</span>
+                              {line.product_id ? (
+                                <a
+                                  href={`/products/${line.product_id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={`hover:text-blue-600 no-underline ${line.is_optional ? 'text-slate-500' : 'font-medium'}`}
+                                >
+                                  {line.description}
+                                </a>
+                              ) : (
+                                <span className={line.is_optional ? 'text-slate-500' : 'font-medium'}>{line.description}</span>
+                              )}
                               {line.deal_reg_line_id && (
                                 <Badge label="DR" color="#7c3aed" bg="#f5f3ff" />
                               )}
                             </div>
+                            {line.products?.sku && (
+                              <div className="text-xs text-slate-400">{line.products.sku}</div>
+                            )}
                           </td>
-                          <td className="px-3 py-2.5">
+                          <td className="px-5 py-2.5">
                             {routeCfg ? (
                               <Badge label={routeCfg.label} color={routeCfg.color} bg={routeCfg.bg} />
                             ) : (
                               <span className="text-xs text-slate-400">{line.fulfilment_route}</span>
                             )}
                           </td>
-                          <td className="px-3 py-2.5 text-slate-500">{supplier?.name || '\u2014'}</td>
-                          <td className="px-3 py-2.5 text-right">{line.quantity}</td>
-                          <td className="px-3 py-2.5 text-right">{formatCurrency(line.buy_price)}</td>
-                          <td className="px-3 py-2.5 text-right">{formatCurrency(line.sell_price)}</td>
-                          <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                          <td className="px-5 py-2.5 text-slate-500">{supplier?.name || '\u2014'}</td>
+                          <td className="px-5 py-2.5 text-right">{line.quantity}</td>
+                          <td className="px-5 py-2.5 text-right">{formatCurrency(line.buy_price)}</td>
+                          <td className="px-5 py-2.5 text-right">{formatCurrency(line.sell_price)}</td>
+                          <td className="px-5 py-2.5 text-right whitespace-nowrap">
                             <span className={`font-medium ${mColor}`}>{lineMarginPct.toFixed(1)}%</span>
                           </td>
-                          <td className="px-3 py-2.5 text-right font-medium">{formatCurrency(lineTotal)}</td>
-                          <td className="px-3 py-2.5">
+                          <td className="px-5 py-2.5 text-right font-medium">{formatCurrency(lineTotal)}</td>
+                          <td className="px-5 py-2.5">
                             <div className="flex gap-1">
                               {line.is_optional && <Badge label="Optional" color="#6b7280" bg="#f3f4f6" />}
                               {line.requires_contract && <Badge label="Contract" color="#d97706" bg="#fffbeb" />}
@@ -382,10 +440,26 @@ export default async function QuoteDetailPage({ params }: PageProps) {
                     const lineTotal = line.quantity * line.sell_price
                     return (
                       <tr key={line.id} className="border-t border-slate-100">
-                        <td className="px-5 py-2.5 font-medium">{line.description}</td>
-                        <td className="px-3 py-2.5 text-right">{line.quantity}</td>
-                        <td className="px-3 py-2.5 text-right">{formatCurrency(line.sell_price)}</td>
-                        <td className="px-3 py-2.5 text-right font-medium">{formatCurrency(lineTotal)}</td>
+                        <td className="px-5 py-2.5">
+                          {line.product_id ? (
+                            <a
+                              href={`/products/${line.product_id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-medium hover:text-blue-600 no-underline"
+                            >
+                              {line.description}
+                            </a>
+                          ) : (
+                            <span className="font-medium">{line.description}</span>
+                          )}
+                          {line.products?.sku && (
+                            <div className="text-xs text-slate-400">{line.products.sku}</div>
+                          )}
+                        </td>
+                        <td className="px-5 py-2.5 text-right">{line.quantity}</td>
+                        <td className="px-5 py-2.5 text-right">{formatCurrency(line.sell_price)}</td>
+                        <td className="px-5 py-2.5 text-right font-medium">{formatCurrency(lineTotal)}</td>
                       </tr>
                     )
                   })}

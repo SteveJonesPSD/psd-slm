@@ -3,7 +3,10 @@
 import { useState, useMemo } from 'react'
 import { Modal } from '@/components/ui/modal'
 import { Badge } from '@/components/ui/badge'
-import { formatCurrency } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { SearchableSelect } from '@/components/ui/form-fields'
+import { formatCurrency, generateUUID } from '@/lib/utils'
+import { createCategory } from '../../products/categories/actions'
 import type { ProductLookup, CategoryLookup, ProductSupplierLookup, FormLine } from './quote-builder-types'
 import type { ActiveDealPricing } from '@/types/database'
 
@@ -17,6 +20,7 @@ interface ProductPickerModalProps {
   customerId: string
   targetGroupId: string
   currentLineCount: number
+  onRefresh?: () => void
 }
 
 export function ProductPickerModal({
@@ -29,9 +33,15 @@ export function ProductPickerModal({
   customerId,
   targetGroupId,
   currentLineCount,
+  onRefresh,
 }: ProductPickerModalProps) {
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
+  const [showNewCategory, setShowNewCategory] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [categoryLoading, setCategoryLoading] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [localCategories, setLocalCategories] = useState<CategoryLookup[]>(categories)
 
   const filtered = useMemo(() => {
     let result = products
@@ -46,6 +56,30 @@ export function ProductPickerModal({
     }
     return result
   }, [products, search, categoryFilter])
+
+  const handleCreateCategory = async () => {
+    if (!newCategoryName.trim()) return
+    setCategoryLoading(true)
+    const formData = new FormData()
+    formData.set('name', newCategoryName.trim())
+    formData.set('requires_serial', 'false')
+    const result = await createCategory(formData)
+    setCategoryLoading(false)
+    if (result.data) {
+      setLocalCategories((prev) => [...prev, { id: result.data.id, name: result.data.name }])
+      setCategoryFilter(result.data.id)
+      setNewCategoryName('')
+      setShowNewCategory(false)
+    }
+  }
+
+  const handleRefresh = async () => {
+    if (!onRefresh) return
+    setRefreshing(true)
+    onRefresh()
+    // Brief visual feedback
+    setTimeout(() => setRefreshing(false), 500)
+  }
 
   const handleSelect = (product: ProductLookup) => {
     // 1. Check deal pricing for this customer + product
@@ -79,7 +113,7 @@ export function ProductPickerModal({
     }
 
     const line: FormLine = {
-      tempId: crypto.randomUUID(),
+      tempId: generateUUID(),
       tempGroupId: targetGroupId,
       product_id: product.id,
       supplier_id,
@@ -102,26 +136,62 @@ export function ProductPickerModal({
 
   return (
     <Modal title="Add Product" onClose={onClose} width={700}>
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by name or SKU..."
-          className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+          className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400 min-w-[200px]"
           autoFocus
         />
-        <select
+        <SearchableSelect
           value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+          options={localCategories.map((c) => ({ value: c.id, label: c.name }))}
+          placeholder="All Categories"
+          onChange={setCategoryFilter}
+          className="w-48"
+        />
+        <button
+          type="button"
+          onClick={() => setShowNewCategory(!showNewCategory)}
+          className="text-xs text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap"
+          title="Create new category"
         >
-          <option value="">All Categories</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
+          + Category
+        </button>
+        {onRefresh && (
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="text-slate-400 hover:text-slate-600 transition-colors"
+            title="Refresh product list"
+          >
+            <svg className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
+        )}
       </div>
+
+      {/* Inline new category form */}
+      {showNewCategory && (
+        <div className="flex items-center gap-2 mb-4 p-3 rounded-lg border border-blue-200 bg-blue-50/50">
+          <input
+            type="text"
+            value={newCategoryName}
+            onChange={(e) => setNewCategoryName(e.target.value)}
+            placeholder="Category name..."
+            className="flex-1 rounded border border-slate-200 bg-white px-2 py-1.5 text-sm outline-none focus:border-slate-400"
+            onKeyDown={(e) => e.key === 'Enter' && handleCreateCategory()}
+          />
+          <Button size="sm" variant="primary" onClick={handleCreateCategory} disabled={categoryLoading || !newCategoryName.trim()}>
+            {categoryLoading ? 'Creating...' : 'Create'}
+          </Button>
+          <button type="button" onClick={() => setShowNewCategory(false)} className="text-slate-400 hover:text-slate-600">&times;</button>
+        </div>
+      )}
 
       <div className="max-h-[400px] overflow-y-auto">
         {filtered.length === 0 ? (
@@ -130,12 +200,12 @@ export function ProductPickerModal({
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-white">
               <tr>
-                <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Product</th>
-                <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">SKU</th>
-                <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Category</th>
-                <th className="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Buy</th>
-                <th className="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Sell</th>
-                <th className="px-3 py-2 w-16" />
+                <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Product</th>
+                <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">SKU</th>
+                <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Category</th>
+                <th className="px-5 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Buy</th>
+                <th className="px-5 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Sell</th>
+                <th className="px-5 py-3 w-16" />
               </tr>
             </thead>
             <tbody>
@@ -153,7 +223,7 @@ export function ProductPickerModal({
                     className="border-t border-slate-100 hover:bg-slate-50 cursor-pointer"
                     onClick={() => handleSelect(product)}
                   >
-                    <td className="px-3 py-2">
+                    <td className="px-5 py-2.5">
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{product.name}</span>
                         {hasDealReg && (
@@ -161,9 +231,9 @@ export function ProductPickerModal({
                         )}
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-slate-500">{product.sku}</td>
-                    <td className="px-3 py-2 text-slate-500">{product.category_name || '\u2014'}</td>
-                    <td className="px-3 py-2 text-right">
+                    <td className="px-5 py-2.5 text-slate-500">{product.sku}</td>
+                    <td className="px-5 py-2.5 text-slate-500">{product.category_name || '\u2014'}</td>
+                    <td className="px-5 py-2.5 text-right">
                       {hasDealReg && dealPrice ? (
                         <span className="text-purple-600 font-medium">
                           {formatCurrency(dealPrice.deal_cost)}
@@ -172,10 +242,10 @@ export function ProductPickerModal({
                         product.default_buy_price != null ? formatCurrency(product.default_buy_price) : '\u2014'
                       )}
                     </td>
-                    <td className="px-3 py-2 text-right">
+                    <td className="px-5 py-2.5 text-right">
                       {product.default_sell_price != null ? formatCurrency(product.default_sell_price) : '\u2014'}
                     </td>
-                    <td className="px-3 py-2 text-right">
+                    <td className="px-5 py-2.5 text-right">
                       <button
                         type="button"
                         className="text-xs text-blue-600 hover:text-blue-800 font-medium"

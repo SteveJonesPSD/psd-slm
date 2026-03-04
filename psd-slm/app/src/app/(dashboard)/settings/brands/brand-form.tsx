@@ -41,6 +41,7 @@ export function BrandForm({ brand }: Props) {
     footer_text: brand?.footer_text || '',
     default_terms: brand?.default_terms || '',
     default_payment_terms_text: brand?.default_payment_terms_text || '',
+    customer_type: brand?.customer_type || '',
     logo_width: brand?.logo_width || 200,
   })
 
@@ -129,6 +130,7 @@ export function BrandForm({ brand }: Props) {
 
       const brandData = {
         ...form,
+        customer_type: (form.customer_type || null) as Brand['customer_type'],
         logo_path: logoPath,
       }
 
@@ -162,7 +164,7 @@ export function BrandForm({ brand }: Props) {
           <h3 className="text-sm font-semibold text-slate-900">Brand Identity</h3>
         </div>
         <div className="space-y-4 p-6">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Trading Name *"
               value={form.name}
@@ -235,13 +237,31 @@ export function BrandForm({ brand }: Props) {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Quote Number Prefix"
               value={form.quote_prefix}
               onChange={(v) => update('quote_prefix', v)}
               placeholder="Q"
             />
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-500">Customer Type</label>
+              <select
+                value={form.customer_type}
+                onChange={(e) => update('customer_type', e.target.value)}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+              >
+                <option value="">None (all types)</option>
+                <option value="business">Business</option>
+                <option value="education">Education</option>
+                <option value="charity">Charity</option>
+                <option value="public_sector">Public Sector</option>
+              </select>
+              <p className="mt-1 text-[10px] text-slate-400">Associates this brand with a specific customer type</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="flex items-end pb-1">
               <Checkbox
                 label="Default brand"
@@ -268,7 +288,7 @@ export function BrandForm({ brand }: Props) {
         <div className="space-y-4 p-6">
           <Input label="Address Line 1" value={form.address_line1} onChange={(v) => update('address_line1', v)} />
           <Input label="Address Line 2" value={form.address_line2} onChange={(v) => update('address_line2', v)} />
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Input label="City" value={form.city} onChange={(v) => update('city', v)} />
             <Input label="County" value={form.county} onChange={(v) => update('county', v)} />
             <Input label="Postcode" value={form.postcode} onChange={(v) => update('postcode', v)} />
@@ -289,11 +309,11 @@ export function BrandForm({ brand }: Props) {
           <h3 className="text-sm font-semibold text-slate-900">Contact Details</h3>
         </div>
         <div className="space-y-4 p-6">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input label="Phone" value={form.phone} onChange={(v) => update('phone', v)} />
             <Input label="Fax" value={form.fax} onChange={(v) => update('fax', v)} />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input label="Email" value={form.email} onChange={(v) => update('email', v)} type="email" />
             <Input label="Website" value={form.website} onChange={(v) => update('website', v)} />
           </div>
@@ -306,7 +326,7 @@ export function BrandForm({ brand }: Props) {
           <h3 className="text-sm font-semibold text-slate-900">Legal & Financial</h3>
         </div>
         <div className="space-y-4 p-6">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input label="Company Registration Number" value={form.company_reg_number} onChange={(v) => update('company_reg_number', v)} />
             <Input label="VAT Registration Number" value={form.vat_number} onChange={(v) => update('vat_number', v)} />
           </div>
@@ -349,34 +369,37 @@ export function BrandForm({ brand }: Props) {
         <div className="p-6">
           <div className="rounded-lg border border-slate-200 bg-white p-6">
             <div className="flex items-start justify-between">
-              <div>
+              <div className="flex-1">
                 {logoPreview ? (
                   <img
                     src={logoPreview}
                     alt="Logo"
-                    className="mb-3 object-contain"
+                    className="object-contain"
                     style={{ width: form.logo_width, maxWidth: '100%' }}
                   />
                 ) : (
-                  <div className="mb-3 rounded bg-slate-100 px-4 py-2 text-xs text-slate-400">
+                  <div className="rounded bg-slate-100 px-4 py-2 text-xs text-slate-400 inline-block">
                     [No logo]
                   </div>
                 )}
-                <h4 className="text-base font-bold text-slate-900">{form.name || 'Brand Name'}</h4>
+              </div>
+              <div className="text-right">
+                <p className="text-lg font-bold text-slate-300 tracking-wide mb-2">QUOTATION</p>
+                <h4 className="text-sm font-bold text-slate-900">{form.name || 'Brand Name'}</h4>
                 {form.legal_entity && (
                   <p className="text-xs text-slate-500">{form.legal_entity}</p>
                 )}
-              </div>
-              <div className="text-right text-xs text-slate-600">
-                {form.address_line1 && <p>{form.address_line1}</p>}
-                {form.address_line2 && <p>{form.address_line2}</p>}
-                {(form.city || form.county || form.postcode) && (
-                  <p>{[form.city, form.county, form.postcode].filter(Boolean).join(', ')}</p>
-                )}
-                {form.phone && <p className="mt-1">Tel: {form.phone}</p>}
-                {form.fax && <p>Fax: {form.fax}</p>}
-                {form.email && <p>{form.email}</p>}
-                {form.website && <p>{form.website}</p>}
+                <div className="text-xs text-slate-600 mt-1">
+                  {form.address_line1 && <p>{form.address_line1}</p>}
+                  {form.address_line2 && <p>{form.address_line2}</p>}
+                  {(form.city || form.county || form.postcode) && (
+                    <p>{[form.city, form.county, form.postcode].filter(Boolean).join(', ')}</p>
+                  )}
+                  {form.phone && <p className="mt-1">Tel: {form.phone}</p>}
+                  {form.fax && <p>Fax: {form.fax}</p>}
+                  {form.email && <p>{form.email}</p>}
+                  {form.website && <p>{form.website}</p>}
+                </div>
               </div>
             </div>
             {(form.company_reg_number || form.vat_number) && (

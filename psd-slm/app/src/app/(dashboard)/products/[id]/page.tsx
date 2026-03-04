@@ -93,7 +93,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
       />
 
       {/* Stats */}
-      <div className="flex flex-wrap gap-4 mb-6">
+      <div className="flex flex-wrap gap-5 mb-6">
         <StatCard
           label="Default Buy Price"
           value={product.default_buy_price != null ? formatCurrency(product.default_buy_price) : 'Not set'}
@@ -112,9 +112,9 @@ export default async function ProductDetailPage({ params }: PageProps) {
       </div>
 
       {/* Info card */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-5">
+      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
         <h3 className="text-[15px] font-semibold mb-3">Product Details</h3>
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-3 text-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-3 text-sm">
           <DetailField label="SKU" value={product.sku} />
           <DetailField label="Name" value={product.name} />
           <DetailField label="Product Type" value={isService ? 'Service' : 'Goods'} />
@@ -135,6 +135,12 @@ export default async function ProductDetailPage({ params }: PageProps) {
             </div>
           </div>
           {!isService && <DetailField label="Stocked" value={product.is_stocked ? 'Yes' : 'No'} />}
+          {!isService && (
+            <DetailField
+              label="Default Delivery"
+              value={product.default_delivery_destination === 'customer_site' ? 'Customer Site' : 'Warehouse'}
+            />
+          )}
           {!isService && (
             <DetailField
               label="Serialisation"

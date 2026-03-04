@@ -1,212 +1,152 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback, type KeyboardEvent } from 'react'
-import { usePathname } from 'next/navigation'
+import { useState, useRef, useEffect, useCallback, useMemo, type KeyboardEvent } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from '@/components/auth-provider'
-import type { ChatMessage, PageContext } from '@/lib/ai/types'
+import { renderMarkdown, createMarkdownClickHandler } from '@/lib/chat-markdown'
+import { loadAllChatSessions, appendChatMessages, clearChatSession } from '@/lib/chat-sessions'
+import type { AgentAvatars } from '@/lib/agent-avatars'
 
-// --- Lightweight Markdown Renderer ---
+// --- Agent Definitions ---
 
-function renderMarkdown(text: string): string {
-  // Escape HTML
-  let html = text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-
-  // Tables: detect lines with | separators
-  html = html.replace(
-    /(?:^|\n)((?:\|.+\|(?:\n|$))+)/g,
-    (_, tableBlock: string) => {
-      const rows = tableBlock.trim().split('\n')
-      if (rows.length < 2) return tableBlock
-
-      // Check if second row is separator
-      const isSeparator = /^\|[\s\-:|]+\|$/.test(rows[1])
-      const dataRows = isSeparator ? [rows[0], ...rows.slice(2)] : rows
-
-      const renderRow = (row: string, isHeader: boolean) => {
-        const cells = row.split('|').slice(1, -1).map((c) => c.trim())
-        const tag = isHeader ? 'th' : 'td'
-        const cls = isHeader
-          ? 'px-2 py-1 text-left text-xs font-semibold text-slate-600 border-b border-slate-200'
-          : 'px-2 py-1 text-xs text-slate-700 border-b border-slate-100'
-        return `<tr>${cells.map((c) => `<${tag} class="${cls}">${c}</${tag}>`).join('')}</tr>`
-      }
-
-      let tableHtml = '<table class="w-full text-left my-1 border-collapse">'
-      if (isSeparator) {
-        tableHtml += `<thead>${renderRow(dataRows[0], true)}</thead>`
-        tableHtml += '<tbody>'
-        for (let i = 1; i < dataRows.length; i++) {
-          tableHtml += renderRow(dataRows[i], false)
-        }
-        tableHtml += '</tbody>'
-      } else {
-        tableHtml += '<tbody>'
-        for (const row of dataRows) {
-          tableHtml += renderRow(row, false)
-        }
-        tableHtml += '</tbody>'
-      }
-      tableHtml += '</table>'
-      return '\n' + tableHtml
-    }
-  )
-
-  // Code blocks (```)
-  html = html.replace(
-    /```(?:\w*)\n([\s\S]*?)```/g,
-    '<pre class="bg-slate-800 text-slate-100 text-xs rounded p-2 my-1 overflow-x-auto whitespace-pre-wrap">$1</pre>'
-  )
-
-  // Inline code
-  html = html.replace(
-    /`([^`]+)`/g,
-    '<code class="bg-slate-200 text-slate-800 text-xs rounded px-1">$1</code>'
-  )
-
-  // Bold
-  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-
-  // Italic
-  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>')
-
-  // Bullet lists
-  html = html.replace(
-    /(?:^|\n)((?:[-*] .+(?:\n|$))+)/g,
-    (_, block: string) => {
-      const items = block
-        .trim()
-        .split('\n')
-        .map((l: string) => `<li class="ml-4 list-disc">${l.replace(/^[-*] /, '')}</li>`)
-        .join('')
-      return `\n<ul class="my-1 space-y-0.5">${items}</ul>`
-    }
-  )
-
-  // Numbered lists
-  html = html.replace(
-    /(?:^|\n)((?:\d+\. .+(?:\n|$))+)/g,
-    (_, block: string) => {
-      const items = block
-        .trim()
-        .split('\n')
-        .map((l: string) => `<li class="ml-4 list-decimal">${l.replace(/^\d+\. /, '')}</li>`)
-        .join('')
-      return `\n<ol class="my-1 space-y-0.5">${items}</ol>`
-    }
-  )
-
-  // Paragraphs (double newlines)
-  html = html
-    .split(/\n{2,}/)
-    .map((p) => {
-      const trimmed = p.trim()
-      if (!trimmed) return ''
-      if (trimmed.startsWith('<')) return trimmed
-      return `<p class="my-1">${trimmed}</p>`
-    })
-    .join('')
-
-  // Single newlines within paragraphs to <br>
-  html = html.replace(/([^>])\n([^<])/g, '$1<br/>$2')
-
-  return html
+interface AgentConfig {
+  id: string
+  name: string
+  role: string
+  color: string
+  apiEndpoint: string
 }
 
-// --- Page Context Detection ---
-
-function getPageContext(pathname: string): PageContext {
-  const segments = pathname.split('/').filter(Boolean)
-  let module = 'Dashboard'
-  let entityId: string | undefined
-
-  if (segments.length >= 1) {
-    const moduleMap: Record<string, string> = {
-      dashboard: 'Dashboard',
-      customers: 'Customers',
-      contacts: 'Contacts',
-      pipeline: 'Pipeline',
-      quotes: 'Quotes',
-      products: 'Products',
-      suppliers: 'Suppliers',
-      'deal-registrations': 'Deal Registrations',
-      'sales-orders': 'Sales Orders',
-      'purchase-orders': 'Purchase Orders',
-      invoices: 'Invoices',
-      commission: 'Commission',
-      team: 'Team',
-      settings: 'Settings',
-    }
-    module = moduleMap[segments[0]] || segments[0].charAt(0).toUpperCase() + segments[0].slice(1)
-  }
-
-  // UUID pattern for entity detail pages
-  if (segments.length >= 2 && /^[0-9a-f-]{36}$/.test(segments[1])) {
-    entityId = segments[1]
-  }
-
-  return { pathname, module, entityId }
+function AgentAvatar({ agent, size, avatarUrl }: { agent: AgentConfig; size: number; avatarUrl?: string | null }) {
+  const [imgError, setImgError] = useState(false)
+  return (
+    <div
+      className="flex shrink-0 items-center justify-center rounded-full font-bold text-white overflow-hidden"
+      style={{ width: size, height: size, backgroundColor: agent.color, fontSize: size * 0.4 }}
+    >
+      {avatarUrl && !imgError ? (
+        <img src={avatarUrl} alt={agent.name} className="h-full w-full object-cover" onError={() => setImgError(true)} />
+      ) : (
+        agent.name[0]
+      )}
+    </div>
+  )
 }
 
-// --- Suggested Questions ---
+const AGENTS: Record<string, AgentConfig> = {
+  helen: {
+    id: 'helen',
+    name: 'Helen',
+    role: 'Service Desk Agent',
+    color: '#8b5cf6',
+    apiEndpoint: '/api/agents/helen',
+  },
+  jasper: {
+    id: 'jasper',
+    name: 'Jasper',
+    role: 'Sales Agent',
+    color: '#3b82f6',
+    apiEndpoint: '/api/agents/jasper',
+  },
+  lucia: {
+    id: 'lucia',
+    name: 'Lucia',
+    role: 'Administration Agent',
+    color: '#10b981',
+    apiEndpoint: '/api/agents/lucia',
+  },
+}
 
-const suggestedQuestionsByModule: Record<string, string[]> = {
-  Dashboard: [
+function getAgentForPage(pathname: string): AgentConfig {
+  const segment = pathname.split('/').filter(Boolean)[0] || ''
+
+  // Helen: helpdesk & ticketing
+  if (segment === 'helpdesk') return AGENTS.helen
+
+  // Lucia: operations, purchasing, fulfilment, scheduling
+  if (
+    [
+      'orders',
+      'purchase-orders',
+      'invoices',
+      'stock',
+      'delivery-notes',
+      'suppliers',
+      'scheduling',
+      'inbound-pos',
+      'products',
+    ].includes(segment)
+  )
+    return AGENTS.lucia
+
+  // Agent pages map to themselves
+  if (segment === 'agents') {
+    const sub = pathname.split('/').filter(Boolean)[1] || ''
+    if (sub === 'helen') return AGENTS.helen
+    if (sub === 'lucia') return AGENTS.lucia
+    return AGENTS.jasper
+  }
+
+  // Jasper: sales, pipeline, quotes, customers, dashboard, and everything else
+  return AGENTS.jasper
+}
+
+// --- Suggested Questions per Agent ---
+
+const suggestedQuestionsByAgent: Record<string, string[]> = {
+  helen: [
+    'Show me open tickets by priority',
+    'Which tickets are approaching SLA breach?',
+    'What is the current agent workload?',
+  ],
+  jasper: [
     'What does the pipeline look like?',
-    'How many active customers do we have?',
-    'Show me the team summary',
-  ],
-  Customers: [
-    'How many customers do we have?',
-    'Search for customers in London',
-    'Which customers have active deal registrations?',
-  ],
-  Pipeline: [
-    'Summarise the pipeline by stage',
-    'Which opportunities are in negotiation?',
-    'What is the total pipeline value?',
-  ],
-  Quotes: [
     'Show me recent draft quotes',
-    'What quotes are pending review?',
-    'Which quotes expire this month?',
+    'Which deal registrations are expiring soon?',
   ],
-  Products: [
-    'Search for a product by name',
-    'How many active products do we have?',
-    'Which products are stocked?',
-  ],
-  'Deal Registrations': [
-    'Show active deal registrations',
-    'Any deal regs expiring soon?',
-    'Check deal pricing for a customer',
-  ],
-  Team: [
-    'Show me the team summary',
-    'Who has the most opportunities?',
-    'Which sales rep has the most quotes?',
+  lucia: [
+    'Show me pending purchase orders',
+    'What stock levels need attention?',
+    'Are there any overdue invoices?',
   ],
 }
 
-function getSuggestedQuestions(module: string): string[] {
-  return suggestedQuestionsByModule[module] || suggestedQuestionsByModule.Dashboard
+interface ChatMessage {
+  role: 'user' | 'assistant'
+  content: string
 }
 
 // --- Chat Panel Component ---
 
-export function ChatPanel() {
+export function ChatPanel({ agentAvatars }: { agentAvatars?: AgentAvatars }) {
   const [isOpen, setIsOpen] = useState(false)
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [messagesByAgent, setMessagesByAgent] = useState<Record<string, ChatMessage[]>>({})
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [sessionsLoaded, setSessionsLoaded] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const pathname = usePathname()
+  const router = useRouter()
   const { user } = useAuth()
 
-  const pageContext = getPageContext(pathname)
+  const agent = getAgentForPage(pathname)
+  const agentAvatarUrl = agentAvatars?.[agent.id as keyof AgentAvatars] ?? null
+  const messages = messagesByAgent[agent.id] || []
+
+  const handleMarkdownClick = useMemo(() => createMarkdownClickHandler(router), [router])
+
+  // Load persisted sessions on mount
+  useEffect(() => {
+    loadAllChatSessions()
+      .then((saved) => {
+        if (Object.keys(saved).length > 0) {
+          setMessagesByAgent(saved)
+        }
+      })
+      .catch(() => {})
+      .finally(() => setSessionsLoaded(true))
+  }, [])
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -222,29 +162,29 @@ export function ChatPanel() {
     }
   }, [isOpen])
 
+  const handleNewChat = useCallback(async () => {
+    setMessagesByAgent((prev) => ({ ...prev, [agent.id]: [] }))
+    clearChatSession(agent.id).catch(() => {})
+  }, [agent.id])
+
   const sendMessage = useCallback(
     async (text: string) => {
       const trimmed = text.trim()
       if (!trimmed || isLoading) return
 
-      const userMessage: ChatMessage = {
-        role: 'user',
-        content: trimmed,
-        timestamp: new Date().toISOString(),
-      }
+      const userMessage: ChatMessage = { role: 'user', content: trimmed }
+      const currentMessages = messagesByAgent[agent.id] || []
+      const updatedMessages = [...currentMessages, userMessage]
 
-      setMessages((prev) => [...prev, userMessage])
+      setMessagesByAgent((prev) => ({ ...prev, [agent.id]: updatedMessages }))
       setInput('')
       setIsLoading(true)
 
       try {
-        const response = await fetch('/api/chat', {
+        const response = await fetch(agent.apiEndpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            messages: [...messages, userMessage],
-            pageContext,
-          }),
+          body: JSON.stringify({ messages: updatedMessages }),
         })
 
         if (!response.ok) {
@@ -253,19 +193,28 @@ export function ChatPanel() {
         }
 
         const data = await response.json()
-        setMessages((prev) => [...prev, data.message])
+        const assistantContent = data.message.content
+        setMessagesByAgent((prev) => ({
+          ...prev,
+          [agent.id]: [...(prev[agent.id] || []), data.message],
+        }))
+
+        // Persist the exchange
+        appendChatMessages(agent.id, trimmed, assistantContent).catch(() => {})
       } catch (err) {
         const errorMessage: ChatMessage = {
           role: 'assistant',
           content: `Sorry, I encountered an error: ${err instanceof Error ? err.message : 'Unknown error'}. Please try again.`,
-          timestamp: new Date().toISOString(),
         }
-        setMessages((prev) => [...prev, errorMessage])
+        setMessagesByAgent((prev) => ({
+          ...prev,
+          [agent.id]: [...(prev[agent.id] || []), errorMessage],
+        }))
       } finally {
         setIsLoading(false)
       }
     },
-    [isLoading, messages, pageContext]
+    [isLoading, messagesByAgent, agent]
   )
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -275,64 +224,91 @@ export function ChatPanel() {
     }
   }
 
-  const suggested = getSuggestedQuestions(pageContext.module)
+  const suggested = suggestedQuestionsByAgent[agent.id] || []
 
   return (
     <>
-      {/* Toggle Button */}
+      {/* Toggle Button — colour-coded per agent */}
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-5 right-5 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg transition-transform hover:scale-105 hover:shadow-xl"
-          title="Open SLM Assistant"
+          className="fixed bottom-5 right-5 z-40 flex h-12 w-12 items-center justify-center rounded-full text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl overflow-hidden"
+          style={{ backgroundColor: agent.color }}
+          title={`Chat with ${agent.name}`}
         >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
+          <AgentAvatar agent={agent} size={48} avatarUrl={agentAvatarUrl} />
         </button>
       )}
 
       {/* Drawer */}
       <div
-        className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-white shadow-2xl transition-transform duration-300 sm:w-[420px] ${
+        className={`fixed bottom-2 right-2 z-50 flex w-full flex-col rounded-xl bg-white shadow-2xl transition-transform duration-300 sm:w-[420px] h-[50vh] min-h-[320px] max-h-[calc(100vh-16px)] ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-          <div>
-            <h2 className="text-sm font-semibold text-slate-900">SLM Assistant</h2>
-            <span className="inline-block mt-0.5 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-600">
-              {pageContext.module}
-              {pageContext.entityId ? ' Detail' : ''}
-            </span>
+          <div className="flex items-center gap-2.5">
+            <AgentAvatar agent={agent} size={32} avatarUrl={agentAvatarUrl} />
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900">{agent.name}</h2>
+              <span
+                className="inline-block mt-0.5 rounded-full px-2 py-0.5 text-[11px] font-medium"
+                style={{ backgroundColor: `${agent.color}15`, color: agent.color }}
+              >
+                {agent.role}
+              </span>
+            </div>
           </div>
-          <button
-            onClick={() => setIsOpen(false)}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-1">
+            {messages.length > 0 && (
+              <button
+                onClick={handleNewChat}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                title="New chat"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                </svg>
+              </button>
+            )}
+            <button
+              onClick={() => setIsOpen(false)}
+              className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3" onClick={handleMarkdownClick}>
           {messages.length === 0 && !isLoading && (
             <div className="space-y-3 pt-4">
               <p className="text-center text-xs text-slate-400">
-                Hi {user.firstName}! Ask me anything about your SLM data.
+                Hi {user.firstName}! I&apos;m <strong>{agent.name}</strong> &mdash; your {agent.role}. How can I help?
               </p>
               <div className="space-y-2">
                 {suggested.map((q) => (
                   <button
                     key={q}
-                    onClick={() => {
-                      sendMessage(q)
+                    onClick={() => sendMessage(q)}
+                    className="block w-full rounded-lg border border-slate-200 px-3 py-2 text-left text-xs text-slate-600 transition-colors hover:bg-slate-50"
+                    style={{
+                      borderColor: undefined,
                     }}
-                    className="block w-full rounded-lg border border-slate-200 px-3 py-2 text-left text-xs text-slate-600 transition-colors hover:border-indigo-300 hover:bg-indigo-50"
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = `${agent.color}60`
+                      e.currentTarget.style.backgroundColor = `${agent.color}08`
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = ''
+                      e.currentTarget.style.backgroundColor = ''
+                    }}
                   >
                     {q}
                   </button>
@@ -343,12 +319,22 @@ export function ChatPanel() {
 
           {messages.map((msg, i) => (
             <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              {msg.role === 'assistant' && (
+                <div className="mr-2 mt-0.5">
+                  <AgentAvatar agent={agent} size={24} avatarUrl={agentAvatarUrl} />
+                </div>
+              )}
               <div
-                className={`max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed ${
+                className={`max-w-[92%] rounded-xl px-3 py-2 text-xs leading-relaxed overflow-hidden ${
                   msg.role === 'user'
-                    ? 'bg-indigo-500 text-white'
-                    : 'bg-slate-100 text-slate-700'
+                    ? 'text-white'
+                    : 'text-slate-700'
                 }`}
+                style={
+                  msg.role === 'user'
+                    ? { backgroundColor: agent.color }
+                    : { backgroundColor: `${agent.color}10` }
+                }
               >
                 {msg.role === 'assistant' ? (
                   <div
@@ -364,11 +350,14 @@ export function ChatPanel() {
 
           {isLoading && (
             <div className="flex justify-start">
-              <div className="rounded-xl bg-slate-100 px-4 py-3">
+              <div className="mr-2 mt-0.5">
+                <AgentAvatar agent={agent} size={24} avatarUrl={agentAvatarUrl} />
+              </div>
+              <div className="rounded-xl px-4 py-3" style={{ backgroundColor: `${agent.color}10` }}>
                 <div className="flex space-x-1">
-                  <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:0ms]" />
-                  <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:150ms]" />
-                  <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:300ms]" />
+                  <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full" style={{ backgroundColor: agent.color, animationDelay: '0ms' }} />
+                  <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full" style={{ backgroundColor: agent.color, animationDelay: '150ms' }} />
+                  <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full" style={{ backgroundColor: agent.color, animationDelay: '300ms' }} />
                 </div>
               </div>
             </div>
@@ -385,11 +374,22 @@ export function ChatPanel() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask about your data..."
+              placeholder={`Message ${agent.name}...`}
               disabled={isLoading}
               rows={1}
-              className="flex-1 resize-none rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-700 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400 disabled:opacity-50"
-              style={{ maxHeight: '80px' }}
+              className="flex-1 resize-none rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-1 disabled:opacity-50"
+              style={{
+                maxHeight: '80px',
+                borderColor: undefined,
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = agent.color
+                e.currentTarget.style.boxShadow = `0 0 0 1px ${agent.color}`
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = ''
+                e.currentTarget.style.boxShadow = ''
+              }}
               onInput={(e) => {
                 const target = e.target as HTMLTextAreaElement
                 target.style.height = 'auto'
@@ -399,7 +399,8 @@ export function ChatPanel() {
             <button
               onClick={() => sendMessage(input)}
               disabled={isLoading || !input.trim()}
-              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-indigo-500 text-white transition-colors hover:bg-indigo-600 disabled:opacity-40"
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-white transition-colors disabled:opacity-40"
+              style={{ backgroundColor: agent.color }}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="22" y1="2" x2="11" y2="13" />

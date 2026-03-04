@@ -79,50 +79,39 @@ export function PortalQuoteView({ quote, token }: PortalQuoteViewProps) {
         )}
       </div>
 
-      {/* Grouped line items */}
+      {/* Line items (grouped for ordering, but no group headers shown to customer) */}
       <div className="rounded-xl border border-gray-200 bg-white mb-6">
-        {groups.map((group) => {
-          const groupLines = quote.quote_lines
-            .filter((l) => l.group_id === group.id && !l.is_optional)
-            .sort((a, b) => a.sort_order - b.sort_order)
-
-          if (groupLines.length === 0) return null
-
-          return (
-            <div key={group.id}>
-              <div className="bg-slate-50 border-b border-gray-200 px-6 py-2.5">
-                <span className="text-sm font-semibold text-slate-700">{group.name}</span>
-              </div>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr>
-                    <th className="px-6 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Description</th>
-                    <th className="px-4 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500 w-20">Qty</th>
-                    <th className="px-4 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500 w-28">Unit Price</th>
-                    <th className="px-6 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500 w-28">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {groupLines.map((line) => (
-                    <tr key={line.id} className="border-t border-slate-100">
-                      <td className="px-6 py-2.5">
-                        {line.description}
-                        {line.requires_contract && (
-                          <span className="ml-2 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
-                            Contract Required
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-2.5 text-right">{line.quantity}</td>
-                      <td className="px-4 py-2.5 text-right">{formatCurrency(line.sell_price)}</td>
-                      <td className="px-6 py-2.5 text-right font-medium">{formatCurrency(line.quantity * line.sell_price)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )
-        })}
+        <table className="w-full text-sm">
+          <thead>
+            <tr>
+              <th className="px-6 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Description</th>
+              <th className="px-4 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500 w-20">Qty</th>
+              <th className="px-4 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500 w-28">Unit Price</th>
+              <th className="px-6 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500 w-28">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {groups.flatMap((group) =>
+              quote.quote_lines
+                .filter((l) => l.group_id === group.id && !l.is_optional)
+                .sort((a, b) => a.sort_order - b.sort_order)
+            ).map((line) => (
+              <tr key={line.id} className="border-t border-slate-100">
+                <td className="px-6 py-2.5">
+                  {line.description}
+                  {line.requires_contract && (
+                    <span className="ml-2 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                      Contract Required
+                    </span>
+                  )}
+                </td>
+                <td className="px-4 py-2.5 text-right">{line.quantity}</td>
+                <td className="px-4 py-2.5 text-right">{formatCurrency(line.sell_price)}</td>
+                <td className="px-6 py-2.5 text-right font-medium">{formatCurrency(line.quantity * line.sell_price)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
 
         {/* Totals */}
         <div className="border-t-2 border-slate-200 px-6 py-4">

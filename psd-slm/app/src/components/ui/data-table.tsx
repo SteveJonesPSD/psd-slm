@@ -1,6 +1,6 @@
 'use client'
 
-import { ReactNode } from 'react'
+import { ReactNode, useState, useEffect, useRef } from 'react'
 
 export interface Column<T> {
   key: string
@@ -15,6 +15,8 @@ interface DataTableProps<T extends { id?: string }> {
   data: T[]
   onRowClick?: (row: T) => void
   emptyMessage?: string
+  defaultPageSize?: number
+  pageSizeOptions?: number[]
 }
 
 export function DataTable<T extends { id?: string }>({
@@ -22,7 +24,21 @@ export function DataTable<T extends { id?: string }>({
   data,
   onRowClick,
   emptyMessage = 'No data found.',
+  defaultPageSize = 20,
+  pageSizeOptions = [20, 50, 100, 0],
 }: DataTableProps<T>) {
+  const [currentPage, setCurrentPage] = useState(0)
+  const [pageSize, setPageSize] = useState(defaultPageSize)
+  const prevDataRef = useRef(data)
+
+  // Reset to page 0 when data changes (e.g. filter applied upstream)
+  useEffect(() => {
+    if (prevDataRef.current !== data) {
+      prevDataRef.current = data
+      setCurrentPage(0)
+    }
+  }, [data])
+
   if (data.length === 0) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-slate-400">
@@ -31,46 +47,111 @@ export function DataTable<T extends { id?: string }>({
     )
   }
 
+  const totalRows = data.length
+  const showAll = pageSize === 0
+  const totalPages = showAll ? 1 : Math.ceil(totalRows / pageSize)
+  const safePage = Math.min(currentPage, totalPages - 1)
+  const startIdx = showAll ? 0 : safePage * pageSize
+  const endIdx = showAll ? totalRows : Math.min(startIdx + pageSize, totalRows)
+  const pageData = showAll ? data : data.slice(startIdx, endIdx)
+
+  const showPagination = totalRows > Math.min(...pageSizeOptions.filter((o) => o > 0))
+
   return (
-    <div className="overflow-x-auto rounded-xl border border-gray-200">
-      <table className="w-full border-collapse text-sm">
-        <thead>
-          <tr>
-            {columns.map((col) => (
-              <th
-                key={col.key}
-                className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-3.5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500"
-                style={{ textAlign: col.align || 'left' }}
-              >
-                {col.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((row, i) => (
-            <tr
-              key={row.id || i}
-              onClick={() => onRowClick?.(row)}
-              className={`border-b border-slate-100 text-slate-700 ${
-                onRowClick ? 'cursor-pointer hover:bg-slate-50' : ''
-              }`}
-            >
+    <div>
+      <div className="overflow-x-auto rounded-xl border border-gray-200">
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr>
               {columns.map((col) => (
-                <td
+                <th
                   key={col.key}
-                  className={`px-3.5 py-2.5 ${col.nowrap ? 'whitespace-nowrap' : ''}`}
+                  className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500"
                   style={{ textAlign: col.align || 'left' }}
                 >
-                  {col.render
-                    ? col.render(row)
-                    : (row as Record<string, unknown>)[col.key] as ReactNode}
-                </td>
+                  {col.label}
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {pageData.map((row, i) => (
+              <tr
+                key={row.id || startIdx + i}
+                onClick={() => onRowClick?.(row)}
+                className={`border-b border-slate-100 text-slate-700 ${
+                  onRowClick ? 'cursor-pointer hover:bg-slate-50' : ''
+                }`}
+              >
+                {columns.map((col) => (
+                  <td
+                    key={col.key}
+                    className={`px-5 py-3 ${col.nowrap ? 'whitespace-nowrap' : ''}`}
+                    style={{ textAlign: col.align || 'left' }}
+                  >
+                    {col.render
+                      ? col.render(row)
+                      : (row as Record<string, unknown>)[col.key] as ReactNode}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {showPagination && (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500">
+          <span>
+            Showing {startIdx + 1}–{endIdx} of {totalRows}
+          </span>
+
+          <div className="flex items-center gap-1">
+            <span className="mr-1 text-xs text-slate-400">Rows:</span>
+            {pageSizeOptions.map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => {
+                  setPageSize(opt)
+                  setCurrentPage(0)
+                }}
+                className={`rounded px-2 py-1 text-xs ${
+                  pageSize === opt
+                    ? 'bg-slate-800 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {opt === 0 ? 'All' : opt}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={safePage === 0 || showAll}
+              onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium disabled:opacity-30 hover:bg-slate-50 disabled:hover:bg-transparent"
+            >
+              Prev
+            </button>
+            {!showAll && (
+              <span className="text-xs">
+                Page {safePage + 1} of {totalPages}
+              </span>
+            )}
+            <button
+              type="button"
+              disabled={safePage >= totalPages - 1 || showAll}
+              onClick={() => setCurrentPage((p) => p + 1)}
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium disabled:opacity-30 hover:bg-slate-50 disabled:hover:bg-transparent"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

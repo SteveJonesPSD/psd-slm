@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Input, Select, Textarea } from '@/components/ui/form-fields'
+import { Input, Select, Textarea, SearchableSelect } from '@/components/ui/form-fields'
 import { CurrencyInput } from '@/components/ui/currency-input'
 import { formatCurrency } from '@/lib/utils'
 import { useAuth } from '@/components/auth-provider'
@@ -118,8 +118,6 @@ export function DealRegForm({ dealReg, customers, suppliers, products, users, cu
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [customerSearch, setCustomerSearch] = useState('')
-  const [supplierSearch, setSupplierSearch] = useState('')
 
   const upd = (field: string) => (value: string) =>
     setForm((f) => ({ ...f, [field]: value }))
@@ -212,15 +210,6 @@ export function DealRegForm({ dealReg, customers, suppliers, products, users, cu
     (p) => !lines.some((l) => l.product_id === p.id)
   )
 
-  // Filtered customer/supplier lists
-  const filteredCustomers = customerSearch
-    ? customers.filter((c) => c.name.toLowerCase().includes(customerSearch.toLowerCase()))
-    : customers
-
-  const filteredSuppliers = supplierSearch
-    ? suppliers.filter((s) => s.name.toLowerCase().includes(supplierSearch.toLowerCase()))
-    : suppliers
-
   return (
     <div className="max-w-4xl">
       {error && (
@@ -230,53 +219,27 @@ export function DealRegForm({ dealReg, customers, suppliers, products, users, cu
       )}
 
       {/* Header Section */}
-      <div className="rounded-xl border border-gray-200 bg-white p-6 mb-5">
+      <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
         <h3 className="text-[15px] font-semibold mb-4">Deal Registration Details</h3>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">Customer *</label>
-            <input
-              type="text"
-              placeholder="Search customers..."
-              value={customerSearch}
-              onChange={(e) => setCustomerSearch(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400 mb-1"
-            />
-            <select
-              value={form.customer_id}
-              onChange={(e) => { upd('customer_id')(e.target.value); setCustomerSearch('') }}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
-              size={customerSearch ? Math.min(filteredCustomers.length + 1, 6) : 1}
-            >
-              <option value="">Select customer...</option>
-              {filteredCustomers.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <SearchableSelect
+            label="Customer"
+            required
+            value={form.customer_id}
+            options={customers.map((c) => ({ value: c.id, label: c.name }))}
+            placeholder="Search customers..."
+            onChange={upd('customer_id')}
+          />
 
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">Supplier *</label>
-            <input
-              type="text"
-              placeholder="Search suppliers..."
-              value={supplierSearch}
-              onChange={(e) => setSupplierSearch(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400 mb-1"
-            />
-            <select
-              value={form.supplier_id}
-              onChange={(e) => { upd('supplier_id')(e.target.value); setSupplierSearch('') }}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
-              size={supplierSearch ? Math.min(filteredSuppliers.length + 1, 6) : 1}
-            >
-              <option value="">Select supplier...</option>
-              {filteredSuppliers.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </div>
+          <SearchableSelect
+            label="Supplier"
+            required
+            value={form.supplier_id}
+            options={suppliers.map((s) => ({ value: s.id, label: s.name }))}
+            placeholder="Search suppliers..."
+            onChange={upd('supplier_id')}
+          />
 
           <Input
             label="Title *"
@@ -314,14 +277,12 @@ export function DealRegForm({ dealReg, customers, suppliers, products, users, cu
             onChange={upd('expiry_date')}
           />
           {isAdmin ? (
-            <Select
+            <SearchableSelect
               label="Registered By"
               value={form.registered_by}
+              options={users.map((u) => ({ value: u.id, label: `${u.first_name} ${u.last_name}` }))}
+              placeholder="Search users..."
               onChange={upd('registered_by')}
-              options={users.map((u) => ({
-                value: u.id,
-                label: `${u.first_name} ${u.last_name}`,
-              }))}
             />
           ) : (
             <div>
@@ -344,27 +305,16 @@ export function DealRegForm({ dealReg, customers, suppliers, products, users, cu
       </div>
 
       {/* Product Lines Section */}
-      <div className="rounded-xl border border-gray-200 bg-white p-6 mb-5">
+      <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-[15px] font-semibold">Product Lines</h3>
           <div className="flex items-center gap-2">
-            <select
-              onChange={(e) => {
-                if (e.target.value) {
-                  addLine(e.target.value)
-                  e.target.value = ''
-                }
-              }}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+            <SearchableSelect
               value=""
-            >
-              <option value="">+ Add Product...</option>
-              {availableProducts.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.sku} — {p.name}
-                </option>
-              ))}
-            </select>
+              options={availableProducts.map((p) => ({ value: p.id, label: `${p.sku} — ${p.name}` }))}
+              placeholder="+ Add product..."
+              onChange={(val) => { if (val) addLine(val) }}
+            />
           </div>
         </div>
 

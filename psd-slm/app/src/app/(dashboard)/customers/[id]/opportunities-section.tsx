@@ -53,6 +53,7 @@ export function OpportunitiesSection({ opportunities, customerId }: Opportunitie
     {
       key: 'stage',
       label: 'Stage',
+      nowrap: true,
       render: (r) => {
         const cfg = STAGE_CONFIG[r.stage as keyof typeof STAGE_CONFIG]
         return cfg ? <Badge label={cfg.label} color={cfg.color} bg={cfg.bg} /> : r.stage
@@ -69,6 +70,7 @@ export function OpportunitiesSection({ opportunities, customerId }: Opportunitie
       key: 'probability',
       label: 'Prob.',
       align: 'center',
+      nowrap: true,
       render: (r) => `${r.probability}%`,
     },
     {
@@ -80,7 +82,7 @@ export function OpportunitiesSection({ opportunities, customerId }: Opportunitie
   ]
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 mb-5">
+    <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-[15px] font-semibold">
           Opportunities ({opportunities.length})

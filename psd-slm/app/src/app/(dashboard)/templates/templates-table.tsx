@@ -53,15 +53,15 @@ export function TemplatesTable({ templates }: TemplatesTableProps) {
   return (
     <div>
       {/* Filters */}
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex flex-wrap items-center gap-3 mb-6">
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search templates..."
-          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400 w-64"
+          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400 w-full sm:w-64"
         />
-        <div className="flex gap-1.5">
+        <div className="flex flex-wrap gap-1.5">
           <button
             type="button"
             onClick={() => setCategoryFilter('')}
@@ -95,33 +95,33 @@ export function TemplatesTable({ templates }: TemplatesTableProps) {
           <p className="text-sm text-slate-400">No templates found.</p>
         </div>
       ) : (
-        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-          <table className="w-full border-collapse text-sm">
+        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden overflow-x-auto">
+          <table className="w-full border-collapse text-sm min-w-[700px]">
             <thead>
               <tr>
-                <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-3.5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-left">
+                <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-left">
                   Template
                 </th>
-                <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-3.5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-left">
+                <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-left">
                   Category
                 </th>
-                <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-3.5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-left">
+                <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-left">
                   Quote Type
                 </th>
-                <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-3.5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-center">
+                <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-center">
                   Groups
                 </th>
-                <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-3.5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-center">
+                <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-center">
                   Lines
                 </th>
-                <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-3.5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-left">
+                <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-left">
                   Created By
                 </th>
-                <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-3.5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-left">
+                <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-left">
                   Updated
                 </th>
                 {canCreateQuote && (
-                  <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-3.5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-right">
+                  <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-right">
                   </th>
                 )}
               </tr>
@@ -136,33 +136,33 @@ export function TemplatesTable({ templates }: TemplatesTableProps) {
                     className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors"
                     onClick={() => router.push(`/templates/${t.id}`)}
                   >
-                    <td className="px-3.5 py-2.5">
+                    <td className="px-5 py-3">
                       <div className="font-medium text-slate-900">{t.name}</div>
                       {t.description && (
                         <div className="text-xs text-slate-400 mt-0.5 line-clamp-1">{t.description}</div>
                       )}
                     </td>
-                    <td className="px-3.5 py-2.5">
+                    <td className="px-5 py-3 whitespace-nowrap">
                       {catCfg ? (
                         <Badge label={catCfg.label} color={catCfg.color} bg={catCfg.bg} />
                       ) : (
                         <span className="text-slate-400">{'\u2014'}</span>
                       )}
                     </td>
-                    <td className="px-3.5 py-2.5">
+                    <td className="px-5 py-3 whitespace-nowrap">
                       {typeCfg ? (
                         <Badge label={typeCfg.label} color={typeCfg.color} bg={typeCfg.bg} />
                       ) : (
                         <span className="text-slate-400">{'\u2014'}</span>
                       )}
                     </td>
-                    <td className="px-3.5 py-2.5 text-center text-slate-600">
+                    <td className="px-5 py-3 text-center text-slate-600 whitespace-nowrap">
                       {t.quote_template_groups?.length || 0}
                     </td>
-                    <td className="px-3.5 py-2.5 text-center text-slate-600">
+                    <td className="px-5 py-3 text-center text-slate-600 whitespace-nowrap">
                       {t.quote_template_lines?.length || 0}
                     </td>
-                    <td className="px-3.5 py-2.5">
+                    <td className="px-5 py-3">
                       {t.users ? (
                         <div className="flex items-center gap-1.5">
                           <Avatar user={t.users as { id: string; first_name: string; last_name: string; initials: string | null; color: string | null }} size={22} />
@@ -174,11 +174,11 @@ export function TemplatesTable({ templates }: TemplatesTableProps) {
                         <span className="text-slate-400">{'\u2014'}</span>
                       )}
                     </td>
-                    <td className="px-3.5 py-2.5 text-slate-500">
+                    <td className="px-5 py-3 text-slate-500 whitespace-nowrap">
                       {formatDate(t.updated_at)}
                     </td>
                     {canCreateQuote && (
-                      <td className="px-3.5 py-2.5 text-right">
+                      <td className="px-5 py-3 text-right">
                         <button
                           onClick={(e) => {
                             e.stopPropagation()

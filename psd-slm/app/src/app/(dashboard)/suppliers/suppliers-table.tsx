@@ -55,21 +55,24 @@ export function SuppliersTable({ suppliers }: SuppliersTableProps) {
       render: (r) => <span className="font-semibold">{r.name}</span>,
     },
     { key: 'email', label: 'Email' },
-    { key: 'phone', label: 'Phone' },
+    { key: 'phone', label: 'Phone', nowrap: true },
     {
       key: 'payment_terms',
       label: 'Payment Terms',
+      nowrap: true,
       render: (r) => `${r.payment_terms} days`,
     },
     {
       key: 'product_count',
       label: 'Products',
       align: 'center',
+      nowrap: true,
       render: (r) => r.product_count,
     },
     {
       key: 'is_active',
       label: 'Status',
+      nowrap: true,
       render: (r) => r.is_active
         ? <Badge label="Active" color="#059669" bg="#ecfdf5" />
         : <Badge label="Inactive" color="#6b7280" bg="#f3f4f6" />,
@@ -78,7 +81,7 @@ export function SuppliersTable({ suppliers }: SuppliersTableProps) {
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex flex-wrap items-center gap-3 mb-6">
         <input
           type="text"
           placeholder="Search suppliers..."

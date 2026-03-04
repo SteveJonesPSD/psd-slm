@@ -70,7 +70,7 @@ export default async function TemplateDetailPage({ params }: PageProps) {
       </Link>
 
       {/* Header */}
-      <div className="flex items-start justify-between mb-5">
+      <div className="flex items-start justify-between mb-8">
         <div>
           <div className="flex items-center gap-3 mb-1">
             <h2 className="text-2xl font-bold text-slate-900">{template.name}</h2>
@@ -94,7 +94,7 @@ export default async function TemplateDetailPage({ params }: PageProps) {
       </div>
 
       {/* Summary stats */}
-      <div className="flex gap-4 mb-6">
+      <div className="flex gap-5 mb-6">
         <div className="rounded-xl border border-gray-200 bg-white px-5 py-3">
           <div className="text-xs font-medium text-slate-400 uppercase tracking-wide">Groups</div>
           <div className="text-lg font-bold text-slate-900">{typedGroups.length}</div>
@@ -114,7 +114,7 @@ export default async function TemplateDetailPage({ params }: PageProps) {
       </div>
 
       {/* Grouped line items */}
-      <div className="rounded-xl border border-gray-200 bg-white mb-5">
+      <div className="rounded-xl border border-gray-200 bg-white mb-6">
         <div className="px-5 py-4">
           <h3 className="text-[15px] font-semibold">Template Lines</h3>
         </div>
@@ -131,13 +131,13 @@ export default async function TemplateDetailPage({ params }: PageProps) {
                   <thead>
                     <tr>
                       <th className="px-5 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Description</th>
-                      <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Route</th>
-                      <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Supplier</th>
-                      <th className="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Qty</th>
-                      <th className="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Default Buy</th>
-                      <th className="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Default Sell</th>
-                      <th className="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Total</th>
-                      <th className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Flags</th>
+                      <th className="px-5 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Route</th>
+                      <th className="px-5 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Supplier</th>
+                      <th className="px-5 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Qty</th>
+                      <th className="px-5 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Default Buy</th>
+                      <th className="px-5 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Default Sell</th>
+                      <th className="px-5 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Total</th>
+                      <th className="px-5 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Flags</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -154,19 +154,19 @@ export default async function TemplateDetailPage({ params }: PageProps) {
                               <span className="ml-2 text-xs text-slate-400">{line.products.sku}</span>
                             )}
                           </td>
-                          <td className="px-3 py-2.5">
+                          <td className="px-5 py-2.5">
                             {routeCfg ? (
                               <Badge label={routeCfg.label} color={routeCfg.color} bg={routeCfg.bg} />
                             ) : (
                               <span className="text-xs text-slate-400">{line.fulfilment_route}</span>
                             )}
                           </td>
-                          <td className="px-3 py-2.5 text-slate-500">{supplier?.name || '\u2014'}</td>
-                          <td className="px-3 py-2.5 text-right">{line.quantity}</td>
-                          <td className="px-3 py-2.5 text-right text-slate-500">{formatCurrency(line.default_buy_price)}</td>
-                          <td className="px-3 py-2.5 text-right text-slate-500">{formatCurrency(line.default_sell_price)}</td>
-                          <td className="px-3 py-2.5 text-right font-medium">{formatCurrency(lineTotal)}</td>
-                          <td className="px-3 py-2.5">
+                          <td className="px-5 py-2.5 text-slate-500">{supplier?.name || '\u2014'}</td>
+                          <td className="px-5 py-2.5 text-right">{line.quantity}</td>
+                          <td className="px-5 py-2.5 text-right text-slate-500">{formatCurrency(line.default_buy_price)}</td>
+                          <td className="px-5 py-2.5 text-right text-slate-500">{formatCurrency(line.default_sell_price)}</td>
+                          <td className="px-5 py-2.5 text-right font-medium">{formatCurrency(lineTotal)}</td>
+                          <td className="px-5 py-2.5">
                             <div className="flex gap-1">
                               {line.is_optional && <Badge label="Optional" color="#6b7280" bg="#f3f4f6" />}
                               {line.requires_contract && <Badge label="Contract" color="#d97706" bg="#fffbeb" />}

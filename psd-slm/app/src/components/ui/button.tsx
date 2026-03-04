@@ -10,6 +10,7 @@ const variants = {
   danger: 'bg-red-50 text-red-600 hover:bg-red-100',
   ghost: 'bg-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100',
   blue: 'bg-blue-600 text-white hover:bg-blue-700',
+  purple: 'bg-purple-600 text-white hover:bg-purple-700',
 } as const
 
 const sizes = {

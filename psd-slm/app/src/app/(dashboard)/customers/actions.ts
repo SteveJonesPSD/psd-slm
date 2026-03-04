@@ -5,9 +5,31 @@ import { requirePermission } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { logActivity } from '@/lib/activity-log'
 
+async function generateAccountNumber(supabase: Awaited<ReturnType<typeof createClient>>, orgId: string): Promise<string> {
+  const prefix = 'ACC-'
+
+  const { data: existing } = await supabase
+    .from('customers')
+    .select('account_number')
+    .eq('org_id', orgId)
+    .like('account_number', `${prefix}%`)
+
+  let maxSeq = 0
+  if (existing) {
+    for (const row of existing) {
+      const num = parseInt((row.account_number as string).slice(prefix.length), 10)
+      if (!isNaN(num) && num > maxSeq) maxSeq = num
+    }
+  }
+
+  return `${prefix}${String(maxSeq + 1).padStart(4, '0')}`
+}
+
 export async function createCustomer(formData: FormData) {
   const user = await requirePermission('customers', 'create')
   const supabase = await createClient()
+
+  const accountNumber = await generateAccountNumber(supabase, user.orgId)
 
   const { data, error } = await supabase
     .from('customers')
@@ -16,7 +38,8 @@ export async function createCustomer(formData: FormData) {
       name: formData.get('name') as string,
       customer_type: (formData.get('customer_type') as string) || null,
       dfe_number: (formData.get('dfe_number') as string) || null,
-      account_number: (formData.get('account_number') as string) || null,
+      account_number: accountNumber,
+      xero_reference: (formData.get('xero_reference') as string) || null,
       address_line1: (formData.get('address_line1') as string) || null,
       address_line2: (formData.get('address_line2') as string) || null,
       city: (formData.get('city') as string) || null,
@@ -53,6 +76,7 @@ export async function updateCustomer(id: string, formData: FormData) {
       customer_type: (formData.get('customer_type') as string) || null,
       dfe_number: (formData.get('dfe_number') as string) || null,
       account_number: (formData.get('account_number') as string) || null,
+      xero_reference: (formData.get('xero_reference') as string) || null,
       address_line1: (formData.get('address_line1') as string) || null,
       address_line2: (formData.get('address_line2') as string) || null,
       city: (formData.get('city') as string) || null,
@@ -82,7 +106,20 @@ export async function createContact(customerId: string, formData: FormData) {
   const user = await requirePermission('contacts', 'create')
   const supabase = await createClient()
 
-  const isPrimary = formData.get('is_primary') === 'true'
+  let isPrimary = formData.get('is_primary') === 'true'
+  let isBilling = formData.get('is_billing') === 'true'
+
+  // If this is the first contact for the customer, auto-set both flags
+  const { count } = await supabase
+    .from('contacts')
+    .select('id', { count: 'exact', head: true })
+    .eq('customer_id', customerId)
+    .eq('is_active', true)
+
+  if (count === 0) {
+    isPrimary = true
+    isBilling = true
+  }
 
   // If setting as primary, unset existing primary contacts for this customer
   if (isPrimary) {
@@ -102,6 +139,7 @@ export async function createContact(customerId: string, formData: FormData) {
     phone: (formData.get('phone') as string) || null,
     mobile: (formData.get('mobile') as string) || null,
     is_primary: isPrimary,
+    is_billing: isBilling,
   }).select('id').single()
 
   if (error) {
@@ -120,6 +158,7 @@ export async function updateContact(contactId: string, customerId: string, formD
   const supabase = await createClient()
 
   const isPrimary = formData.get('is_primary') === 'true'
+  const isBilling = formData.get('is_billing') === 'true'
 
   if (isPrimary) {
     await supabase
@@ -139,6 +178,7 @@ export async function updateContact(contactId: string, customerId: string, formD
       phone: (formData.get('phone') as string) || null,
       mobile: (formData.get('mobile') as string) || null,
       is_primary: isPrimary,
+      is_billing: isBilling,
     })
     .eq('id', contactId)
 

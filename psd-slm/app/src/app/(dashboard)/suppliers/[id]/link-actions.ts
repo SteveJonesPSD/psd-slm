@@ -24,6 +24,8 @@ export async function linkProduct(formData: FormData) {
       .eq('is_preferred', true)
   }
 
+  const urlStr = (formData.get('url') as string) || null
+
   const { data, error } = await supabase
     .from('product_suppliers')
     .insert({
@@ -33,6 +35,7 @@ export async function linkProduct(formData: FormData) {
       standard_cost: costStr ? parseFloat(costStr) : null,
       lead_time_days: leadStr ? parseInt(leadStr) : null,
       is_preferred: isPreferred,
+      url: urlStr,
     })
     .select()
     .single()
@@ -66,6 +69,8 @@ export async function updateProductSupplier(id: string, productId: string, formD
       .neq('id', id)
   }
 
+  const urlStr = (formData.get('url') as string) || null
+
   const { error } = await supabase
     .from('product_suppliers')
     .update({
@@ -73,6 +78,7 @@ export async function updateProductSupplier(id: string, productId: string, formD
       standard_cost: costStr ? parseFloat(costStr) : null,
       lead_time_days: leadStr ? parseInt(leadStr) : null,
       is_preferred: isPreferred,
+      url: urlStr,
     })
     .eq('id', id)
 

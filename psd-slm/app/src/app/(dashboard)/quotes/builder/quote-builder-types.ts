@@ -1,4 +1,5 @@
 import type { ActiveDealPricing } from '@/types/database'
+import { generateUUID } from '@/lib/utils'
 
 // --- Form state types ---
 
@@ -60,6 +61,7 @@ export interface QuoteFormState {
 export interface CustomerLookup {
   id: string
   name: string
+  customer_type: string | null
 }
 
 export interface ContactLookup {
@@ -110,13 +112,14 @@ export interface BrandLookup {
   name: string
   logo_path: string | null
   is_default: boolean
+  customer_type: string | null
 }
 
 // --- Actions ---
 
 export type QuoteAction =
   | { type: 'SET_FIELD'; field: keyof QuoteFormState; value: unknown }
-  | { type: 'ADD_GROUP'; name?: string }
+  | { type: 'ADD_GROUP'; name?: string; tempId?: string }
   | { type: 'REMOVE_GROUP'; tempId: string }
   | { type: 'RENAME_GROUP'; tempId: string; name: string }
   | { type: 'REORDER_GROUPS'; groups: FormGroup[] }
@@ -140,7 +143,7 @@ export function quoteFormReducer(state: QuoteFormState, action: QuoteAction): Qu
 
     case 'ADD_GROUP': {
       const newGroup: FormGroup = {
-        tempId: crypto.randomUUID(),
+        tempId: action.tempId || generateUUID(),
         name: action.name || `Group ${state.groups.length + 1}`,
         sort_order: state.groups.length,
       }
@@ -197,7 +200,7 @@ export function quoteFormReducer(state: QuoteFormState, action: QuoteAction): Qu
 
     case 'ADD_ATTRIBUTION': {
       const newAttr: FormAttribution = {
-        tempId: crypto.randomUUID(),
+        tempId: generateUUID(),
         user_id: '',
         attribution_type: 'direct',
         split_pct: 0,
@@ -240,7 +243,7 @@ export function createInitialState(
   opportunityCustomerId?: string | null,
   opportunityId?: string | null
 ): QuoteFormState {
-  const defaultGroupId = crypto.randomUUID()
+  const defaultGroupId = generateUUID()
   return {
     customer_id: opportunityCustomerId || '',
     contact_id: '',
@@ -256,7 +259,7 @@ export function createInitialState(
     lines: [],
     attributions: [
       {
-        tempId: crypto.randomUUID(),
+        tempId: generateUUID(),
         user_id: currentUserId,
         attribution_type: 'direct',
         split_pct: 100,
@@ -284,14 +287,14 @@ export function loadExistingQuote(
   // Build group tempId map from real ids
   const groupTempMap = new Map<string, string>()
   const formGroups: FormGroup[] = groups.map((g) => {
-    const tempId = crypto.randomUUID()
+    const tempId = generateUUID()
     groupTempMap.set(g.id, tempId)
     return { tempId, name: g.name, sort_order: g.sort_order }
   })
 
   // If no groups, add a default
   if (formGroups.length === 0) {
-    const tempId = crypto.randomUUID()
+    const tempId = generateUUID()
     formGroups.push({ tempId, name: 'General', sort_order: 0 })
   }
 
@@ -302,7 +305,7 @@ export function loadExistingQuote(
       : null
 
     return {
-      tempId: crypto.randomUUID(),
+      tempId: generateUUID(),
       tempGroupId: l.group_id ? (groupTempMap.get(l.group_id) || formGroups[0].tempId) : formGroups[0].tempId,
       product_id: l.product_id,
       supplier_id: l.supplier_id,
@@ -321,7 +324,7 @@ export function loadExistingQuote(
   })
 
   const formAttrs: FormAttribution[] = attributions.map((a) => ({
-    tempId: crypto.randomUUID(),
+    tempId: generateUUID(),
     user_id: a.user_id,
     attribution_type: a.attribution_type as 'direct' | 'involvement' | 'override',
     split_pct: a.split_pct,

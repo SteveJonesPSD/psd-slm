@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Input, Select, Textarea } from '@/components/ui/form-fields'
+import { Input, Select, Textarea, SearchableSelect } from '@/components/ui/form-fields'
 import { CurrencyInput } from '@/components/ui/currency-input'
 import { Button } from '@/components/ui/button'
 import { OPPORTUNITY_STAGE_CONFIG, ACTIVE_STAGES, type OpportunityStage } from '@/lib/opportunities'
@@ -112,7 +112,7 @@ export function OpportunityForm({
         <div className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
       )}
 
-      <div className="grid grid-cols-2 gap-4 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
         <Input
           label="Title *"
           value={form.title}
@@ -121,23 +121,21 @@ export function OpportunityForm({
           className="col-span-2"
         />
 
-        <Select
-          label="Company *"
+        <SearchableSelect
+          label="Company"
+          required
           value={form.customer_id}
-          onChange={handleCustomerChange}
-          placeholder="Select company..."
           options={customers.map((c) => ({ value: c.id, label: c.name }))}
+          placeholder="Search companies..."
+          onChange={handleCustomerChange}
         />
 
-        <Select
+        <SearchableSelect
           label="Contact"
           value={form.contact_id}
+          options={filteredContacts.map((c) => ({ value: c.id, label: `${c.first_name} ${c.last_name}` }))}
+          placeholder={filteredContacts.length === 0 ? 'No contacts' : 'Search contacts...'}
           onChange={upd('contact_id')}
-          placeholder={filteredContacts.length === 0 ? 'No contacts' : 'Select contact...'}
-          options={filteredContacts.map((c) => ({
-            value: c.id,
-            label: `${c.first_name} ${c.last_name}`,
-          }))}
           disabled={filteredContacts.length === 0}
         />
 
@@ -151,15 +149,12 @@ export function OpportunityForm({
           }))}
         />
 
-        <Select
+        <SearchableSelect
           label="Assigned To"
           value={form.assigned_to}
+          options={users.map((u) => ({ value: u.id, label: `${u.first_name} ${u.last_name}` }))}
+          placeholder="Search users..."
           onChange={upd('assigned_to')}
-          placeholder="Select user..."
-          options={users.map((u) => ({
-            value: u.id,
-            label: `${u.first_name} ${u.last_name}`,
-          }))}
         />
 
         <CurrencyInput

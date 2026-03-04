@@ -23,7 +23,7 @@ export function SupplierIntegrationTab({ integration }: SupplierIntegrationTabPr
   const cfg = INTEGRATION_TYPE_CONFIG[type]
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 mb-5">
+    <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
       <h3 className="text-[15px] font-semibold mb-3">Integration</h3>
       <div className="flex items-center gap-3 mb-3">
         <span className="text-xs font-medium text-slate-400 uppercase tracking-wide">Type:</span>

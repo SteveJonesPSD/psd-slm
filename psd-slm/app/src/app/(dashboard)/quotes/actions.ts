@@ -743,6 +743,57 @@ export async function resolveChangeRequest(requestId: string, notes: string | nu
   return { success: true }
 }
 
+// --- Manual Accept Quote (internal) ---
+
+export async function manuallyAcceptQuote(quoteId: string, customerPo?: string, acceptedByType: string = 'internal_manual') {
+  const user = await requireAuth()
+  if (!hasPermission(user, 'quotes', 'edit_all') && !hasPermission(user, 'quotes', 'edit_own')) {
+    throw new Error('Permission denied: quotes.edit')
+  }
+  const supabase = await createClient()
+
+  const { data: quote } = await supabase
+    .from('quotes')
+    .select('id, quote_number, status, org_id')
+    .eq('id', quoteId)
+    .single()
+
+  if (!quote) return { error: 'Quote not found' }
+  if (quote.status !== 'sent') return { error: 'Only sent quotes can be accepted' }
+
+  const now = new Date().toISOString()
+  const { error } = await supabase
+    .from('quotes')
+    .update({
+      status: 'accepted',
+      accepted_at: now,
+      accepted_by_type: acceptedByType,
+      acknowledged_at: now,
+      acknowledged_by: user.id,
+      ...(customerPo ? { customer_po: customerPo } : {}),
+    })
+    .eq('id', quoteId)
+
+  if (error) return { error: error.message }
+
+  logActivity({
+    supabase,
+    user,
+    entityType: 'quote',
+    entityId: quoteId,
+    action: 'quote.manually_accepted',
+    details: {
+      quote_number: quote.quote_number,
+      customer_po: customerPo || null,
+      accepted_by_type: acceptedByType,
+    },
+  })
+
+  revalidatePath('/quotes')
+  revalidatePath(`/quotes/${quoteId}`)
+  return { success: true }
+}
+
 // --- Acknowledge Acceptance ---
 
 export async function acknowledgeQuoteAcceptance(quoteId: string) {
@@ -784,6 +835,46 @@ export async function acknowledgeQuoteAcceptance(quoteId: string) {
 
   revalidatePath('/quotes')
   revalidatePath(`/quotes/${quoteId}`)
+  return { success: true }
+}
+
+// --- Mark as Lost ---
+
+export async function markQuoteAsLost(id: string, reason: string) {
+  const user = await requireAuth()
+  const canEditAll = hasPermission(user, 'quotes', 'edit_all')
+  const canEditOwn = hasPermission(user, 'quotes', 'edit_own')
+  if (!canEditAll && !canEditOwn) throw new Error('Permission denied: quotes.edit')
+  if (!reason) return { error: 'A reason is required' }
+  const supabase = await createClient()
+
+  const { data: quote } = await supabase
+    .from('quotes')
+    .select('id, quote_number, status')
+    .eq('id', id)
+    .single()
+
+  if (!quote) return { error: 'Quote not found' }
+  if (quote.status !== 'sent') return { error: 'Only sent quotes can be marked as lost' }
+
+  const { error } = await supabase
+    .from('quotes')
+    .update({ status: 'lost', decline_reason: reason })
+    .eq('id', id)
+
+  if (error) return { error: error.message }
+
+  logActivity({
+    supabase,
+    user,
+    entityType: 'quote',
+    entityId: id,
+    action: 'marked as lost',
+    details: { quote_number: quote.quote_number, reason },
+  })
+
+  revalidatePath('/quotes')
+  revalidatePath(`/quotes/${id}`)
   return { success: true }
 }
 
@@ -1033,6 +1124,373 @@ export async function seedQuotes() {
   return { success: true, created }
 }
 
+// --- Create from Supplier Import ---
+
+export interface SupplierImportLine {
+  product_id: string | null
+  description: string
+  quantity: number
+  buy_price: number
+  sell_price: number
+  supplier_id: string | null
+}
+
+export interface SupplierImportInput {
+  customer_id: string
+  contact_id: string | null
+  assigned_to: string | null
+  brand_id: string | null
+  quote_type: string | null
+  supplier_id: string | null
+  new_supplier_name: string | null
+  group_name: string
+  lines: SupplierImportLine[]
+  pdf_storage_path: string | null
+  pdf_file_name: string | null
+  attachment_label?: string
+}
+
+export async function createQuoteFromSupplierImport(input: SupplierImportInput) {
+  const user = await requirePermission('quotes', 'create')
+  const supabase = await createClient()
+
+  if (!input.customer_id) return { error: 'Customer is required' }
+  if (input.lines.length === 0) return { error: 'At least one line item is required' }
+
+  // Auto-create supplier if name provided but no ID
+  let resolvedSupplierId = input.supplier_id
+  if (!resolvedSupplierId && input.new_supplier_name) {
+    const { data: newSupplier, error: supplierError } = await supabase
+      .from('suppliers')
+      .insert({
+        org_id: user.orgId,
+        name: input.new_supplier_name.trim(),
+        is_active: true,
+      })
+      .select()
+      .single()
+
+    if (supplierError) return { error: `Failed to create supplier: ${supplierError.message}` }
+    resolvedSupplierId = newSupplier.id
+
+    logActivity({
+      supabase,
+      user,
+      entityType: 'supplier',
+      entityId: newSupplier.id,
+      action: 'created',
+      details: { name: input.new_supplier_name, source: 'supplier_import' },
+    })
+  }
+
+  const quote_number = await generateQuoteNumber(supabase, user.orgId)
+  const portal_token = crypto.randomUUID()
+
+  // Create quote
+  const { data: quote, error } = await supabase
+    .from('quotes')
+    .insert({
+      org_id: user.orgId,
+      customer_id: input.customer_id,
+      contact_id: input.contact_id || null,
+      opportunity_id: null,
+      assigned_to: input.assigned_to || user.id,
+      brand_id: input.brand_id || null,
+      quote_number,
+      base_quote_number: quote_number,
+      status: 'draft',
+      version: 1,
+      quote_type: input.quote_type || null,
+      valid_until: null,
+      vat_rate: 20,
+      portal_token,
+    })
+    .select()
+    .single()
+
+  if (error) return { error: error.message }
+
+  // Create a single group
+  const { data: group, error: groupError } = await supabase
+    .from('quote_groups')
+    .insert({
+      quote_id: quote.id,
+      name: input.group_name || 'Imported Lines',
+      sort_order: 0,
+    })
+    .select()
+    .single()
+
+  if (groupError) {
+    await supabase.from('quotes').delete().eq('id', quote.id)
+    return { error: groupError.message }
+  }
+
+  // Insert lines
+  const lineRows = input.lines.map((l, i) => ({
+    quote_id: quote.id,
+    group_id: group.id,
+    product_id: l.product_id || null,
+    supplier_id: l.supplier_id || resolvedSupplierId || null,
+    deal_reg_line_id: null,
+    sort_order: i,
+    description: l.description,
+    quantity: l.quantity,
+    buy_price: l.buy_price,
+    sell_price: l.sell_price,
+    fulfilment_route: 'drop_ship' as const,
+    is_optional: false,
+    requires_contract: false,
+    notes: null,
+  }))
+
+  const { error: linesError } = await supabase.from('quote_lines').insert(lineRows)
+
+  if (linesError) {
+    await supabase.from('quotes').delete().eq('id', quote.id)
+    return { error: linesError.message }
+  }
+
+  // Default attribution: 100% direct to current user
+  await supabase.from('quote_attributions').insert({
+    quote_id: quote.id,
+    user_id: user.id,
+    attribution_type: 'direct',
+    split_pct: 100,
+  })
+
+  // Auto-attach supplier file if available (PDF or .eml)
+  if (input.pdf_storage_path) {
+    const fileName = input.pdf_file_name || 'supplier-quote.pdf'
+    const isEml = fileName.toLowerCase().endsWith('.eml')
+    await supabase.from('quote_attachments').insert({
+      quote_id: quote.id,
+      org_id: user.orgId,
+      file_name: fileName,
+      storage_path: input.pdf_storage_path,
+      file_size: 0, // Size not available here; cosmetic field
+      mime_type: isEml ? 'message/rfc822' : 'application/pdf',
+      uploaded_by: user.id,
+      label: input.attachment_label || 'Supplier Quote',
+      source: 'supplier_import',
+    })
+  }
+
+  logActivity({
+    supabase,
+    user,
+    entityType: 'quote',
+    entityId: quote.id,
+    action: 'created',
+    details: {
+      quote_number,
+      customer_id: input.customer_id,
+      line_count: input.lines.length,
+      source: 'supplier_import',
+    },
+  })
+
+  revalidatePath('/quotes')
+  return { data: quote }
+}
+
+// --- Quick Supplier Create (for merge mode) ---
+
+export async function createSupplierQuick(name: string) {
+  const user = await requirePermission('quotes', 'create')
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('suppliers')
+    .insert({
+      org_id: user.orgId,
+      name: name.trim(),
+      is_active: true,
+    })
+    .select('id, name')
+    .single()
+
+  if (error) return { error: `Failed to create supplier: ${error.message}` }
+
+  logActivity({
+    supabase,
+    user,
+    entityType: 'supplier',
+    entityId: data.id,
+    action: 'created',
+    details: { name: data.name, source: 'supplier_import_merge' },
+  })
+
+  return { data }
+}
+
+// --- Attach Supplier PDF to Existing Quote ---
+
+export async function attachSupplierPdfToQuote(
+  quoteId: string,
+  storagePath: string,
+  fileName: string
+) {
+  const user = await requireAuth()
+  if (!hasPermission(user, 'quotes', 'edit_all') && !hasPermission(user, 'quotes', 'edit_own')) {
+    throw new Error('Permission denied: quotes.edit')
+  }
+  const supabase = await createClient()
+
+  const { error } = await supabase.from('quote_attachments').insert({
+    quote_id: quoteId,
+    org_id: user.orgId,
+    file_name: fileName,
+    storage_path: storagePath,
+    file_size: 0,
+    mime_type: 'application/pdf',
+    uploaded_by: user.id,
+    label: 'Supplier Quote',
+    source: 'supplier_import',
+  })
+
+  if (error) return { error: error.message }
+  return { success: true }
+}
+
+// --- Add Supplier Lines to Existing Quote (merge from detail page) ---
+
+export interface MergeLinesToQuoteInput {
+  quoteId: string
+  groupName: string
+  supplierId: string | null
+  newSupplierName: string | null
+  lines: SupplierImportLine[]
+  pdfStoragePath: string | null
+  pdfFileName: string | null
+}
+
+export async function addSupplierLinesToQuote(input: MergeLinesToQuoteInput) {
+  const user = await requireAuth()
+  if (!hasPermission(user, 'quotes', 'edit_all') && !hasPermission(user, 'quotes', 'edit_own')) {
+    throw new Error('Permission denied: quotes.edit')
+  }
+  const supabase = await createClient()
+
+  if (input.lines.length === 0) return { error: 'At least one line item is required' }
+
+  // Auto-create supplier if name provided but no ID
+  let resolvedSupplierId = input.supplierId
+  if (!resolvedSupplierId && input.newSupplierName) {
+    const { data: newSupplier, error: supplierError } = await supabase
+      .from('suppliers')
+      .insert({
+        org_id: user.orgId,
+        name: input.newSupplierName.trim(),
+        is_active: true,
+      })
+      .select()
+      .single()
+
+    if (supplierError) return { error: `Failed to create supplier: ${supplierError.message}` }
+    resolvedSupplierId = newSupplier.id
+
+    logActivity({
+      supabase,
+      user,
+      entityType: 'supplier',
+      entityId: newSupplier.id,
+      action: 'created',
+      details: { name: input.newSupplierName, source: 'supplier_import_merge' },
+    })
+  }
+
+  // Get current max sort_order for groups on this quote
+  const { data: existingGroups } = await supabase
+    .from('quote_groups')
+    .select('sort_order')
+    .eq('quote_id', input.quoteId)
+    .order('sort_order', { ascending: false })
+    .limit(1)
+
+  const nextGroupOrder = existingGroups && existingGroups.length > 0
+    ? existingGroups[0].sort_order + 1
+    : 0
+
+  // Create the new group
+  const { data: group, error: groupError } = await supabase
+    .from('quote_groups')
+    .insert({
+      quote_id: input.quoteId,
+      name: input.groupName || 'Imported Lines',
+      sort_order: nextGroupOrder,
+    })
+    .select()
+    .single()
+
+  if (groupError) return { error: groupError.message }
+
+  // Get current max sort_order for lines on this quote
+  const { data: existingLines } = await supabase
+    .from('quote_lines')
+    .select('sort_order')
+    .eq('quote_id', input.quoteId)
+    .order('sort_order', { ascending: false })
+    .limit(1)
+
+  const nextLineOrder = existingLines && existingLines.length > 0
+    ? existingLines[0].sort_order + 1
+    : 0
+
+  // Insert lines
+  const lineRows = input.lines.map((l, i) => ({
+    quote_id: input.quoteId,
+    group_id: group.id,
+    product_id: l.product_id || null,
+    supplier_id: l.supplier_id || resolvedSupplierId || null,
+    deal_reg_line_id: null,
+    sort_order: nextLineOrder + i,
+    description: l.description,
+    quantity: l.quantity,
+    buy_price: l.buy_price,
+    sell_price: l.sell_price,
+    fulfilment_route: 'drop_ship' as const,
+    is_optional: false,
+    requires_contract: false,
+    notes: null,
+  }))
+
+  const { error: linesError } = await supabase.from('quote_lines').insert(lineRows)
+  if (linesError) return { error: linesError.message }
+
+  // Attach supplier PDF
+  if (input.pdfStoragePath) {
+    await supabase.from('quote_attachments').insert({
+      quote_id: input.quoteId,
+      org_id: user.orgId,
+      file_name: input.pdfFileName || 'supplier-quote.pdf',
+      storage_path: input.pdfStoragePath,
+      file_size: 0,
+      mime_type: 'application/pdf',
+      uploaded_by: user.id,
+      label: 'Supplier Quote',
+      source: 'supplier_import',
+    })
+  }
+
+  logActivity({
+    supabase,
+    user,
+    entityType: 'quote',
+    entityId: input.quoteId,
+    action: 'updated',
+    details: {
+      source: 'supplier_import_merge',
+      lines_added: input.lines.length,
+      group_name: input.groupName,
+    },
+  })
+
+  revalidatePath('/quotes')
+  revalidatePath(`/quotes/${input.quoteId}`)
+  return { success: true }
+}
+
 // --- PO Document Download ---
 
 export async function getPoDocumentUrl(quoteId: string) {
@@ -1055,4 +1513,53 @@ export async function getPoDocumentUrl(quoteId: string) {
 
   if (error) return { error: error.message }
   return { url: data.signedUrl }
+}
+
+// --- Signature Image Download ---
+
+export async function getSignatureImageUrl(quoteId: string) {
+  await requirePermission('quotes', 'view')
+  const supabase = await createClient()
+
+  const { data: quote } = await supabase
+    .from('quotes')
+    .select('signature_image_path')
+    .eq('id', quoteId)
+    .single()
+
+  if (!quote?.signature_image_path) return { error: 'No signature found' }
+
+  const { data, error } = await supabase.storage
+    .from('e-signatures')
+    .createSignedUrl(quote.signature_image_path, 60)
+
+  if (error) return { error: error.message }
+  return { url: data.signedUrl }
+}
+
+// --- Refresh products for quote builder ---
+
+export async function refreshQuoteBuilderProducts() {
+  await requireAuth()
+  const supabase = await createClient()
+
+  const [
+    { data: rawProducts },
+    { data: productSuppliers },
+  ] = await Promise.all([
+    supabase.from('products').select('id, sku, name, category_id, default_buy_price, default_sell_price, product_categories(name)').eq('is_active', true).order('name'),
+    supabase.from('product_suppliers').select('product_id, supplier_id, standard_cost, is_preferred'),
+  ])
+
+  const products = (rawProducts || []).map((p) => ({
+    id: p.id,
+    sku: p.sku,
+    name: p.name,
+    category_id: p.category_id,
+    category_name: (p.product_categories as unknown as { name: string } | null)?.name || null,
+    default_buy_price: p.default_buy_price,
+    default_sell_price: p.default_sell_price,
+  }))
+
+  return { products, productSuppliers: productSuppliers || [] }
 }

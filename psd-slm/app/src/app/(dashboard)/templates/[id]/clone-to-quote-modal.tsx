@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
+import { SearchableSelect } from '@/components/ui/form-fields'
 import { createClient } from '@/lib/supabase/client'
 import { cloneTemplateToQuote } from '../actions'
 
@@ -19,6 +20,7 @@ interface CloneToQuoteModalProps {
 interface CustomerOption {
   id: string
   name: string
+  customer_type: string | null
 }
 
 interface ContactOption {
@@ -38,6 +40,7 @@ interface BrandOption {
   id: string
   name: string
   is_default: boolean
+  customer_type: string | null
 }
 
 export function CloneToQuoteModal({
@@ -59,26 +62,25 @@ export function CloneToQuoteModal({
   const [contactId, setContactId] = useState('')
   const [opportunityId, setOpportunityId] = useState(preSelectedOpportunityId || '')
   const [brandId, setBrandId] = useState('')
-  const [customerSearch, setCustomerSearch] = useState('')
 
   // Fetch lookups on mount
   useEffect(() => {
     const fetchLookups = async () => {
       const supabase = createClient()
       const [c, ct, o, b] = await Promise.all([
-        supabase.from('customers').select('id, name').eq('is_active', true).order('name'),
+        supabase.from('customers').select('id, name, customer_type').eq('is_active', true).order('name'),
         supabase.from('contacts').select('id, customer_id, first_name, last_name').eq('is_active', true),
         supabase.from('opportunities').select('id, customer_id, title').not('stage', 'in', '("won","lost")').order('title'),
-        supabase.from('brands').select('id, name, is_default').eq('is_active', true).order('sort_order'),
+        supabase.from('brands').select('id, name, is_default, customer_type').eq('is_active', true).order('sort_order'),
       ])
       setCustomers(c.data || [])
       setContacts(ct.data || [])
       setOpportunities(o.data || [])
       setBrands(b.data || [])
 
-      // Auto-select default brand
+      // Auto-select default brand (brand filtering by customer type handled in useEffect)
       const defaultBrand = (b.data || []).find((br) => br.is_default)
-      if (defaultBrand) setBrandId(defaultBrand.id)
+      if (defaultBrand && !preSelectedCustomerId) setBrandId(defaultBrand.id)
 
       setLoading(false)
     }
@@ -96,13 +98,6 @@ export function CloneToQuoteModal({
     [opportunities, customerId]
   )
 
-  // Filter customers by search
-  const filteredCustomers = useMemo(() => {
-    if (!customerSearch) return customers
-    const q = customerSearch.toLowerCase()
-    return customers.filter((c) => c.name.toLowerCase().includes(q))
-  }, [customers, customerSearch])
-
   // Reset contact/opportunity when customer changes
   useEffect(() => {
     if (!preSelectedCustomerId) {
@@ -110,6 +105,24 @@ export function CloneToQuoteModal({
       setOpportunityId('')
     }
   }, [customerId, preSelectedCustomerId])
+
+  // Filter brands by selected customer's type
+  const selectedCustomerType = customers.find((c) => c.id === customerId)?.customer_type || null
+  const filteredBrands = useMemo(() => {
+    if (!selectedCustomerType) return brands
+    return brands.filter((b) => !b.customer_type || b.customer_type === selectedCustomerType)
+  }, [brands, selectedCustomerType])
+
+  // Auto-select brand when customer changes and filtering narrows options
+  useEffect(() => {
+    if (!selectedCustomerType || brands.length === 0) return
+    const matching = brands.filter((b) => !b.customer_type || b.customer_type === selectedCustomerType)
+    if (!matching.some((b) => b.id === brandId)) {
+      const preferred = matching.find((b) => b.is_default) || matching[0]
+      if (preferred) setBrandId(preferred.id)
+    }
+    if (matching.length === 1) setBrandId(matching[0].id)
+  }, [selectedCustomerType]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCreate = async () => {
     if (!customerId) return
@@ -139,79 +152,46 @@ export function CloneToQuoteModal({
       ) : (
         <div className="space-y-4">
           {/* Customer */}
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">
-              Customer <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={customerSearch}
-              onChange={(e) => setCustomerSearch(e.target.value)}
-              placeholder="Search customers..."
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400 mb-1"
-            />
-            <select
-              value={customerId}
-              onChange={(e) => setCustomerId(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
-              size={Math.min(6, filteredCustomers.length + 1)}
-            >
-              <option value="">Select customer...</option>
-              {filteredCustomers.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </div>
+          <SearchableSelect
+            label="Customer"
+            required
+            value={customerId}
+            options={customers.map((c) => ({ value: c.id, label: c.name }))}
+            placeholder="Search customers..."
+            onChange={setCustomerId}
+          />
 
           {/* Contact */}
           {customerId && filteredContacts.length > 0 && (
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Contact</label>
-              <select
-                value={contactId}
-                onChange={(e) => setContactId(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
-              >
-                <option value="">None</option>
-                {filteredContacts.map((c) => (
-                  <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
-                ))}
-              </select>
-            </div>
+            <SearchableSelect
+              label="Contact"
+              value={contactId}
+              options={filteredContacts.map((c) => ({ value: c.id, label: `${c.first_name} ${c.last_name}` }))}
+              placeholder="Search contacts..."
+              onChange={setContactId}
+            />
           )}
 
           {/* Opportunity */}
           {customerId && filteredOpportunities.length > 0 && (
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Opportunity</label>
-              <select
-                value={opportunityId}
-                onChange={(e) => setOpportunityId(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
-              >
-                <option value="">None</option>
-                {filteredOpportunities.map((o) => (
-                  <option key={o.id} value={o.id}>{o.title}</option>
-                ))}
-              </select>
-            </div>
+            <SearchableSelect
+              label="Opportunity"
+              value={opportunityId}
+              options={filteredOpportunities.map((o) => ({ value: o.id, label: o.title }))}
+              placeholder="Search opportunities..."
+              onChange={setOpportunityId}
+            />
           )}
 
           {/* Brand */}
-          {brands.length > 1 && (
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Brand</label>
-              <select
-                value={brandId}
-                onChange={(e) => setBrandId(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
-              >
-                <option value="">None</option>
-                {brands.map((b) => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
-                ))}
-              </select>
-            </div>
+          {filteredBrands.length > 1 && (
+            <SearchableSelect
+              label="Brand"
+              value={brandId}
+              options={filteredBrands.map((b) => ({ value: b.id, label: b.is_default ? `${b.name} (Default)` : b.name }))}
+              placeholder="Search brands..."
+              onChange={setBrandId}
+            />
           )}
 
           <div className="text-xs text-slate-400 bg-slate-50 rounded-lg p-3">

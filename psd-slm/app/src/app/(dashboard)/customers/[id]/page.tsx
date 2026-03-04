@@ -7,6 +7,12 @@ import { CustomerHeader } from './customer-header'
 import { ContactsSection } from './contacts-section'
 import { OpportunitiesSection } from './opportunities-section'
 import { QuotesSection } from './quotes-section'
+import { ContractsSection } from './contracts-section'
+import { SupportTicketsSection } from './support-tickets-section'
+import { VisitSchedulingSection } from './visit-scheduling-section'
+import { getCompanyTickets } from '../../helpdesk/actions'
+import { getContractsByCompany } from '../../contracts/actions'
+import { getCompanyVisits } from '../../visit-scheduling/actions'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -48,6 +54,30 @@ export default async function CustomerDetailPage({ params }: PageProps) {
     .not('status', 'eq', 'revised')
     .order('created_at', { ascending: false })
 
+  // Fetch contracts (may fail if module not deployed yet)
+  let contractsData: Awaited<ReturnType<typeof getContractsByCompany>> = []
+  try {
+    contractsData = await getContractsByCompany(id)
+  } catch {
+    // Contracts module may not be deployed yet
+  }
+
+  // Fetch support tickets (may fail if helpdesk module not set up yet)
+  let supportData: Awaited<ReturnType<typeof getCompanyTickets>> | null = null
+  try {
+    supportData = await getCompanyTickets(id)
+  } catch {
+    // Helpdesk module may not be deployed yet
+  }
+
+  // Fetch visit schedule data (may fail if module not deployed yet)
+  let visitsData: Awaited<ReturnType<typeof getCompanyVisits>> = []
+  try {
+    visitsData = await getCompanyVisits(id)
+  } catch {
+    // Visit scheduling module may not be deployed yet
+  }
+
   if (!customer) notFound()
 
   const opps = opportunities || []
@@ -72,7 +102,7 @@ export default async function CustomerDetailPage({ params }: PageProps) {
       <CustomerHeader customer={customer} />
 
       {/* Stats row */}
-      <div className="flex flex-wrap gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5 mb-6">
         <StatCard label="Contacts" value={contacts?.length || 0} />
         <StatCard
           label="Opportunities"
@@ -93,10 +123,11 @@ export default async function CustomerDetailPage({ params }: PageProps) {
       </div>
 
       {/* Customer info card */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-5">
+      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
         <h3 className="text-[15px] font-semibold mb-3">Customer Details</h3>
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-3 text-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-3 text-sm">
           <DetailField label="Account Number" value={customer.account_number} />
+          <DetailField label="Xero Reference" value={customer.xero_reference} />
           <DetailField label="Phone" value={customer.phone} />
           <DetailField label="Email" value={customer.email} />
           <DetailField label="Website" value={customer.website} />
@@ -126,6 +157,29 @@ export default async function CustomerDetailPage({ params }: PageProps) {
 
       {/* Quotes */}
       <QuotesSection quotes={quotes || []} />
+
+      {/* Contracts */}
+      {contractsData.length > 0 && (
+        <ContractsSection contracts={contractsData} customerId={id} />
+      )}
+
+      {/* Scheduled Visits */}
+      {visitsData.length > 0 && (
+        <div className="mt-6">
+          <VisitSchedulingSection visits={visitsData} />
+        </div>
+      )}
+
+      {/* Support Tickets */}
+      {supportData && (
+        <SupportTicketsSection
+          tickets={supportData.tickets as never[]}
+          activeCount={supportData.activeCount}
+          contract={supportData.contract as never}
+          timeUsedThisMonth={supportData.timeUsedThisMonth}
+          customerId={id}
+        />
+      )}
     </div>
   )
 }

@@ -31,6 +31,7 @@ export default async function PortalPage({ params }: PageProps) {
       portal_token,
       sent_at,
       accepted_at,
+      signed_by_name,
       customer_id,
       brand_id,
       customers(name, address_line1, address_line2, city, postcode),
@@ -38,7 +39,7 @@ export default async function PortalPage({ params }: PageProps) {
       brands(name, logo_path, phone, email, website, footer_text),
       quote_groups(id, name, sort_order),
       quote_lines(
-        id, group_id, sort_order, description, quantity, sell_price, is_optional, requires_contract
+        id, group_id, sort_order, description, quantity, sell_price, is_optional, requires_contract, products(product_type)
       )
     `)
     .eq('portal_token', token)
@@ -55,7 +56,8 @@ export default async function PortalPage({ params }: PageProps) {
     contacts: rawQuote.contacts as unknown as { first_name: string; last_name: string; email: string | null } | null,
     brands: rawQuote.brands as unknown as { name: string; logo_path: string | null; phone: string | null; email: string | null; website: string | null; footer_text: string | null } | null,
     quote_groups: (rawQuote.quote_groups || []) as { id: string; name: string; sort_order: number }[],
-    quote_lines: (rawQuote.quote_lines || []) as { id: string; group_id: string | null; sort_order: number; description: string; quantity: number; sell_price: number; is_optional: boolean; requires_contract: boolean }[],
+    quote_lines: ((rawQuote.quote_lines || []) as { id: string; group_id: string | null; sort_order: number; description: string; quantity: number; sell_price: number; is_optional: boolean; requires_contract: boolean; products: { product_type: string } | null }[])
+      .filter((l) => !(l.products?.product_type === 'service' && l.sell_price === 0)),
   }
 
   // Route by status
