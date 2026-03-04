@@ -115,6 +115,18 @@ export interface HandlerResult {
   ticketId?: string
   ticketNumber?: string
   notes: string
+  sender?: string
+  senderName?: string
+}
+
+export interface MessageDetail {
+  messageId?: string
+  sender?: string
+  senderName?: string
+  subject?: string
+  action: 'created_ticket' | 'threaded_to_ticket' | 'skipped' | 'rejected' | 'error'
+  reason: string
+  ticketNumber?: string
 }
 
 export interface PollResult {
@@ -125,6 +137,7 @@ export interface PollResult {
   messagesRejected: number
   errors: { messageId: string; error: string }[]
   rejections: { messageId: string; reason: string }[]
+  messageDetails: MessageDetail[]
 }
 
 export interface MailProcessingLog {
@@ -139,6 +152,7 @@ export interface MailProcessingLog {
   messages_rejected: number
   errors: { messageId: string; error: string }[]
   rejections: { messageId: string; reason: string }[]
+  message_details: MessageDetail[] | null
   created_at: string
 }
 

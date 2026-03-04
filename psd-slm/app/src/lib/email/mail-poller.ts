@@ -4,7 +4,7 @@
 // =============================================================================
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { MailChannelWithConnection, ProcessedEmail, PollResult } from './types'
+import type { MailChannelWithConnection, ProcessedEmail, PollResult, MessageDetail } from './types'
 import { GraphClient } from './graph-client'
 import { getHandler } from './mail-router'
 import { getHeader, parseReferences } from './email-utils'
@@ -59,6 +59,7 @@ async function pollChannel(
     messagesRejected: 0,
     errors: [],
     rejections: [],
+    messageDetails: [],
   }
 
   // Start processing log entry
@@ -115,8 +116,17 @@ async function pollChannel(
     for (const msg of messages) {
       // Skip our own outbound emails (acks and agent replies sent from this mailbox)
       const senderAddress = msg.from?.emailAddress?.address?.toLowerCase() || ''
+      const senderName = msg.from?.emailAddress?.name || undefined
       if (senderAddress === channel.mailbox_address.toLowerCase()) {
         result.messagesSkipped++
+        result.messageDetails.push({
+          messageId: msg.id,
+          sender: senderAddress,
+          senderName,
+          subject: msg.subject || undefined,
+          action: 'skipped',
+          reason: 'Outbound (self-sent)',
+        })
         // Mark as read so it doesn't reappear next poll
         await client.markAsRead(channel.mailbox_address, msg.id).catch(() => {})
         // Track time even for skipped
@@ -136,6 +146,14 @@ async function pollChannel(
 
       if (existing) {
         result.messagesSkipped++
+        result.messageDetails.push({
+          messageId: msg.id,
+          sender: senderAddress,
+          senderName,
+          subject: msg.subject || undefined,
+          action: 'skipped',
+          reason: 'Already processed',
+        })
         continue
       }
 
@@ -146,6 +164,9 @@ async function pollChannel(
         // Route to handler
         const handlerResult = await handler(processedEmail, channel, orgId, supabase)
 
+        const detailSender = handlerResult.sender || senderAddress
+        const detailSenderName = handlerResult.senderName || senderName
+
         if (handlerResult.action === 'error') {
           result.errors.push({ messageId: msg.id, error: handlerResult.notes })
         } else if (handlerResult.action === 'rejected') {
@@ -155,6 +176,16 @@ async function pollChannel(
           result.messagesProcessed++
         }
 
+        result.messageDetails.push({
+          messageId: msg.id,
+          sender: detailSender,
+          senderName: detailSenderName,
+          subject: msg.subject || undefined,
+          action: handlerResult.action,
+          reason: handlerResult.notes,
+          ticketNumber: handlerResult.ticketNumber,
+        })
+
         // Mark as read in Graph
         await client.markAsRead(channel.mailbox_address, msg.id).catch(() => {
           // Non-blocking — marking as read is best-effort
@@ -162,6 +193,14 @@ async function pollChannel(
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error'
         result.errors.push({ messageId: msg.id, error: errorMessage })
+        result.messageDetails.push({
+          messageId: msg.id,
+          sender: senderAddress,
+          senderName,
+          subject: msg.subject || undefined,
+          action: 'error',
+          reason: errorMessage,
+        })
       }
 
       // Track the latest message time
@@ -260,6 +299,7 @@ async function finishLog(
       messages_rejected: result.messagesRejected,
       errors: result.errors,
       rejections: result.rejections,
+      message_details: result.messageDetails,
     })
     .eq('id', logId)
 }

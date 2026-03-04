@@ -257,6 +257,8 @@ async function threadToTicket(
     ticketId: ticket.id,
     ticketNumber: ticket.ticket_number,
     notes: `Threaded to ${ticket.ticket_number}`,
+    sender: fromAddress,
+    senderName: fromName !== fromAddress ? fromName : undefined,
   }
 }
 
@@ -285,6 +287,8 @@ async function createNewTicket(
     return {
       action: 'rejected',
       notes: `Invalid email address: ${fromAddress}`,
+      sender: fromAddress,
+      senderName: fromName !== fromAddress ? fromName : undefined,
     }
   }
 
@@ -294,6 +298,8 @@ async function createNewTicket(
     return {
       action: 'rejected',
       notes: `No matching domain for ${senderDomain} (sender: ${fromAddress})`,
+      sender: fromAddress,
+      senderName: fromName !== fromAddress ? fromName : undefined,
     }
   }
 
@@ -380,6 +386,8 @@ async function createNewTicket(
     return {
       action: 'error',
       notes: `Failed to create ticket: ${error?.message || 'Unknown error'}`,
+      sender: fromAddress,
+      senderName: fromName !== fromAddress ? fromName : undefined,
     }
   }
 
@@ -469,6 +477,8 @@ async function createNewTicket(
     ticketId: ticket.id,
     ticketNumber: ticket.ticket_number,
     notes: `New ticket created: ${ticketNumber}${contactAutoCreated ? ' (contact auto-created)' : ''}`,
+    sender: fromAddress,
+    senderName: fromName !== fromAddress ? fromName : undefined,
   }
 }
 
