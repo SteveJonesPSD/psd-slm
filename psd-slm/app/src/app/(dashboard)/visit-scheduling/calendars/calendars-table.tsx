@@ -14,7 +14,7 @@ export function CalendarsTable({ calendars }: CalendarsTableProps) {
   const router = useRouter()
 
   const columns: Column<VisitCalendar>[] = [
-    { key: 'name', label: 'Name', render: (row) => <span className="font-medium text-slate-900">{row.name}</span> },
+    { key: 'name', label: 'Name', render: (row) => <span className="font-medium text-slate-900 dark:text-white">{row.name}</span> },
     {
       key: 'academic_year_start',
       label: 'Academic Year',

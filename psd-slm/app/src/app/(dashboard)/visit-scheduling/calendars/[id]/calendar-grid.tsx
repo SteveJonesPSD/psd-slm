@@ -105,7 +105,7 @@ export function CalendarGrid({ calendarId, calendarStatus, weeks, bankHolidays }
           <button
             onClick={handleArchive}
             disabled={isPending}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
           >
             Archive Calendar
           </button>
@@ -113,7 +113,7 @@ export function CalendarGrid({ calendarId, calendarStatus, weeks, bankHolidays }
         <button
           onClick={handleDelete}
           disabled={isPending}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 dark:border-red-800 bg-white dark:bg-slate-800 px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors disabled:opacity-50"
         >
           Delete Calendar
         </button>
@@ -121,21 +121,21 @@ export function CalendarGrid({ calendarId, calendarStatus, weeks, bankHolidays }
       </div>
 
       {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+        <div className="mb-4 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-2 text-sm text-red-700 dark:text-red-400">
           {error}
         </div>
       )}
 
       {/* Week grid */}
-      <div className="overflow-x-auto rounded-xl border border-gray-200">
+      <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-slate-700">
         <table className="w-full border-collapse text-sm min-w-[700px]">
           <thead>
             <tr>
-              <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-left w-16">Wk</th>
-              <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-left">Week Commencing</th>
-              <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-center w-20">Cycle</th>
-              <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-center w-20">Holiday</th>
-              <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-left">Bank Holidays</th>
+              <th className="whitespace-nowrap border-b-2 border-gray-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 text-left w-16">Wk</th>
+              <th className="whitespace-nowrap border-b-2 border-gray-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 text-left">Week Commencing</th>
+              <th className="whitespace-nowrap border-b-2 border-gray-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 text-center w-20">Cycle</th>
+              <th className="whitespace-nowrap border-b-2 border-gray-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 text-center w-20">Holiday</th>
+              <th className="whitespace-nowrap border-b-2 border-gray-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 text-left">Bank Holidays</th>
             </tr>
           </thead>
           <tbody>
@@ -145,10 +145,10 @@ export function CalendarGrid({ calendarId, calendarStatus, weeks, bankHolidays }
               return (
                 <tr
                   key={week.id}
-                  className={`border-b border-slate-100 ${week.is_holiday ? 'bg-amber-50/50' : ''}`}
+                  className={`border-b border-slate-100 dark:border-slate-700 ${week.is_holiday ? 'bg-amber-50/50 dark:bg-amber-900/20' : ''}`}
                 >
-                  <td className="px-4 py-2 text-slate-500 text-center">{week.sort_order}</td>
-                  <td className="px-4 py-2 whitespace-nowrap text-slate-700">
+                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400 text-center">{week.sort_order}</td>
+                  <td className="px-4 py-2 whitespace-nowrap text-slate-700 dark:text-slate-200">
                     {formatVisitDate(week.week_start_date)}
                   </td>
                   <td className="px-4 py-2 text-center">
@@ -160,7 +160,7 @@ export function CalendarGrid({ calendarId, calendarStatus, weeks, bankHolidays }
                         {week.cycle_week_number}
                       </span>
                     ) : (
-                      <span className="text-slate-300">—</span>
+                      <span className="text-slate-300 dark:text-slate-600">—</span>
                     )}
                   </td>
                   <td className="px-4 py-2 text-center">
@@ -170,17 +170,17 @@ export function CalendarGrid({ calendarId, calendarStatus, weeks, bankHolidays }
                         checked={week.is_holiday}
                         onChange={() => handleToggleHoliday(week.id, week.is_holiday)}
                         disabled={isPending}
-                        className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                        className="h-4 w-4 rounded border-slate-300 dark:border-slate-600 text-amber-600 focus:ring-amber-500"
                       />
                     ) : (
                       week.is_holiday ? (
-                        <span className="text-amber-600 text-xs font-medium">Holiday</span>
+                        <span className="text-amber-600 dark:text-amber-400 text-xs font-medium">Holiday</span>
                       ) : null
                     )}
                   </td>
                   <td className="px-4 py-2">
                     {bhInWeek.length > 0 ? (
-                      <span className="text-xs text-red-600 font-medium">{bhInWeek.join(', ')}</span>
+                      <span className="text-xs text-red-600 dark:text-red-400 font-medium">{bhInWeek.join(', ')}</span>
                     ) : null}
                   </td>
                 </tr>
