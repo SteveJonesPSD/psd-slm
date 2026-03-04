@@ -40,7 +40,7 @@ export default async function VisitSchedulingPage() {
             </Link>
             <Link
               href="/visit-scheduling/calendars"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 no-underline hover:bg-slate-50 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 no-underline hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
             >
               Calendars
             </Link>
@@ -73,12 +73,12 @@ export default async function VisitSchedulingPage() {
       </div>
 
       {/* This week's schedule grid */}
-      <div className="rounded-xl border border-gray-200 bg-white">
-        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
-          <h3 className="text-sm font-semibold text-slate-900">This Week&apos;s Schedule</h3>
+      <div className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+        <div className="flex items-center justify-between border-b border-gray-200 dark:border-slate-700 px-5 py-4">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-white">This Week&apos;s Schedule</h3>
           <Link
             href="/visit-scheduling/review"
-            className="text-xs font-medium text-indigo-600 hover:text-indigo-800 no-underline"
+            className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 no-underline"
           >
             Full Review →
           </Link>
@@ -93,13 +93,13 @@ export default async function VisitSchedulingPage() {
             <table className="w-full border-collapse text-sm min-w-[700px]">
               <thead>
                 <tr>
-                  <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-left w-36">
+                  <th className="whitespace-nowrap border-b-2 border-gray-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 text-left w-36">
                     Engineer
                   </th>
                   {[1, 2, 3, 4, 5].map(d => (
                     <th
                       key={d}
-                      className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-left"
+                      className="whitespace-nowrap border-b-2 border-gray-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 text-left"
                     >
                       {DAY_SHORT_NAMES[d]}
                     </th>
@@ -108,7 +108,7 @@ export default async function VisitSchedulingPage() {
               </thead>
               <tbody>
                 {weekView.map(eng => (
-                  <tr key={eng.engineer_id} className="border-b border-slate-100">
+                  <tr key={eng.engineer_id} className="border-b border-slate-100 dark:border-slate-700">
                     <td className="px-4 py-2.5 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <div
@@ -117,13 +117,13 @@ export default async function VisitSchedulingPage() {
                         >
                           {eng.engineer_name.split(' ').map(n => n[0]).join('')}
                         </div>
-                        <span className="text-sm font-medium text-slate-700">{eng.engineer_name}</span>
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{eng.engineer_name}</span>
                       </div>
                     </td>
                     {eng.days.map(day => (
                       <td key={day.date} className="px-3 py-2.5 align-top">
                         {day.visits.length === 0 ? (
-                          <span className="text-xs text-slate-300">—</span>
+                          <span className="text-xs text-slate-300 dark:text-slate-600">—</span>
                         ) : (
                           <div className="space-y-1">
                             {day.visits.map(visit => {
@@ -132,13 +132,13 @@ export default async function VisitSchedulingPage() {
                               return (
                                 <div
                                   key={visit.id}
-                                  className="rounded-md border px-2 py-1.5 text-xs"
+                                  className="rounded-md border px-2 py-1.5 text-xs dark:!bg-slate-700/60"
                                   style={{
                                     borderColor: statusCfg?.color || '#e2e8f0',
                                     backgroundColor: statusCfg?.bg || '#f8fafc',
                                   }}
                                 >
-                                  <div className="font-medium text-slate-700 dark:text-slate-200 truncate max-w-[140px]">
+                                  <div className="font-medium text-slate-700 dark:text-slate-100 truncate max-w-[140px]">
                                     {visit.customer_name}
                                   </div>
                                   <div className="flex items-center gap-1 mt-0.5">
@@ -165,17 +165,17 @@ export default async function VisitSchedulingPage() {
       {/* Quick actions */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
         <Link href="/visit-scheduling/calendars" className="no-underline">
-          <div className="rounded-xl border border-gray-200 bg-white p-5 hover:border-indigo-300 hover:shadow-sm transition-all">
+          <div className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 hover:border-indigo-300 dark:hover:border-indigo-600 hover:shadow-sm transition-all">
             <div className="text-lg mb-1">📅</div>
-            <h4 className="text-sm font-semibold text-slate-900">Manage Calendars</h4>
-            <p className="text-xs text-slate-500 mt-1">Create and configure academic year calendars with holiday weeks</p>
+            <h4 className="text-sm font-semibold text-slate-900 dark:text-white">Manage Calendars</h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Create and configure academic year calendars with holiday weeks</p>
           </div>
         </Link>
         <Link href="/visit-scheduling/review" className="no-underline">
-          <div className="rounded-xl border border-gray-200 bg-white p-5 hover:border-indigo-300 hover:shadow-sm transition-all">
+          <div className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 hover:border-indigo-300 dark:hover:border-indigo-600 hover:shadow-sm transition-all">
             <div className="text-lg mb-1">✅</div>
-            <h4 className="text-sm font-semibold text-slate-900">Week Review</h4>
-            <p className="text-xs text-slate-500 mt-1">Review and confirm upcoming visits by engineer</p>
+            <h4 className="text-sm font-semibold text-slate-900 dark:text-white">Week Review</h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Review and confirm upcoming visits by engineer</p>
           </div>
         </Link>
       </div>
