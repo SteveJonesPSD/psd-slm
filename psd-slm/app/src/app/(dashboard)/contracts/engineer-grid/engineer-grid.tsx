@@ -16,9 +16,9 @@ const DAY_LABELS: Record<string, string> = {
 }
 
 const SLOT_BG: Record<string, string> = {
-  am: 'bg-blue-50 border-blue-200',
-  pm: 'bg-amber-50 border-amber-200',
-  custom: 'bg-emerald-50 border-emerald-200',
+  am: 'bg-blue-50 border-blue-200 dark:bg-blue-900/30 dark:border-blue-700',
+  pm: 'bg-amber-50 border-amber-200 dark:bg-amber-900/30 dark:border-amber-700',
+  custom: 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/30 dark:border-emerald-700',
 }
 
 function formatTime(t: string): string {
@@ -75,11 +75,11 @@ export function EngineerGrid({ engineers }: EngineerGridProps) {
     <div>
       {/* Engineer selector */}
       <div className="mb-6">
-        <label className="block text-sm font-medium text-slate-700 mb-1">Select Engineer</label>
+        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Select Engineer</label>
         <select
           value={selectedEngineerId}
           onChange={(e) => setSelectedEngineerId(e.target.value)}
-          className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none w-full sm:w-64"
+          className="rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none w-full sm:w-64"
         >
           {engineers.length === 0 && <option value="">No engineers found</option>}
           {engineers.map((eng) => (
@@ -98,7 +98,7 @@ export function EngineerGrid({ engineers }: EngineerGridProps) {
         <>
           {/* Engineer name header */}
           <div className="mb-4">
-            <h2 className="text-lg font-bold text-slate-900 uppercase tracking-wide">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white uppercase tracking-wide">
               {selectedEngineer.first_name} {selectedEngineer.last_name} — 4-Week Cycle Pattern
             </h2>
             {slots.length === 0 && (
@@ -107,19 +107,19 @@ export function EngineerGrid({ engineers }: EngineerGridProps) {
           </div>
 
           {slots.length > 0 && (
-            <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+            <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
               <table className="w-full min-w-[800px]">
                 <thead>
-                  <tr className="border-b border-gray-200 bg-slate-50">
-                    <th className="py-3 px-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide w-20">
+                  <tr className="border-b border-gray-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800">
+                    <th className="py-3 px-4 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide w-20">
                       Week
                     </th>
                     {DAYS.map((d) => (
-                      <th key={d} className="py-3 px-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                      <th key={d} className="py-3 px-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                         <div className="flex items-center justify-between">
                           <span>{DAY_LABELS[d]}</span>
                           {dayCapacity[d] > 0 && (
-                            <span className="text-[10px] text-slate-400 font-normal normal-case">
+                            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal normal-case">
                               {dayCapacity[d]} slot{dayCapacity[d] !== 1 ? 's' : ''}
                             </span>
                           )}
@@ -130,9 +130,9 @@ export function EngineerGrid({ engineers }: EngineerGridProps) {
                 </thead>
                 <tbody>
                   {[1, 2, 3, 4].map((week) => (
-                    <tr key={week} className="border-b border-gray-100 last:border-b-0">
+                    <tr key={week} className="border-b border-gray-100 dark:border-slate-700 last:border-b-0">
                       <td className="py-3 px-4 align-top">
-                        <span className="inline-block rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
+                        <span className="inline-block rounded-full bg-slate-100 dark:bg-slate-700 px-2.5 py-1 text-xs font-bold text-slate-600 dark:text-slate-300">
                           Wk {week}
                         </span>
                       </td>
@@ -151,19 +151,19 @@ export function EngineerGrid({ engineers }: EngineerGridProps) {
                                     onClick={() => router.push(`/contracts/${slot.customer_contract_id}`)}
                                     className={`${bgClass} rounded-lg border p-2.5 text-left w-full hover:shadow-sm transition-shadow cursor-pointer`}
                                   >
-                                    <div className="font-semibold text-sm text-slate-900 truncate">
+                                    <div className="font-semibold text-sm text-slate-900 dark:text-white truncate">
                                       {slot.customer_name}
                                     </div>
                                     <div className="flex items-center gap-1.5 mt-1">
                                       {timeCfg && (
                                         <Badge label={timeCfg.label} color={timeCfg.color} bg={timeCfg.bg} className="text-[10px]" />
                                       )}
-                                      <span className="text-xs text-slate-500">
+                                      <span className="text-xs text-slate-500 dark:text-slate-400">
                                         {formatTime(slot.effective_start_time)}&ndash;{formatTime(slot.effective_end_time)}
                                       </span>
                                     </div>
                                     <div className="mt-1">
-                                      <span className="text-[11px] text-slate-500">
+                                      <span className="text-[11px] text-slate-500 dark:text-slate-400">
                                         {slot.contract_type_name}
                                       </span>
                                     </div>
@@ -186,15 +186,15 @@ export function EngineerGrid({ engineers }: EngineerGridProps) {
 
           {/* Summary */}
           {slots.length > 0 && (
-            <div className="mt-4 text-sm text-slate-500">
+            <div className="mt-4 text-sm text-slate-500 dark:text-slate-400">
               {(() => {
                 const totalVisitsPerCycle = slots.reduce((sum, s) => sum + (s.cycle_week_numbers?.length || 0), 0)
                 const uniqueCustomers = new Set(slots.map((s) => s.customer_name)).size
                 return (
                   <>
-                    <span className="font-semibold text-slate-700">{uniqueCustomers}</span> customer{uniqueCustomers !== 1 ? 's' : ''},{' '}
-                    <span className="font-semibold text-slate-700">{totalVisitsPerCycle}</span> visits per 4-week cycle,{' '}
-                    <span className="font-semibold text-slate-700">{Math.round(totalVisitsPerCycle * (36 / 4))}</span> per year (36-week calendar)
+                    <span className="font-semibold text-slate-700 dark:text-slate-200">{uniqueCustomers}</span> customer{uniqueCustomers !== 1 ? 's' : ''},{' '}
+                    <span className="font-semibold text-slate-700 dark:text-slate-200">{totalVisitsPerCycle}</span> visits per 4-week cycle,{' '}
+                    <span className="font-semibold text-slate-700 dark:text-slate-200">{Math.round(totalVisitsPerCycle * (36 / 4))}</span> per year (36-week calendar)
                   </>
                 )
               })()}
