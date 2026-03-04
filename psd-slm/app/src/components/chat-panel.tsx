@@ -286,7 +286,7 @@ export function ChatPanel({ agentAvatars }: { agentAvatars?: AgentAvatars }) {
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3" onClick={handleMarkdownClick}>
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4" onClick={handleMarkdownClick}>
           {messages.length === 0 && !isLoading && (
             <div className="space-y-3 pt-4">
               <p className="text-center text-xs text-slate-400">
@@ -320,12 +320,12 @@ export function ChatPanel({ agentAvatars }: { agentAvatars?: AgentAvatars }) {
           {messages.map((msg, i) => (
             <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               {msg.role === 'assistant' && (
-                <div className="mr-2 mt-0.5">
+                <div className="mr-3 mt-0.5">
                   <AgentAvatar agent={agent} size={24} avatarUrl={agentAvatarUrl} />
                 </div>
               )}
               <div
-                className={`max-w-[92%] rounded-xl px-3 py-2 text-xs leading-relaxed overflow-hidden ${
+                className={`max-w-[92%] rounded-xl px-4 py-2.5 text-xs leading-relaxed overflow-hidden ${
                   msg.role === 'user'
                     ? 'text-white'
                     : 'text-slate-700'
@@ -350,7 +350,7 @@ export function ChatPanel({ agentAvatars }: { agentAvatars?: AgentAvatars }) {
 
           {isLoading && (
             <div className="flex justify-start">
-              <div className="mr-2 mt-0.5">
+              <div className="mr-3 mt-0.5">
                 <AgentAvatar agent={agent} size={24} avatarUrl={agentAvatarUrl} />
               </div>
               <div className="rounded-xl px-4 py-3" style={{ backgroundColor: `${agent.color}10` }}>

@@ -42,7 +42,7 @@ export default async function SupplierDetailPage({ params }: PageProps) {
     <div>
       <Link
         href="/suppliers"
-        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-3"
+        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-4"
       >
         &larr; Suppliers
       </Link>
@@ -63,7 +63,7 @@ export default async function SupplierDetailPage({ params }: PageProps) {
       />
 
       {/* Stats */}
-      <div className="flex flex-wrap gap-5 mb-6">
+      <div className="flex flex-wrap gap-6 mb-6">
         <StatCard label="Products" value={products.length} />
         <StatCard label="Payment Terms" value={`${supplier.payment_terms} days`} accent="#059669" />
         <StatCard label="Created" value={formatDate(supplier.created_at)} />
@@ -71,7 +71,7 @@ export default async function SupplierDetailPage({ params }: PageProps) {
 
       {/* Info card */}
       <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
-        <h3 className="text-[15px] font-semibold mb-3">Supplier Details</h3>
+        <h3 className="text-[15px] font-semibold mb-4">Supplier Details</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-3 text-sm">
           <DetailField label="Email" value={supplier.email} />
           <DetailField label="Phone" value={supplier.phone} />

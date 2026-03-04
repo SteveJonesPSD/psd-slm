@@ -24,7 +24,7 @@ export default async function EditSupplierPage({ params }: PageProps) {
     <div>
       <Link
         href={`/suppliers/${id}`}
-        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-3"
+        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-4"
       >
         &larr; {supplier.name}
       </Link>

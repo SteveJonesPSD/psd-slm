@@ -89,7 +89,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
       {/* Back link */}
       <Link
         href="/pipeline"
-        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-3"
+        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-4"
       >
         &larr; Pipeline
       </Link>
@@ -127,7 +127,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-5 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
         <StatCard
           label="Estimated Value"
           value={formatCurrency(opportunity.estimated_value || 0)}
@@ -157,7 +157,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
 
       {/* Details card */}
       <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
-        <h3 className="text-[15px] font-semibold mb-3">Details</h3>
+        <h3 className="text-[15px] font-semibold mb-4">Details</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-3 text-sm">
           <DetailField label="Company" value={customer?.name} />
           <DetailField

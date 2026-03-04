@@ -35,7 +35,7 @@ export default async function ContractsPage() {
       />
 
       {/* Stats row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5 mb-6 md:mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard
           label="Active Contracts"
           value={stats.activeCount}

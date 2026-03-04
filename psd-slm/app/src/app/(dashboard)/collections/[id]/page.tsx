@@ -64,7 +64,7 @@ export default async function CollectionDetailPage({ params }: PageProps) {
       {/* Info cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {/* Job */}
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
+        <div className="rounded-xl border border-gray-200 bg-white p-5">
           <div className="text-xs font-medium uppercase tracking-wide text-slate-400 mb-1">Job</div>
           {job ? (
             <Link href={`/scheduling/jobs/${job.id}`} className="text-sm font-semibold text-indigo-600 hover:underline">
@@ -77,7 +77,7 @@ export default async function CollectionDetailPage({ params }: PageProps) {
         </div>
 
         {/* SO */}
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
+        <div className="rounded-xl border border-gray-200 bg-white p-5">
           <div className="text-xs font-medium uppercase tracking-wide text-slate-400 mb-1">Sales Order</div>
           {so ? (
             <Link href={`/orders/${so.id}`} className="text-sm font-semibold text-indigo-600 hover:underline">
@@ -89,7 +89,7 @@ export default async function CollectionDetailPage({ params }: PageProps) {
         </div>
 
         {/* Prepared by */}
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
+        <div className="rounded-xl border border-gray-200 bg-white p-5">
           <div className="text-xs font-medium uppercase tracking-wide text-slate-400 mb-1">Prepared By</div>
           {preparedBy ? (
             <div className="flex items-center gap-2">
@@ -107,7 +107,7 @@ export default async function CollectionDetailPage({ params }: PageProps) {
         </div>
 
         {/* Collected by */}
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
+        <div className="rounded-xl border border-gray-200 bg-white p-5">
           <div className="text-xs font-medium uppercase tracking-wide text-slate-400 mb-1">Collected By</div>
           {collectedBy ? (
             <div className="flex items-center gap-2">
@@ -154,7 +154,7 @@ export default async function CollectionDetailPage({ params }: PageProps) {
 
       {/* Lines table */}
       <div className="rounded-xl border border-gray-200 bg-white">
-        <div className="px-5 py-3 border-b border-gray-200">
+        <div className="px-5 py-4 border-b border-gray-200">
           <h3 className="text-sm font-semibold text-slate-700">Collection Items ({lines.length})</h3>
         </div>
         <div className="overflow-x-auto">

@@ -16,7 +16,7 @@ export function AttributionEditor({ attributions, dispatch, users }: Attribution
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white mb-4">
-      <div className="flex items-center justify-between px-5 py-4">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
         <h3 className="text-[15px] font-semibold text-slate-900">Sales Attribution</h3>
         <div className="flex items-center gap-3">
           <span className={`text-sm font-medium ${isValid ? 'text-emerald-600' : 'text-red-600'}`}>

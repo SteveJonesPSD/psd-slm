@@ -292,7 +292,7 @@ export function PipelineBoard({ opportunities, customers, contacts, users, curre
   return (
     <div>
       {/* Stats bar */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard label="Pipeline Value" value={formatCurrency(totalPipeline)} accent="#6366f1" />
         <StatCard label="Weighted Value" value={formatCurrency(weightedValue)} accent="#059669" />
         <StatCard label="Active Deals" value={activeFiltered.length} accent="#d97706" />

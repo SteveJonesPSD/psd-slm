@@ -7,7 +7,7 @@ export default function NewSupplierPage() {
     <div>
       <Link
         href="/suppliers"
-        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-3"
+        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-4"
       >
         &larr; Suppliers
       </Link>

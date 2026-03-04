@@ -31,7 +31,7 @@ export function InvoiceActivity({ activities }: InvoiceActivityProps) {
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5">
-      <h3 className="text-[15px] font-semibold mb-3">Activity</h3>
+      <h3 className="text-[15px] font-semibold mb-4">Activity</h3>
       <div className="space-y-3">
         {activities.map((a) => (
           <div key={a.id} className="flex items-start gap-3">

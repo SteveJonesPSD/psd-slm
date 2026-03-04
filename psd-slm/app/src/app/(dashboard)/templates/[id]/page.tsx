@@ -64,7 +64,7 @@ export default async function TemplateDetailPage({ params }: PageProps) {
     <div>
       <Link
         href="/templates"
-        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-3"
+        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-4"
       >
         &larr; All Templates
       </Link>
@@ -94,7 +94,7 @@ export default async function TemplateDetailPage({ params }: PageProps) {
       </div>
 
       {/* Summary stats */}
-      <div className="flex gap-5 mb-6">
+      <div className="flex gap-6 mb-6">
         <div className="rounded-xl border border-gray-200 bg-white px-5 py-3">
           <div className="text-xs font-medium text-slate-400 uppercase tracking-wide">Groups</div>
           <div className="text-lg font-bold text-slate-900">{typedGroups.length}</div>
@@ -115,7 +115,7 @@ export default async function TemplateDetailPage({ params }: PageProps) {
 
       {/* Grouped line items */}
       <div className="rounded-xl border border-gray-200 bg-white mb-6">
-        <div className="px-5 py-4">
+        <div className="px-5 py-4 border-b border-gray-200">
           <h3 className="text-[15px] font-semibold">Template Lines</h3>
         </div>
 

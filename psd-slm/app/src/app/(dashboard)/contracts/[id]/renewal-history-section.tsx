@@ -21,7 +21,7 @@ export function RenewalHistorySection({ renewals, currentContractId }: RenewalHi
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
-      <h3 className="text-[15px] font-semibold mb-3">Renewal History</h3>
+      <h3 className="text-[15px] font-semibold mb-4">Renewal History</h3>
 
       <div className="overflow-x-auto">
         <table className="min-w-[600px] w-full text-sm">

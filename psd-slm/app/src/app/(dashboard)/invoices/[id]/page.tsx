@@ -46,7 +46,7 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
       {/* Back link */}
       <Link
         href="/invoices"
-        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-3"
+        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-4"
       >
         &larr; All Invoices
       </Link>
@@ -124,7 +124,7 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
 
       {/* Address cards */}
       {invoice.customer && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           <div className="rounded-xl border border-gray-200 bg-white p-5">
             <div className="text-[10px] font-medium text-slate-400 uppercase tracking-wide mb-2">Bill To</div>
             <div className="text-sm font-semibold text-slate-700 mb-1">{invoice.customer.name}</div>
@@ -159,20 +159,20 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
       )}
 
       {/* Info cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5 mb-6">
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="rounded-xl border border-gray-200 bg-white p-5">
           <div className="text-[10px] font-medium text-slate-400 uppercase tracking-wide mb-1">Customer PO</div>
           <div className="text-sm font-medium text-slate-700">{invoice.customer_po || '\u2014'}</div>
         </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
+        <div className="rounded-xl border border-gray-200 bg-white p-5">
           <div className="text-[10px] font-medium text-slate-400 uppercase tracking-wide mb-1">Payment Terms</div>
           <div className="text-sm font-medium text-slate-700">{invoice.payment_terms ? `${invoice.payment_terms} days` : '\u2014'}</div>
         </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
+        <div className="rounded-xl border border-gray-200 bg-white p-5">
           <div className="text-[10px] font-medium text-slate-400 uppercase tracking-wide mb-1">Invoice Date</div>
           <div className="text-sm font-medium text-slate-700">{formatDate(invoice.created_at)}</div>
         </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
+        <div className="rounded-xl border border-gray-200 bg-white p-5">
           <div className="text-[10px] font-medium text-slate-400 uppercase tracking-wide mb-1">Due Date</div>
           <div className={`text-sm font-medium ${isOverdue ? 'text-red-600' : 'text-slate-700'}`}>
             {invoice.due_date ? formatDate(invoice.due_date) : '\u2014'}
@@ -181,7 +181,7 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
       </div>
 
       {/* Financial stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard label="Subtotal" value={formatCurrency(invoice.subtotal)} accent="#1e293b" />
         <StatCard label="VAT" value={formatCurrency(invoice.vat_amount)} sub={`${invoice.vat_rate || 20}%`} accent="#6b7280" />
         <StatCard
@@ -242,7 +242,7 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
       {/* Attribution section */}
       {invoice.attributions && invoice.attributions.length > 0 && (
         <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
-          <h3 className="text-[15px] font-semibold mb-3">Sales Attribution</h3>
+          <h3 className="text-[15px] font-semibold mb-4">Sales Attribution</h3>
           <div className="flex flex-wrap gap-3">
             {invoice.attributions.map((attr: { id: string; attribution_type: string; split_pct: number; users: { first_name: string; last_name: string; initials: string | null; color: string | null } | null }) => (
               <div key={attr.id} className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
@@ -270,7 +270,7 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
 
       {/* Invoice lines */}
       <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
-        <h3 className="text-[15px] font-semibold mb-3">Line Items</h3>
+        <h3 className="text-[15px] font-semibold mb-4">Line Items</h3>
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-sm min-w-[600px]">
             <thead>
@@ -307,10 +307,10 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
       </div>
 
       {/* Related section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         {/* Links */}
         <div className="rounded-xl border border-gray-200 bg-white p-5">
-          <h3 className="text-[15px] font-semibold mb-3">Related</h3>
+          <h3 className="text-[15px] font-semibold mb-4">Related</h3>
           <div className="space-y-2 text-sm">
             {invoice.salesOrder && (
               <div>
@@ -342,7 +342,7 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
         {/* Other invoices for same SO */}
         {invoice.relatedInvoices.length > 0 && (
           <div className="rounded-xl border border-gray-200 bg-white p-5">
-            <h3 className="text-[15px] font-semibold mb-3">Other Invoices</h3>
+            <h3 className="text-[15px] font-semibold mb-4">Other Invoices</h3>
             <div className="space-y-2 text-sm">
               {invoice.relatedInvoices.map((ri: { id: string; invoice_number: string; status: string; total: number; invoice_type: string }) => {
                 const riCfg = INVOICE_STATUS_CONFIG[ri.status]

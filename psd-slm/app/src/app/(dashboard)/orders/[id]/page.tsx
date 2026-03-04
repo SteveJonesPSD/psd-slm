@@ -64,7 +64,7 @@ export default async function SalesOrderDetailPage({ params }: PageProps) {
       {/* Back link */}
       <Link
         href="/orders"
-        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-3"
+        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-4"
       >
         &larr; All Sales Orders
       </Link>
@@ -103,7 +103,7 @@ export default async function SalesOrderDetailPage({ params }: PageProps) {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard label="Subtotal" value={formatCurrency(subtotal)} accent="#1e293b" />
         <StatCard label="VAT" value={formatCurrency(vatAmount)} sub={`${so.vat_rate}%`} accent="#6b7280" />
         <StatCard label="Grand Total" value={formatCurrency(grandTotal)} accent="#6366f1" />
@@ -116,10 +116,10 @@ export default async function SalesOrderDetailPage({ params }: PageProps) {
       </div>
 
       {/* Info cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
         {/* Delivery */}
         <div className="rounded-xl border border-gray-200 bg-white p-5">
-          <h3 className="text-[15px] font-semibold mb-3">Delivery</h3>
+          <h3 className="text-[15px] font-semibold mb-4">Delivery</h3>
           <div className="space-y-2 text-sm">
             <DetailField label="Delivery Date" value={so.requested_delivery_date ? formatDate(so.requested_delivery_date) : null} />
             <DetailField
@@ -151,7 +151,7 @@ export default async function SalesOrderDetailPage({ params }: PageProps) {
 
         {/* Order Details */}
         <div className="rounded-xl border border-gray-200 bg-white p-5">
-          <h3 className="text-[15px] font-semibold mb-3">Order Details</h3>
+          <h3 className="text-[15px] font-semibold mb-4">Order Details</h3>
           <div className="space-y-2 text-sm">
             <DetailField label="Customer PO" value={so.customer_po} />
             <DetailField label="Created" value={formatDate(so.created_at)} />
@@ -176,7 +176,7 @@ export default async function SalesOrderDetailPage({ params }: PageProps) {
         const services = activeLines.filter((l: SoLineRow) => l.is_service)
         return (
           <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
-            <h3 className="text-[15px] font-semibold mb-3">Delivery Summary</h3>
+            <h3 className="text-[15px] font-semibold mb-4">Delivery Summary</h3>
             <div className="grid grid-cols-3 gap-4 text-sm">
               <div className="rounded-lg bg-amber-50 p-3 text-center">
                 <div className="text-2xl font-bold text-amber-700">{psdOffice.length}</div>

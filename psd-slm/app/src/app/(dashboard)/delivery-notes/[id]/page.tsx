@@ -31,7 +31,7 @@ export default async function DeliveryNoteDetailPage({ params }: PageProps) {
     <div>
       <Link
         href="/delivery-notes"
-        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-3"
+        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-4"
       >
         &larr; All Delivery Notes
       </Link>
@@ -63,16 +63,16 @@ export default async function DeliveryNoteDetailPage({ params }: PageProps) {
       </div>
 
       {/* Info cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
         {/* Delivery Address */}
         <div className="rounded-xl border border-gray-200 bg-white p-5">
-          <h3 className="text-[15px] font-semibold mb-3">Delivery Address</h3>
+          <h3 className="text-[15px] font-semibold mb-4">Delivery Address</h3>
           <p className="text-sm text-slate-700">{address || 'No address set'}</p>
         </div>
 
         {/* Carrier & Tracking */}
         <div className="rounded-xl border border-gray-200 bg-white p-5">
-          <h3 className="text-[15px] font-semibold mb-3">Shipping</h3>
+          <h3 className="text-[15px] font-semibold mb-4">Shipping</h3>
           <div className="space-y-2 text-sm">
             <div>
               <span className="text-xs font-medium text-slate-400 uppercase">Carrier</span>
@@ -116,7 +116,7 @@ export default async function DeliveryNoteDetailPage({ params }: PageProps) {
 
       {/* Lines */}
       <div className="rounded-xl border border-gray-200 bg-white mb-6">
-        <div className="px-5 py-4">
+        <div className="px-5 py-4 border-b border-gray-200">
           <h3 className="text-[15px] font-semibold">Lines</h3>
         </div>
         <div className="overflow-x-auto">
@@ -156,7 +156,7 @@ export default async function DeliveryNoteDetailPage({ params }: PageProps) {
       {/* Activity */}
       {dn.activities.length > 0 && (
         <div className="rounded-xl border border-gray-200 bg-white">
-          <div className="px-5 py-4">
+          <div className="px-5 py-4 border-b border-gray-200">
             <h3 className="text-[15px] font-semibold">Activity</h3>
           </div>
           <div className="divide-y divide-gray-50">

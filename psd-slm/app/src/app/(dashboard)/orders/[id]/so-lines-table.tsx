@@ -504,7 +504,7 @@ export function SoLinesTable({ lines, soId, suppliers = [], purchaseOrders = [],
     <>
       <div className="rounded-xl border border-gray-200 bg-white mb-6">
         {/* Header with PO generation toolbar */}
-        <div className="px-5 py-4 flex items-center justify-between flex-wrap gap-2">
+        <div className="px-5 py-4 flex items-center justify-between flex-wrap gap-2 border-b border-gray-200">
           <h3 className="text-[15px] font-semibold">Order Lines</h3>
           {hasEligible && (
             <div className="flex items-center gap-2">

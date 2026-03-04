@@ -23,7 +23,7 @@ export default async function StockPage() {
         subtitle="Manage inventory across all locations"
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard label="SKUs in Stock" value={totalSkus} accent="#1e293b" />
         <StatCard label="Total Stock Value" value={formatCurrency(totalValue)} accent="#6366f1" />
         <StatCard label="Below Reorder" value={belowReorder} accent={belowReorder > 0 ? '#dc2626' : '#059669'} />

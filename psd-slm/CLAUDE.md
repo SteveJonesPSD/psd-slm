@@ -8,7 +8,7 @@ Innov8iv Engage is a custom SLM platform built with Next.js + TypeScript + Supab
 - **Backend:** Supabase (PostgreSQL, Auth, REST API, Row-Level Security)
 - **Hosting:** Vercel (auto-deploys from GitHub main branch)
 - **Repo:** GitHub private repository
-- **AI Integration:** Anthropic Claude API (Helen AI — helpdesk triage, draft responses, diagnostic assist; inbound PO extraction; AI product creation from URL/paste/screenshot; AI quote generation from supplier PDFs; AI quote acceptance from customer PO documents)
+- **AI Integration:** Anthropic Claude API (Helen AI — service desk triage, draft responses, diagnostic assist; inbound PO extraction; AI product creation from URL/paste/screenshot; AI quote generation from supplier PDFs; AI quote acceptance from customer PO documents)
 
 ## Critical Business Rules
 
@@ -157,6 +157,7 @@ Supabase Auth with email/password. Row-level security scoped to organisation. Us
 - Consistent component patterns: tables with sortable columns, stat cards, modals for forms, badge components for statuses
 - Margin colour coding: green ≥30%, amber ≥15%, red <15%
 - Currency formatting: GBP with Intl.NumberFormat("en-GB")
+- **Branding:** Logo at `public/innov8iv-logo.png` shown in sidebar (expanded), mobile header, and login page. Browser title: "Innov8iv Engage".
 - Status badges with colour/background pairs (see existing prototype for patterns)
 - Clean, professional aesthetic — not flashy. Think business tool, not consumer app.
 - **AI features are purple.** Any button, badge, or UI element that triggers an AI function must use the `purple` Button variant (`bg-purple-600`) and include the sparkle icon. This applies across the entire platform (e.g. AI Quote, Create with AI, Helen AI actions). The `purple` variant is defined in `components/ui/button.tsx`.
@@ -171,6 +172,59 @@ Supabase Auth with email/password. Row-level security scoped to organisation. Us
 - **Mobile detection:** `MobileDetector` component (`components/ui/mobile-detector.tsx`) reads `isMobile` from `SidebarProvider` (uses `matchMedia('(max-width: 767px)')`). Same routes serve both desktop and mobile — conditional rendering at the client component level, not separate routes.
 - **Mobile patterns:** `BottomSheet` for overlays, card-based lists instead of tables, tab-based detail views instead of split layouts. See `helpdesk/mobile-*` files for reference.
 
+### Dark Mode (Light / Dark / Auto)
+Per-user theme preference stored in `users.theme_preference` (`'light'`, `'dark'`, `'system'`). Migration: `20260321000001_user_theme_preference.sql`.
+
+- **ThemeProvider:** `components/theme-provider.tsx` — client context provider, applies `dark` class to `<html>`, listens for `matchMedia` changes in system mode, caches to `localStorage`. Exposes `useTheme()` hook with `theme`, `setTheme`, `resolvedTheme`.
+- **Flash prevention:** Inline `<script>` in root `layout.tsx` reads `localStorage` and applies `dark` class synchronously before React hydrates.
+- **Settings:** Profile page (`/profile`) has a three-button segmented control (Light/Dark/Auto). Saves via `saveThemePreference()` server action in `profile/actions.ts`.
+- **Auth resilience:** `lib/auth.ts` tries `theme_preference` column first, falls back without it if the migration hasn't been applied yet. API routes that construct `AuthUser` manually hardcode `themePreference: 'system'`.
+- **CSS approach:** Bulk dark mode coverage via CSS overrides in `globals.css` (`.dark .bg-white`, `.dark .border-gray-200`, etc.) using Tailwind v4 `@custom-variant dark (&:where(.dark, .dark *))`. Component-level `dark:` variants on core UI components (page-header, stat-card, data-table, form-fields, button, sidebar, chat-panel, mobile-header).
+- **Dark palette:** `bg-slate-900` (page bg), `bg-slate-800` (cards/panels/sidebar), `border-slate-700` (borders), `text-slate-200` (body text), `text-white` (headings).
+
+### Spacing & Vertical Rhythm
+Page-level and component-level spacing must follow these minimum rules. When in doubt, add MORE whitespace — the platform is a desktop business tool with plenty of viewport, not a mobile app fighting for pixels. These rules are mandatory for all new code and must be applied when modifying existing pages.
+
+**Page headers:**
+- Page title (`<h1>` / main heading) must have `mb-1` (4px) to its subtitle/count line
+- Subtitle/count line must have `mb-6` (24px) to the first interactive element below it (filters, buttons, tabs, stat cards)
+- If there's no subtitle, the title itself needs `mb-6` to the next element
+- Filter bars / action bars must have `mb-6` (24px) to the table or content below them
+- Stat card rows must have `mb-8` (32px) below them before tables/content
+- **Minimum 24px** between a page title block and the first piece of interactive content — no exceptions
+
+**Section headings within a page:**
+- Section titles (e.g. "Quote Lines", "Contacts") inside cards need `mb-4` (16px) to their content
+- Card/panel components need `p-5` or `p-6` internal padding, never `p-3` or `p-4` for primary content cards
+
+**Chat / message layouts (Helpdesk, AI agents, chat panel):**
+- Avatar and message content must have `gap-3` (12px) minimum horizontal spacing
+- Message bubbles need `px-4 py-3` internal padding minimum
+- Between consecutive messages: `gap-4` (16px) minimum vertical spacing
+- First line of message text must optically align with the vertical centre of the avatar — use `items-start` on the flex container with `mt-0.5` or `mt-1` on the text block to achieve this
+
+**Detail pages (quote detail, SO detail, invoice detail, ticket detail, job detail, contract detail):**
+- Breadcrumb / back button must have `mb-4` (16px) below it to the page title
+- Page title row (title + action buttons) must have `mb-6` (24px) to the first content section below
+- Stat card rows must have `mb-8` (32px) below them
+- Between content sections/cards: `gap-6` or `space-y-6` (24px) minimum
+
+**Tables inside cards:**
+- Card header (title + action buttons) needs `px-5 py-4` padding with `border-b` separating it from the table body
+- Table rows should have `py-3 px-4` cell padding minimum for comfortable readability
+
+**Forms and modals:**
+- Modal content area: `p-6` padding
+- Form field groups: `gap-4` (16px) between fields
+- Form section labels/dividers: `mt-6 mb-3` for visual separation
+- Action button row at modal bottom: `mt-6` above, `gap-3` between buttons
+
+**General rules:**
+- Adjacent stat cards: `gap-4` between cards, `mb-6` below the stat row
+- Never stack two interactive elements (button, input, dropdown) with less than `gap-3` (12px) between them
+- Filter/search bars with multiple controls: `gap-3` between controls, `flex-wrap` for responsive behaviour
+- Empty states inside cards: `py-12` vertical padding to prevent the card feeling collapsed
+
 ## Module Build Order & Status
 1. ~~Companies & Contacts~~ ✅ Built
 2. ~~Authentication & Roles~~ ✅ Built (RLS enforced, RBAC with 6 roles & ~50 permissions)
@@ -180,7 +234,7 @@ Supabase Auth with email/password. Row-level security scoped to organisation. Us
 6. ~~Global Settings~~ ✅ Built (org settings, brands, API key management, email templates, avatar management)
 7. ~~Quote Builder~~ ✅ Built (DR tie-in, PDF generation, customer portal, attribution splits, versioning, templates, notifications, e-signatures, attachments, AI quote generation from supplier PDFs, manual + AI-powered acceptance)
 7b. ~~Inbound PO Processing~~ ✅ Built (PDF upload, AI extraction via Claude, quote matching pipeline)
-7c. ~~Helpdesk & Ticketing~~ ✅ Built (ticket queue, SLA tracking, contracts, canned responses, categories, tags, departments, KB, reports, customer portal, mobile-optimised views, Helen AI agent with triage/drafts/diagnostic assist, scratchpad, assist usage reporting, ticket presence collision warnings)
+7c. ~~Helpdesk & Ticketing~~ ✅ Built (ticket queue, SLA tracking, contracts, canned responses, categories, tags, departments, KB, reports, customer portal, mobile-optimised views, Helen AI agent with triage/drafts/diagnostic assist, scratchpad, assist usage reporting, ticket presence collision warnings). **Note:** User-facing label renamed to "Service Desk" — internal code, routes (`/helpdesk/`), permissions (`helpdesk.*`), and variable names remain unchanged.
 8. ~~Sales Orders~~ ✅ Built (SO from accepted quote, derived header status, line status transitions, receive goods with serial capture, service item auto-detection, delivery summary, invoiced orders hidden by default with toggle, invoiced-this-month stat card)
 8b. ~~Onsite Scheduling~~ ✅ Built (dispatch calendar, field engineer mobile app, job task templates with response types, e-signatures, job validation, PDF reports, mobile-responsive scheduling, GPS logging with interactive map)
 9. ~~Purchase Orders~~ ✅ Built (PO generation from SO, draft-first workflow, receiving goods with cascading SO status, price variance tracking, PDF generation, stock-aware PO quantities, customer PO gate, tri-state serial enforcement, auto-allocation on receipt for all SO-linked POs, stocking orders for inventory replenishment)
@@ -347,6 +401,7 @@ The modal offers three tabbed input modes (purple active tab border):
 - **API route:** `/api/quotes/analyse-supplier/route.ts` — synchronous POST, accepts multipart FormData with one of: `file` (PDF or .eml), `email_text` (pasted content), or `screenshot` + `screenshot_type` (base64 image). Returns extracted data + matches + lookup data + `input_type` field.
 - **Server action:** `createQuoteFromSupplierImport` in `quotes/actions.ts` — creates quote (draft) → single group → lines (all drop_ship) → 100% direct attribution → auto-attaches file with label from `attachment_label` field ("Supplier Quote" for PDFs, "Supplier Email" for email inputs)
 - **Supplier auto-creation:** If AI extracts a supplier name with no DB match, the supplier is created automatically on quote creation via `new_supplier_name` field
+- **Product auto-creation:** Lines without a matched `product_id` are auto-created in the product catalogue during quote creation. Uses `product_code` (or `manufacturer_part` fallback) as SKU, line description as product name, and links to the supplier via `product_suppliers` with buy price. Checks for SKU uniqueness before creating. Same logic applies in `addSupplierLinesToQuote` (merge path).
 
 ### Modal UI
 - **File:** `quotes/supplier-quote-modal.tsx` — multi-step modal triggered by "AI Quote" button in `quotes-page-actions.tsx`

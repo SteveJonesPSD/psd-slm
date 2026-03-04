@@ -19,7 +19,7 @@ interface SoPoSectionProps {
 export function SoPoSection({ purchaseOrders }: SoPoSectionProps) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white mb-6">
-      <div className="px-5 py-4">
+      <div className="px-5 py-4 border-b border-gray-200">
         <h3 className="text-[15px] font-semibold">Purchase Orders</h3>
       </div>
       <div className="overflow-x-auto">

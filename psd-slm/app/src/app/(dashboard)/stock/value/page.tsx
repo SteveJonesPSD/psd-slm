@@ -31,7 +31,7 @@ export default async function StockValuePage() {
         subtitle="Current stock valuation by category"
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard label="Total Value" value={formatCurrency(totalValue)} accent="#6366f1" />
         <StatCard label="Total SKUs" value={totalSkus} accent="#1e293b" />
         <StatCard label="Highest Value" value={formatCurrency(highestValue.value)} sub={highestValue.name} accent="#d97706" />

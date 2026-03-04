@@ -101,7 +101,7 @@ export function QuotesSection({ quotes }: QuotesSectionProps) {
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
-      <h3 className="text-[15px] font-semibold mb-3">
+      <h3 className="text-[15px] font-semibold mb-4">
         Quotes ({quotes.length})
       </h3>
       <DataTable

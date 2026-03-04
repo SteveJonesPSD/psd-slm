@@ -157,7 +157,7 @@ export default async function QuoteDetailPage({ params }: PageProps) {
       {/* Back link */}
       <Link
         href="/quotes"
-        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-3"
+        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-4"
       >
         &larr; All Quotes
       </Link>
@@ -234,7 +234,7 @@ export default async function QuoteDetailPage({ params }: PageProps) {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard label="Subtotal" value={formatCurrency(subtotal)} accent="#1e293b" />
         <StatCard label="VAT" value={formatCurrency(vatAmount)} sub={`${quote.vat_rate}%`} accent="#6b7280" />
         <StatCard label="Grand Total" value={formatCurrency(grandTotal)} accent="#6366f1" />
@@ -247,10 +247,10 @@ export default async function QuoteDetailPage({ params }: PageProps) {
       </div>
 
       {/* Info cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         {/* Attribution */}
         <div className="rounded-xl border border-gray-200 bg-white p-5">
-          <h3 className="text-[15px] font-semibold mb-3">Sales Attribution</h3>
+          <h3 className="text-[15px] font-semibold mb-4">Sales Attribution</h3>
           {attributions && attributions.length > 0 ? (
             <div className="space-y-2">
               {attributions.map((a) => {
@@ -278,7 +278,7 @@ export default async function QuoteDetailPage({ params }: PageProps) {
 
         {/* Details */}
         <div className="rounded-xl border border-gray-200 bg-white p-5">
-          <h3 className="text-[15px] font-semibold mb-3">Details</h3>
+          <h3 className="text-[15px] font-semibold mb-4">Details</h3>
           <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
             <DetailField label="Valid Until" value={quote.valid_until ? formatDate(quote.valid_until) : null} />
             <DetailField label="Created" value={formatDate(quote.created_at)} />
@@ -336,7 +336,7 @@ export default async function QuoteDetailPage({ params }: PageProps) {
 
       {/* Grouped line items */}
       <div className="rounded-xl border border-gray-200 bg-white mb-6">
-        <div className="px-5 py-4">
+        <div className="px-5 py-4 border-b border-gray-200">
           <h3 className="text-[15px] font-semibold">Line Items</h3>
         </div>
 

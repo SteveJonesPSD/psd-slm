@@ -41,7 +41,7 @@ export function VisitOverridesSection({ contract, editable }: VisitOverridesSect
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
-      <h3 className="text-[15px] font-semibold mb-3">Visit Schedule</h3>
+      <h3 className="text-[15px] font-semibold mb-4">Visit Schedule</h3>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Frequency */}

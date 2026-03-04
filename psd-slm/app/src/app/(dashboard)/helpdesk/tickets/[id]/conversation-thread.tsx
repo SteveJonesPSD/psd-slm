@@ -24,7 +24,7 @@ export function ConversationThread({ messages }: { messages: Record<string, unkn
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {msgs.map(msg => {
         if (msg.sender_type === 'system') {
           return (
@@ -50,7 +50,7 @@ export function ConversationThread({ messages }: { messages: Record<string, unkn
           return (
             <div key={msg.id} className="rounded-xl border border-amber-200 bg-amber-50 p-4">
               <div className="mb-6 flex items-center justify-between">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   {msg.sender && (
                     <div
                       className="flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-semibold text-white"
@@ -90,7 +90,7 @@ export function ConversationThread({ messages }: { messages: Record<string, unkn
             }`}
           >
             <div className="mb-6 flex items-center justify-between">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 {isAgent && msg.sender ? (
                   <div
                     className="flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-semibold text-white"

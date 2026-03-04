@@ -20,7 +20,7 @@ export default async function NewDealRegistrationPage() {
     <div>
       <Link
         href="/deal-registrations"
-        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-3"
+        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-4"
       >
         &larr; Deal Registrations
       </Link>

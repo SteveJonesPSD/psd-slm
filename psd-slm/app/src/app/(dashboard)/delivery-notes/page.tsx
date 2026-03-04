@@ -24,7 +24,7 @@ export default async function DeliveryNotesPage() {
         subtitle="Track dispatches and deliveries"
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard label="Draft" value={draft} accent="#6b7280" />
         <StatCard label="Dispatched" value={dispatched} accent="#6366f1" />
         <StatCard label="Delivered" value={delivered} accent="#059669" />
