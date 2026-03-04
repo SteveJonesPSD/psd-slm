@@ -1,30 +1,31 @@
 import { requireAuth } from '@/lib/auth'
-import { createClient } from '@/lib/supabase/server'
 import { PageHeader } from '@/components/ui/page-header'
-import { EmailSettingsForm } from './email-settings-form'
+import { getMailConnections, getMailChannels, getProcessingLog, getAutoPollingEnabled } from '@/lib/email/actions'
+import { EmailIntegrationSettings } from './email-integration-settings'
 
 export default async function EmailSettingsPage() {
   const user = await requireAuth()
-  const supabase = await createClient()
 
-  const { data: settings } = await supabase
-    .from('org_settings')
-    .select('setting_key, setting_value')
-    .eq('org_id', user.orgId)
-    .eq('category', 'email')
-
-  const settingsMap: Record<string, string> = {}
-  for (const s of settings || []) {
-    settingsMap[s.setting_key] = (s.setting_value as string) ?? ''
-  }
+  const [connectionsResult, channelsResult, logResult, autoPollingEnabled] = await Promise.all([
+    getMailConnections(),
+    getMailChannels(),
+    getProcessingLog(20),
+    getAutoPollingEnabled(),
+  ])
 
   return (
     <div>
       <PageHeader
-        title="Email"
-        subtitle="Configure email delivery and templates"
+        title="Email Integration"
+        subtitle="Connect Microsoft 365 mailboxes to route inbound emails to modules"
       />
-      <EmailSettingsForm initialSettings={settingsMap} />
+      <EmailIntegrationSettings
+        connections={connectionsResult.data || []}
+        channels={channelsResult.data || []}
+        processingLog={logResult.data || []}
+        orgId={user.orgId}
+        autoPollingEnabled={autoPollingEnabled}
+      />
     </div>
   )
 }

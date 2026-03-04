@@ -390,6 +390,78 @@ export async function triggerPoll(): Promise<{ results?: unknown[]; error?: stri
 }
 
 // =============================================================================
+// Background Poll (any authenticated user — used by client-side polling hook)
+// =============================================================================
+
+export async function backgroundPoll(): Promise<{
+  success: boolean
+  messagesProcessed?: number
+  error?: string
+}> {
+  try {
+    const user = await requireAuth()
+
+    const supabase = createAdminClient()
+    const { pollMailChannels } = await import('./mail-poller')
+    const results = await pollMailChannels(supabase, user.orgId)
+
+    const totalProcessed = results.reduce(
+      (sum: number, r: { messagesProcessed?: number }) => sum + (r.messagesProcessed || 0),
+      0
+    )
+    return { success: true, messagesProcessed: totalProcessed }
+  } catch (err) {
+    console.error('[Email Poll] Background poll failed:', err)
+    return { success: false, error: err instanceof Error ? err.message : 'Poll failed' }
+  }
+}
+
+// =============================================================================
+// Auto-Poll Setting
+// =============================================================================
+
+export async function getAutoPollingEnabled(): Promise<boolean> {
+  try {
+    const user = await requireAuth()
+    const supabase = await createClient()
+
+    const { data } = await supabase
+      .from('org_settings')
+      .select('setting_value')
+      .eq('org_id', user.orgId)
+      .eq('setting_key', 'email_auto_poll_enabled')
+      .maybeSingle()
+
+    return data?.setting_value === 'true'
+  } catch {
+    return false
+  }
+}
+
+export async function setAutoPollingEnabled(enabled: boolean): Promise<{ error?: string }> {
+  const user = await requireAuth()
+  requireAdmin(user)
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('org_settings')
+    .upsert(
+      {
+        org_id: user.orgId,
+        category: 'email',
+        setting_key: 'email_auto_poll_enabled',
+        setting_value: String(enabled),
+      },
+      { onConflict: 'org_id,setting_key' }
+    )
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/settings/email')
+  return {}
+}
+
+// =============================================================================
 // Helpers
 // =============================================================================
 

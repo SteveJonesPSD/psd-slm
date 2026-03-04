@@ -6,6 +6,8 @@ import { ThemeProvider } from '@/components/theme-provider'
 import { MobileHeader } from '@/components/mobile-header'
 import { requireAuth } from '@/lib/auth'
 import { getAgentAvatars } from '@/lib/agent-avatars'
+import { EmailPoller } from '@/components/email-poller'
+import { getAutoPollingEnabled } from '@/lib/email/actions'
 
 export default async function DashboardLayout({
   children,
@@ -13,7 +15,10 @@ export default async function DashboardLayout({
   children: React.ReactNode
 }) {
   const user = await requireAuth()
-  const agentAvatars = await getAgentAvatars(user.orgId)
+  const [agentAvatars, autoPollingEnabled] = await Promise.all([
+    getAgentAvatars(user.orgId),
+    getAutoPollingEnabled(),
+  ])
 
   return (
     <AuthProvider user={user}>
@@ -23,13 +28,14 @@ export default async function DashboardLayout({
             <Sidebar agentAvatars={agentAvatars} />
             <div className="flex-1 flex flex-col overflow-hidden">
               <MobileHeader />
-              <main className="flex-1 overflow-auto px-6 py-6 md:px-8 md:py-8 lg:px-12 lg:py-10">
+              <main className="flex-1 overflow-auto px-6 py-8 md:px-10 md:py-10 lg:px-12 lg:py-12">
                 {children}
               </main>
             </div>
           </div>
         </SidebarProvider>
         <ChatPanel agentAvatars={agentAvatars} />
+        <EmailPoller enabled={autoPollingEnabled} />
       </ThemeProvider>
     </AuthProvider>
   )
