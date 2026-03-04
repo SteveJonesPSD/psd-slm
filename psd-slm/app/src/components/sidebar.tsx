@@ -237,19 +237,16 @@ export function Sidebar({ agentAvatars }: { agentAvatars?: AgentAvatars }) {
       >
         {/* Logo / Brand */}
         <div
-          className="flex items-center gap-2.5 border-b border-slate-800 cursor-pointer min-h-[60px]"
-          style={{ padding: effectiveCollapsed ? '18px 12px' : '18px 20px' }}
+          className="flex items-center justify-center border-b border-slate-800 cursor-pointer min-h-[60px]"
+          style={{ padding: effectiveCollapsed ? '14px 8px' : '14px 16px' }}
           onClick={handleLogoClick}
         >
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center shrink-0">
-            <span className="text-white font-bold text-[11px]">i8</span>
-          </div>
-          {!effectiveCollapsed && (
-            <div>
-              <div className="text-[15px] font-bold text-slate-50 whitespace-nowrap">
-                Innov8iv Engage
-              </div>
+          {effectiveCollapsed ? (
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center shrink-0">
+              <span className="text-white font-bold text-[11px]">i8</span>
             </div>
+          ) : (
+            <img src="/innov8iv-logo.png" alt="Innov8iv" className="h-8 w-auto" />
           )}
         </div>
 
@@ -395,7 +392,7 @@ function SidebarSection({
       {/* Section header */}
       <button
         onClick={toggle}
-        className="flex items-center justify-between w-full px-3.5 py-1.5 text-[10px] uppercase tracking-wider text-slate-600 hover:text-slate-400 transition-colors"
+        className="flex items-center justify-between w-full px-3.5 py-1.5 text-[10px] uppercase tracking-wider text-slate-400 hover:text-slate-200 transition-colors"
       >
         <span>{section.label}</span>
         <svg
@@ -448,7 +445,7 @@ function NavItemLink({
       className={`flex items-center gap-2.5 rounded-lg px-3.5 py-2.5 text-sm no-underline transition-colors ${
         active
           ? 'bg-slate-800 text-slate-50 font-semibold'
-          : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/50'
+          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
       } ${collapsed ? 'justify-center' : ''}`}
     >
       <span className="text-base w-5 text-center relative">

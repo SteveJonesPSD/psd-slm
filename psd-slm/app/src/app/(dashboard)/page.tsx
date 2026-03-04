@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { formatCurrency } from '@/lib/utils'
-import { PageHeader } from '@/components/ui/page-header'
 import { StatCard } from '@/components/ui/stat-card'
 import { Badge, STAGE_CONFIG } from '@/components/ui/badge'
 
@@ -113,7 +112,11 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      <PageHeader title="Dashboard" subtitle="Sales pipeline overview" />
+      {/* Hero branding */}
+      <div className="mb-6 md:mb-8 flex flex-col items-center">
+        <img src="/innov8iv-logo.png" alt="Innov8iv" className="h-12 md:h-16 w-auto" />
+        <span className="mt-1 text-lg md:text-xl font-semibold tracking-wide text-slate-400 dark:text-slate-500">Engage</span>
+      </div>
 
       {/* Stats row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5 mb-6 md:mb-8">

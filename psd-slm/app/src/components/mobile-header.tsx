@@ -16,12 +16,7 @@ export function MobileHeader() {
           <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
         </svg>
       </button>
-      <div className="flex items-center gap-2">
-        <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center">
-          <span className="text-white font-bold text-[10px]">i8</span>
-        </div>
-        <span className="text-sm font-bold text-slate-900 dark:text-white">Innov8iv Engage</span>
-      </div>
+      <img src="/innov8iv-logo.png" alt="Innov8iv" className="h-6 w-auto" />
     </div>
   )
 }

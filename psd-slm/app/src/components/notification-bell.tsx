@@ -110,7 +110,7 @@ export function NotificationBell({ collapsed }: NotificationBellProps) {
       <button
         ref={buttonRef}
         onClick={handleToggle}
-        className={`flex items-center gap-2.5 w-full rounded-lg px-3.5 py-2.5 text-sm transition-colors text-slate-500 hover:text-slate-300 hover:bg-slate-800/50 ${
+        className={`flex items-center gap-2.5 w-full rounded-lg px-3.5 py-2.5 text-sm transition-colors text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 ${
           collapsed ? 'justify-center' : ''
         }`}
       >

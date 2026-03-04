@@ -18,7 +18,7 @@ async function getApiUser(supabase: Awaited<ReturnType<typeof createClient>>): P
 
   const { data: appUser } = await supabase
     .from('users')
-    .select('id, org_id, email, first_name, last_name, initials, color, avatar_url, theme_preference, must_change_password, role_id, roles(id, name, display_name)')
+    .select('id, org_id, email, first_name, last_name, initials, color, avatar_url, must_change_password, role_id, roles(id, name, display_name)')
     .eq('auth_id', authUser.id)
     .eq('is_active', true)
     .single()
@@ -46,7 +46,7 @@ async function getApiUser(supabase: Awaited<ReturnType<typeof createClient>>): P
     initials: appUser.initials,
     color: appUser.color,
     avatarUrl: appUser.avatar_url ?? null,
-    themePreference: appUser.theme_preference ?? 'system',
+    themePreference: 'system',
     mustChangePassword: appUser.must_change_password,
     role: {
       id: role.id,

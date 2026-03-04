@@ -36,12 +36,27 @@ export const getUser = cache(async (): Promise<AuthUser | null> => {
   if (!authUser) return null
 
   // Fetch app user with role join
-  const { data: appUser } = await supabase
+  // Try with theme_preference first; fall back without it if column doesn't exist yet
+  let appUser: Record<string, unknown> | null = null
+  const baseFields = 'id, org_id, email, first_name, last_name, initials, color, avatar_url, must_change_password, role_id, roles(id, name, display_name)'
+  const { data: d1, error: e1 } = await supabase
     .from('users')
-    .select('id, org_id, email, first_name, last_name, initials, color, avatar_url, theme_preference, must_change_password, role_id, roles(id, name, display_name)')
+    .select(`${baseFields}, theme_preference`)
     .eq('auth_id', authUser.id)
     .eq('is_active', true)
     .single()
+  if (!e1 && d1) {
+    appUser = d1 as Record<string, unknown>
+  } else {
+    // Column may not exist yet — retry without it
+    const { data: d2 } = await supabase
+      .from('users')
+      .select(baseFields)
+      .eq('auth_id', authUser.id)
+      .eq('is_active', true)
+      .single()
+    appUser = d2 as Record<string, unknown> | null
+  }
 
   if (!appUser) return null
 
@@ -49,7 +64,7 @@ export const getUser = cache(async (): Promise<AuthUser | null> => {
   const { data: rolePerms } = await supabase
     .from('role_permissions')
     .select('permissions(module, action)')
-    .eq('role_id', appUser.role_id)
+    .eq('role_id', appUser.role_id as string)
 
   const role = appUser.roles as unknown as { id: string; name: string; display_name: string }
   const permissions = (rolePerms || []).map((rp) => {
@@ -58,17 +73,17 @@ export const getUser = cache(async (): Promise<AuthUser | null> => {
   })
 
   return {
-    id: appUser.id,
+    id: appUser.id as string,
     authId: authUser.id,
-    orgId: appUser.org_id,
-    email: appUser.email,
-    firstName: appUser.first_name,
-    lastName: appUser.last_name,
-    initials: appUser.initials,
-    color: appUser.color,
-    avatarUrl: appUser.avatar_url,
-    themePreference: appUser.theme_preference ?? 'system',
-    mustChangePassword: appUser.must_change_password,
+    orgId: appUser.org_id as string,
+    email: appUser.email as string,
+    firstName: appUser.first_name as string,
+    lastName: appUser.last_name as string,
+    initials: (appUser.initials as string) ?? null,
+    color: (appUser.color as string) ?? null,
+    avatarUrl: (appUser.avatar_url as string) ?? null,
+    themePreference: (appUser.theme_preference as string) ?? 'system',
+    mustChangePassword: appUser.must_change_password as boolean,
     role: {
       id: role.id,
       name: role.name,

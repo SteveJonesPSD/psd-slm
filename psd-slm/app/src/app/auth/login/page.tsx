@@ -104,11 +104,8 @@ export default function LoginPage() {
       <div className="w-full max-w-[400px] px-4">
         {/* Logo */}
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500">
-            <span className="text-sm font-bold text-white">i8</span>
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900">Innov8iv Engage</h1>
-          <p className="mt-1 text-sm text-slate-500">Sales Lifecycle Management</p>
+          <img src="/innov8iv-logo.png" alt="Innov8iv" className="mx-auto h-12 w-auto mb-3" />
+          <h1 className="text-xl font-semibold tracking-wide text-slate-400">Engage</h1>
         </div>
 
         <Suspense fallback={
