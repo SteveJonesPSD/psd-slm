@@ -103,8 +103,8 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-[#f5f6f8]">
       <div className="w-full max-w-[400px] px-4">
         {/* Logo */}
-        <div className="mb-8 text-center">
-          <img src="/innov8iv-logo.png" alt="Innov8iv" className="mx-auto h-12 w-auto mb-3" />
+        <div className="mb-8 flex flex-col items-center">
+          <img src="/innov8iv-logo.png" alt="Innov8iv" className="h-12 w-auto mb-3" />
           <h1 className="text-xl font-semibold tracking-wide text-slate-400">Engage</h1>
         </div>
 

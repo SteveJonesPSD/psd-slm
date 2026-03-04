@@ -121,6 +121,8 @@ export function QuoteDetailActions({ quote, portalUrl, existingSoId }: QuoteDeta
         buy_price: l.buy_price,
         sell_price: l.sell_price,
         supplier_id: l.supplier_id,
+        product_code: null,
+        manufacturer_part: null,
       })),
       pdfStoragePath: data.pdfStoragePath,
       pdfFileName: data.pdfFileName,

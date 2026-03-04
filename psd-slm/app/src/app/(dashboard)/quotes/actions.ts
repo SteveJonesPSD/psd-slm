@@ -1133,6 +1133,8 @@ export interface SupplierImportLine {
   buy_price: number
   sell_price: number
   supplier_id: string | null
+  product_code: string | null
+  manufacturer_part: string | null
 }
 
 export interface SupplierImportInput {
@@ -1224,6 +1226,70 @@ export async function createQuoteFromSupplierImport(input: SupplierImportInput) 
   if (groupError) {
     await supabase.from('quotes').delete().eq('id', quote.id)
     return { error: groupError.message }
+  }
+
+  // Auto-create products for unmatched lines
+  const lineSupplierId = resolvedSupplierId
+  for (const l of input.lines) {
+    if (l.product_id) continue // already matched
+    const sku = l.product_code || l.manufacturer_part
+    if (!sku) continue // no code to use as SKU
+
+    // Check if SKU already exists (may have been created by a previous line in this batch)
+    const { data: existing } = await supabase
+      .from('products')
+      .select('id')
+      .eq('org_id', user.orgId)
+      .eq('sku', sku)
+      .maybeSingle()
+
+    if (existing) {
+      l.product_id = existing.id
+      continue
+    }
+
+    // Create the product
+    const { data: newProduct, error: prodErr } = await supabase
+      .from('products')
+      .insert({
+        org_id: user.orgId,
+        sku,
+        name: l.description,
+        default_buy_price: l.buy_price || null,
+        default_sell_price: l.sell_price || null,
+        product_type: 'goods',
+        is_stocked: false,
+      })
+      .select('id')
+      .single()
+
+    if (prodErr) {
+      console.error('[createQuoteFromSupplierImport] Failed to create product:', prodErr)
+      continue
+    }
+
+    l.product_id = newProduct.id
+
+    // Link to supplier
+    if (lineSupplierId) {
+      const supplierSku = l.product_code || null
+      await supabase.from('product_suppliers').insert({
+        product_id: newProduct.id,
+        supplier_id: lineSupplierId,
+        is_preferred: true,
+        supplier_sku: supplierSku,
+        standard_cost: l.buy_price || null,
+      })
+    }
+
+    logActivity({
+      supabase,
+      user,
+      entityType: 'product',
+      entityId: newProduct.id,
+      action: 'created',
+      details: { sku, name: l.description, source: 'supplier_import' },
+    })
   }
 
   // Insert lines
@@ -1436,6 +1502,66 @@ export async function addSupplierLinesToQuote(input: MergeLinesToQuoteInput) {
   const nextLineOrder = existingLines && existingLines.length > 0
     ? existingLines[0].sort_order + 1
     : 0
+
+  // Auto-create products for unmatched lines
+  const mergeSupplierId = resolvedSupplierId
+  for (const l of input.lines) {
+    if (l.product_id) continue
+    const sku = l.product_code || l.manufacturer_part
+    if (!sku) continue
+
+    const { data: existing } = await supabase
+      .from('products')
+      .select('id')
+      .eq('org_id', user.orgId)
+      .eq('sku', sku)
+      .maybeSingle()
+
+    if (existing) {
+      l.product_id = existing.id
+      continue
+    }
+
+    const { data: newProduct, error: prodErr } = await supabase
+      .from('products')
+      .insert({
+        org_id: user.orgId,
+        sku,
+        name: l.description,
+        default_buy_price: l.buy_price || null,
+        default_sell_price: l.sell_price || null,
+        product_type: 'goods',
+        is_stocked: false,
+      })
+      .select('id')
+      .single()
+
+    if (prodErr) {
+      console.error('[addSupplierLinesToQuote] Failed to create product:', prodErr)
+      continue
+    }
+
+    l.product_id = newProduct.id
+
+    if (mergeSupplierId) {
+      await supabase.from('product_suppliers').insert({
+        product_id: newProduct.id,
+        supplier_id: mergeSupplierId,
+        is_preferred: true,
+        supplier_sku: l.product_code || null,
+        standard_cost: l.buy_price || null,
+      })
+    }
+
+    logActivity({
+      supabase,
+      user,
+      entityType: 'product',
+      entityId: newProduct.id,
+      action: 'created',
+      details: { sku, name: l.description, source: 'supplier_import_merge' },
+    })
+  }
 
   // Insert lines
   const lineRows = input.lines.map((l, i) => ({

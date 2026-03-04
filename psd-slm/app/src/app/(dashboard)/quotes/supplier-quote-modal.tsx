@@ -456,6 +456,8 @@ export function SupplierQuoteModal({ open, onClose, mode = 'create', existingQuo
         buy_price: l.buy_price,
         sell_price: l.sell_price,
         supplier_id: resolvedSupplierId,
+        product_code: l.product_code,
+        manufacturer_part: l.manufacturer_part,
       })),
       pdf_storage_path: pdfStoragePath,
       pdf_file_name: pdfFileName,

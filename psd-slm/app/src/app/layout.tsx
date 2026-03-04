@@ -8,7 +8,7 @@ const dmSans = DM_Sans({
 })
 
 export const metadata: Metadata = {
-  title: 'Innov8iv Engage - Sales Lifecycle Management',
+  title: 'Innov8iv Engage',
   description: 'Sales pipeline, quoting, orders, and commission tracking',
 }
 

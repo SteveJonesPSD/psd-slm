@@ -351,8 +351,9 @@ export default async function QuoteDetailPage({ params }: PageProps) {
                 <table className="w-full text-sm">
                   <thead>
                     <tr>
+                      <th className="px-5 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">SKU</th>
                       <th className="px-5 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Description</th>
-                      <th className="px-5 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Route</th>
+                      <th className="px-5 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">Route</th>
                       <th className="px-5 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Supplier</th>
                       <th className="px-5 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Qty</th>
                       <th className="px-5 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Buy</th>
@@ -374,6 +375,9 @@ export default async function QuoteDetailPage({ params }: PageProps) {
 
                       return (
                         <tr key={line.id} className={`border-t border-slate-100 ${line.is_optional ? 'bg-slate-50/50' : ''}`}>
+                          <td className="px-5 py-2.5 whitespace-nowrap text-xs text-slate-400 font-mono">
+                            {line.products?.sku || '\u2014'}
+                          </td>
                           <td className="px-5 py-2.5">
                             <div className="flex items-center gap-2">
                               {line.product_id ? (
@@ -392,15 +396,12 @@ export default async function QuoteDetailPage({ params }: PageProps) {
                                 <Badge label="DR" color="#7c3aed" bg="#f5f3ff" />
                               )}
                             </div>
-                            {line.products?.sku && (
-                              <div className="text-xs text-slate-400">{line.products.sku}</div>
-                            )}
                           </td>
-                          <td className="px-5 py-2.5">
+                          <td className="px-5 py-2.5 whitespace-nowrap">
                             {routeCfg ? (
                               <Badge label={routeCfg.label} color={routeCfg.color} bg={routeCfg.bg} />
                             ) : (
-                              <span className="text-xs text-slate-400">{line.fulfilment_route}</span>
+                              <span className="text-xs text-slate-400">{line.fulfilment_route?.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) || '\u2014'}</span>
                             )}
                           </td>
                           <td className="px-5 py-2.5 text-slate-500">{supplier?.name || '\u2014'}</td>
