@@ -171,7 +171,7 @@ export function TicketQueue({ initialData, teamMembers, categories, brands, pend
         }
       `}</style>
       {/* Filter bar */}
-      <div className="mb-6 flex flex-wrap items-center gap-3">
+      <div className="mb-8 flex flex-wrap items-center gap-3">
         <input
           type="text"
           value={search}
@@ -245,7 +245,7 @@ export function TicketQueue({ initialData, teamMembers, categories, brands, pend
       <div className="rounded-xl border border-gray-200 bg-white overflow-hidden overflow-x-auto">
         <table className="w-full text-sm min-w-[900px]">
           <thead>
-            <tr className="border-b border-gray-100 bg-gray-50/50">
+            <tr className="border-b-2 border-gray-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800">
               <th
                 className="w-10 px-2 py-3 text-center font-medium text-slate-500 whitespace-nowrap cursor-pointer select-none"
                 onClick={() => setSortByTone(v => !v)}
@@ -253,14 +253,14 @@ export function TicketQueue({ initialData, teamMembers, categories, brands, pend
               >
                 <span className={`text-xs ${sortByTone ? 'text-amber-600' : ''}`}>😠</span>
               </th>
-              <th className="px-4 py-3 text-left font-medium text-slate-500 whitespace-nowrap">Ticket</th>
-              <th className="px-4 py-3 text-left font-medium text-slate-500 whitespace-nowrap">Priority</th>
-              <th className="px-4 py-3 text-left font-medium text-slate-500 whitespace-nowrap">Subject</th>
-              <th className="px-4 py-3 text-left font-medium text-slate-500 whitespace-nowrap">Company</th>
-              <th className="px-4 py-3 text-left font-medium text-slate-500 whitespace-nowrap">Assigned To</th>
-              <th className="px-4 py-3 text-left font-medium text-slate-500 whitespace-nowrap">Status</th>
-              <th className="px-4 py-3 text-left font-medium text-slate-500 whitespace-nowrap">SLA</th>
-              <th className="px-4 py-3 text-left font-medium text-slate-500 whitespace-nowrap">Created</th>
+              <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">Ticket</th>
+              <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">Priority</th>
+              <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">Subject</th>
+              <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">Company</th>
+              <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">Assigned To</th>
+              <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">Status</th>
+              <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">SLA</th>
+              <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">Created</th>
             </tr>
           </thead>
           <tbody>
@@ -281,27 +281,32 @@ export function TicketQueue({ initialData, teamMembers, categories, brands, pend
                 const draft = draftMap.get(ticket.id)
                 const ticketTags = ticketTagMap[ticket.id] || []
                 return (
-                  <tr key={ticket.id} className="border-b border-gray-50 hover:bg-gray-50/50">
+                  <tr key={ticket.id} className="border-b border-slate-100 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">
                     <td className="w-10 px-2 py-3 text-center whitespace-nowrap">
                       <AutogrumpBadge toneScore={ticket.tone_score} toneTrend={ticket.tone_trend} toneSummary={ticket.tone_summary} />
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="px-5 py-3 whitespace-nowrap">
                       <div className="flex items-center gap-1.5">
                         <Link
                           href={`/helpdesk/tickets/${ticket.id}`}
-                          className="font-bold text-indigo-600 hover:text-indigo-800 no-underline"
+                          className="font-semibold text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 no-underline"
                         >
                           {ticket.ticket_number}
                         </Link>
+                        {ticket.source === 'email' && (
+                          <svg className="h-3.5 w-3.5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+                          </svg>
+                        )}
                         {(presence[ticket.id] || []).map(viewer => (
                           <QueuePresenceAvatar key={viewer.id} viewer={viewer} />
                         ))}
                       </div>
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="px-5 py-3 whitespace-nowrap">
                       {priorityCfg && <Badge label={priorityCfg.label} color={priorityCfg.color} bg={priorityCfg.bg} />}
                     </td>
-                    <td className="px-4 py-3 text-slate-700">
+                    <td className="px-5 py-3 text-slate-700">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="truncate shrink">{ticket.subject}</span>
                         {draft && (
@@ -323,8 +328,8 @@ export function TicketQueue({ initialData, teamMembers, categories, brands, pend
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{ticket.customer_name}</td>
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="px-5 py-3 text-slate-600 whitespace-nowrap">{ticket.customer_name}</td>
+                    <td className="px-5 py-3 whitespace-nowrap">
                       {ticket.assigned_to_name ? (
                         <div className="flex items-center gap-1.5">
                           <div
@@ -344,7 +349,7 @@ export function TicketQueue({ initialData, teamMembers, categories, brands, pend
                         </button>
                       )}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="px-5 py-3 whitespace-nowrap">
                       <div className="flex items-center gap-1">
                         {statusCfg && <Badge label={statusCfg.label} color={statusCfg.color} bg={statusCfg.bg} />}
                         {(ticket as unknown as Record<string, unknown>).merged_into_ticket_id ? (
@@ -352,10 +357,10 @@ export function TicketQueue({ initialData, teamMembers, categories, brands, pend
                         ) : null}
                       </div>
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="px-5 py-3 whitespace-nowrap">
                       {getSlaIndicator(ticket)}
                     </td>
-                    <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">
+                    <td className="px-5 py-3 text-slate-500 text-xs whitespace-nowrap">
                       {new Date(ticket.created_at).toLocaleDateString('en-GB')}
                     </td>
                   </tr>

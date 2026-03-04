@@ -46,7 +46,7 @@ export default async function OrdersPage() {
         subtitle="Manage orders from accepted quotes"
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10">
         <StatCard label="Active Orders" value={activeOrders.length} accent="#6366f1" />
         <StatCard label="Active Value" value={formatCurrency(totalActiveValue)} accent="#1e293b" />
         <StatCard label="Awaiting Delivery" value={awaitingDelivery} accent="#d97706" />

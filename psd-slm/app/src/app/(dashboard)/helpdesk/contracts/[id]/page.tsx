@@ -109,7 +109,7 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
       </div>
 
       {/* Recent tickets */}
-      <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6">
+      <div className="mt-8 rounded-xl border border-gray-200 bg-white p-6">
         <h3 className="mb-4 text-base font-semibold text-slate-900">Recent Tickets</h3>
         {contract.recent_tickets.length > 0 ? (
           <table className="w-full text-sm">

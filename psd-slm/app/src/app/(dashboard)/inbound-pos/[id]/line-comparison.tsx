@@ -63,7 +63,7 @@ export function LineComparison({ poLines, quoteLines, matchedQuoteId }: LineComp
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white">
-      <div className="border-b border-gray-200 px-4 py-3">
+      <div className="border-b border-gray-200 px-4 py-4">
         <h3 className="text-sm font-semibold text-slate-700">Line Comparison</h3>
         <p className="text-xs text-slate-400 mt-0.5">
           PO lines vs {matchedQuoteId ? 'matched quote lines' : 'no quote matched'}

@@ -2,6 +2,8 @@ import { notFound } from 'next/navigation'
 import { MobileDetector } from '@/components/ui/mobile-detector'
 import { requireAuth } from '@/lib/auth'
 import { getTicket, getTeamMembers, getCategories, getTags, getCannedResponses, getDraftResponses, getDepartments, getScratchpadNotes, getAssistHistory, getMergedTickets, getMergedMessages, getMergeRecordForSource } from '../../actions'
+import { getAgentAvatars } from '@/lib/agent-avatars'
+import { getTicketEmails, getTicketEmailContext } from '@/lib/email/actions'
 import { TicketDetail } from './ticket-detail'
 import { MobileTicketDetail } from './mobile-ticket-detail'
 
@@ -9,7 +11,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
   const { id } = await params
   const currentUser = await requireAuth()
 
-  const [ticketResult, teamMembers, catResult, tagResult, cannedResult, draftResult, deptResult, scratchpadResult, assistHistoryResult, mergedTicketsResult, mergedMessagesResult, mergeRecordResult] = await Promise.all([
+  const [ticketResult, teamMembers, catResult, tagResult, cannedResult, draftResult, deptResult, scratchpadResult, assistHistoryResult, mergedTicketsResult, mergedMessagesResult, mergeRecordResult, agentAvatars, ticketEmailsResult, emailContextResult] = await Promise.all([
     getTicket(id),
     getTeamMembers(),
     getCategories(),
@@ -22,6 +24,9 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
     getMergedTickets(id),
     getMergedMessages(id),
     getMergeRecordForSource(id),
+    getAgentAvatars(currentUser.orgId),
+    getTicketEmails(id),
+    getTicketEmailContext(id),
   ])
 
   if (ticketResult.error || !ticketResult.data) return notFound()
@@ -39,6 +44,8 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
   const mergedTickets = mergedTicketsResult.data || []
   const mergedMessages = mergedMessagesResult.data || []
   const mergeRecordId = mergeRecordResult.data?.id || null
+  const ticketEmails = ticketEmailsResult.data || []
+  const emailContext = emailContextResult
 
   return (
     <MobileDetector
@@ -57,6 +64,9 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
           mergedMessages={mergedMessages}
           mergeRecordId={mergeRecordId}
           currentUserId={currentUser.id}
+          helenAvatarUrl={agentAvatars.helen}
+          ticketEmails={ticketEmails}
+          emailContext={emailContext}
         />
       }
       mobile={
@@ -73,6 +83,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
           mergedMessages={mergedMessages}
           mergeRecordId={mergeRecordId}
           currentUserId={currentUser.id}
+          helenAvatarUrl={agentAvatars.helen}
         />
       }
     />

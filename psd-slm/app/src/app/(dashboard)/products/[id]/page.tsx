@@ -55,7 +55,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
     <div>
       <Link
         href="/products"
-        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-4"
+        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-6"
       >
         &larr; Products
       </Link>
@@ -93,7 +93,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
       />
 
       {/* Stats */}
-      <div className="flex flex-wrap gap-6 mb-8">
+      <div className="flex flex-wrap gap-6 mb-10">
         <StatCard
           label="Default Buy Price"
           value={product.default_buy_price != null ? formatCurrency(product.default_buy_price) : 'Not set'}
@@ -112,7 +112,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
       </div>
 
       {/* Info card */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
+      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-8">
         <h3 className="text-[15px] font-semibold mb-4">Product Details</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-3 text-sm">
           <DetailField label="SKU" value={product.sku} />

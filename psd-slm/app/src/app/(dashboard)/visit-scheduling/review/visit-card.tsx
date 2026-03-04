@@ -65,7 +65,7 @@ export function VisitCard({ visit }: VisitCardProps) {
       onClick={() => setExpanded(!expanded)}
     >
       <div className="flex items-start justify-between gap-1">
-        <div className="font-medium text-slate-800 truncate flex-1">
+        <div className="font-medium text-slate-800 dark:text-slate-200 truncate flex-1">
           {visit.customer_name}
         </div>
         {statusCfg && (
@@ -83,7 +83,7 @@ export function VisitCard({ visit }: VisitCardProps) {
           <Badge label={slotCfg.label} color={slotCfg.color} bg={slotCfg.bg} className="text-[9px] px-1.5 py-0" />
         )}
         {visit.start_time && visit.end_time && (
-          <span className="text-[10px] text-slate-500">
+          <span className="text-[10px] text-slate-500 dark:text-slate-300">
             {visit.start_time.slice(0, 5)}–{visit.end_time.slice(0, 5)}
           </span>
         )}
@@ -93,7 +93,7 @@ export function VisitCard({ visit }: VisitCardProps) {
       </div>
 
       {visit.contract_number && (
-        <div className="text-[10px] text-slate-500 mt-0.5">{visit.contract_number}</div>
+        <div className="text-[10px] text-slate-500 dark:text-slate-300 mt-0.5">{visit.contract_number}</div>
       )}
 
       {visit.job_id && visit.job_number && (

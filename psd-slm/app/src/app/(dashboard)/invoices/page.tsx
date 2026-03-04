@@ -30,7 +30,7 @@ export default async function InvoicesPage() {
         subtitle="Manage invoices raised from sales orders"
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
         <StatCard
           label="Outstanding"
           value={formatCurrency(totalOutstanding)}

@@ -116,7 +116,7 @@ export function DeliveryNotesTable({ deliveryNotes }: DeliveryNotesTableProps) {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-3 mb-6">
+      <div className="flex flex-wrap items-center gap-3 mb-8">
         <input
           type="text"
           placeholder="Search delivery notes..."

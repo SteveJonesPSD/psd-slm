@@ -50,13 +50,13 @@ export default async function PurchaseOrderDetailPage({ params }: PageProps) {
       {/* Back link */}
       <Link
         href="/purchase-orders"
-        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-4"
+        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-6"
       >
         &larr; Purchase Orders
       </Link>
 
       {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-10">
         <div>
           <div className="flex items-center gap-3 flex-wrap mb-1">
             <h2 className="text-2xl font-bold text-slate-900">{po.po_number}</h2>
@@ -80,7 +80,7 @@ export default async function PurchaseOrderDetailPage({ params }: PageProps) {
       </div>
 
       {/* Context panel */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
+      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-8">
         <div className="flex flex-wrap gap-6 text-sm">
           {customer && (
             <div>
@@ -138,13 +138,13 @@ export default async function PurchaseOrderDetailPage({ params }: PageProps) {
 
       {/* Stats */}
       {isStockOrder ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-10">
           <StatCard label="Goods Total" value={formatCurrency(goodsTotal)} accent="#1e293b" />
           <StatCard label="Delivery Cost" value={formatCurrency(deliveryCost)} accent="#6b7280" />
           <StatCard label="PO Total" value={formatCurrency(poTotal)} accent="#6366f1" />
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10">
           <StatCard label="Goods Total" value={formatCurrency(goodsTotal)} accent="#1e293b" />
           <StatCard label="Delivery Cost" value={formatCurrency(deliveryCost)} accent="#6b7280" />
           <StatCard label="PO Total" value={formatCurrency(poTotal)} accent="#6366f1" />

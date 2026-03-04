@@ -12,7 +12,7 @@ export default async function ProfilePage() {
         title="My Profile"
         subtitle="Personal settings and AI response preferences"
       />
-      <div className="space-y-6">
+      <div className="space-y-8">
         <ThemeSelector />
         <AiPreferencesForm initialPreferences={prefs} />
       </div>

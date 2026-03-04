@@ -13,7 +13,7 @@ export default async function CollectionsPage() {
     <div>
       <PageHeader title="Collections" subtitle="Engineer stock collection slips" />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
         <StatCard
           label="Pending Pickup"
           value={stats.pending}

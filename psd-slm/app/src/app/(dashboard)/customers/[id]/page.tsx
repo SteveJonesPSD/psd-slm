@@ -93,7 +93,7 @@ export default async function CustomerDetailPage({ params }: PageProps) {
       {/* Back link */}
       <Link
         href="/customers"
-        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-4"
+        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-6"
       >
         &larr; Customers
       </Link>
@@ -102,7 +102,7 @@ export default async function CustomerDetailPage({ params }: PageProps) {
       <CustomerHeader customer={customer} />
 
       {/* Stats row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
         <StatCard label="Contacts" value={contacts?.length || 0} />
         <StatCard
           label="Opportunities"
@@ -123,7 +123,7 @@ export default async function CustomerDetailPage({ params }: PageProps) {
       </div>
 
       {/* Customer info card */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
+      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-8">
         <h3 className="text-[15px] font-semibold mb-4">Customer Details</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-3 text-sm">
           <DetailField label="Account Number" value={customer.account_number} />
@@ -165,7 +165,7 @@ export default async function CustomerDetailPage({ params }: PageProps) {
 
       {/* Scheduled Visits */}
       {visitsData.length > 0 && (
-        <div className="mt-6">
+        <div className="mt-8">
           <VisitSchedulingSection visits={visitsData} />
         </div>
       )}

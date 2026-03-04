@@ -46,13 +46,13 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
       {/* Back link */}
       <Link
         href="/invoices"
-        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-4"
+        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-6"
       >
         &larr; All Invoices
       </Link>
 
       {/* Breadcrumb chain */}
-      <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-4 flex-wrap">
+      <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-6 flex-wrap">
         {invoice.quote && (
           <>
             <Link href={`/quotes/${invoice.quote.id}`} className="hover:text-slate-600 no-underline">
@@ -73,7 +73,7 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
       </div>
 
       {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-10">
         <div>
           <div className="flex items-center gap-3 flex-wrap mb-1">
             <h2 className="text-2xl font-bold text-slate-900">{invoice.invoice_number}</h2>
@@ -124,7 +124,7 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
 
       {/* Address cards */}
       {invoice.customer && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <div className="rounded-xl border border-gray-200 bg-white p-5">
             <div className="text-[10px] font-medium text-slate-400 uppercase tracking-wide mb-2">Bill To</div>
             <div className="text-sm font-semibold text-slate-700 mb-1">{invoice.customer.name}</div>
@@ -159,7 +159,7 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
       )}
 
       {/* Info cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
         <div className="rounded-xl border border-gray-200 bg-white p-5">
           <div className="text-[10px] font-medium text-slate-400 uppercase tracking-wide mb-1">Customer PO</div>
           <div className="text-sm font-medium text-slate-700">{invoice.customer_po || '\u2014'}</div>
@@ -181,7 +181,7 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
       </div>
 
       {/* Financial stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
         <StatCard label="Subtotal" value={formatCurrency(invoice.subtotal)} accent="#1e293b" />
         <StatCard label="VAT" value={formatCurrency(invoice.vat_amount)} sub={`${invoice.vat_rate || 20}%`} accent="#6b7280" />
         <StatCard
@@ -207,7 +207,7 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
         const voidDate = voidActivity?.created_at ? formatDate(voidActivity.created_at) : null
         const voidBy = voidActivity?.users ? `${voidActivity.users.first_name} ${voidActivity.users.last_name}` : null
         return voidReason ? (
-          <div className="rounded-xl border border-red-200 bg-red-50/50 p-5 mb-6">
+          <div className="rounded-xl border border-red-200 bg-red-50/50 p-5 mb-8">
             <h3 className="text-[13px] font-semibold text-red-800 mb-2">Invoice Voided</h3>
             <p className="text-sm text-red-900">
               {voidDate && voidBy && <span>Voided on {voidDate} by {voidBy}. </span>}
@@ -219,7 +219,7 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
 
       {/* Internal notes */}
       {invoice.internal_notes && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-5 mb-6">
+        <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-5 mb-8">
           <h3 className="text-[13px] font-semibold text-amber-800 mb-2">Internal Notes</h3>
           <p className="text-sm text-amber-900 whitespace-pre-wrap">{invoice.internal_notes}</p>
         </div>
@@ -227,7 +227,7 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
 
       {/* Credit note parent reference */}
       {invoice.parentInvoice && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-5 mb-6">
+        <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-5 mb-8">
           <h3 className="text-[13px] font-semibold text-amber-800 mb-2">Credit Note For</h3>
           <p className="text-sm text-amber-900">
             This credit note is against invoice{' '}
@@ -241,7 +241,7 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
 
       {/* Attribution section */}
       {invoice.attributions && invoice.attributions.length > 0 && (
-        <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
+        <div className="rounded-xl border border-gray-200 bg-white p-5 mb-8">
           <h3 className="text-[15px] font-semibold mb-4">Sales Attribution</h3>
           <div className="flex flex-wrap gap-3">
             {invoice.attributions.map((attr: { id: string; attribution_type: string; split_pct: number; users: { first_name: string; last_name: string; initials: string | null; color: string | null } | null }) => (
@@ -269,7 +269,7 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
       )}
 
       {/* Invoice lines */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
+      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-8">
         <h3 className="text-[15px] font-semibold mb-4">Line Items</h3>
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-sm min-w-[600px]">
@@ -307,7 +307,7 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
       </div>
 
       {/* Related section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         {/* Links */}
         <div className="rounded-xl border border-gray-200 bg-white p-5">
           <h3 className="text-[15px] font-semibold mb-4">Related</h3>

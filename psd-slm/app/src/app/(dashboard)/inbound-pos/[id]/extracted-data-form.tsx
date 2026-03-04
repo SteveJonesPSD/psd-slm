@@ -111,7 +111,7 @@ export function ExtractedDataForm({
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white">
-      <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+      <div className="flex items-center justify-between border-b border-gray-200 px-4 py-4">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold text-slate-700">Extracted Data</h3>
           {extractionConfidence && (

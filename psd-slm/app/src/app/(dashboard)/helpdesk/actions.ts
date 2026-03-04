@@ -632,7 +632,7 @@ export async function getTicket(id: string) {
   // Fetch messages
   const { data: messages } = await supabase
     .from('ticket_messages')
-    .select('*, sender:sender_id(id, first_name, last_name, initials, color)')
+    .select('*, sender:sender_id(id, first_name, last_name, initials, color, avatar_url)')
     .eq('ticket_id', id)
     .order('created_at', { ascending: true })
 
@@ -1095,8 +1095,39 @@ export async function addMessage(ticketId: string, formData: {
   }
 
   logActivity({ supabase, user, entityType: 'ticket', entityId: ticketId, action: 'message_added', details: { is_internal: formData.is_internal } })
+
+  // Fire-and-forget: send email reply if ticket has email context and reply is non-internal
+  if (!formData.is_internal) {
+    sendEmailReplyIfNeeded(ticketId, body, user.id, user.orgId).catch(err =>
+      console.error('[email-reply]', err)
+    )
+  }
+
   revalidatePath(`/helpdesk/tickets/${ticketId}`)
   return { data: message }
+}
+
+async function sendEmailReplyIfNeeded(ticketId: string, body: string, userId: string, orgId: string) {
+  try {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/email/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ticketId,
+        bodyHtml: `<p>${body.replace(/\n/g, '<br>')}</p>`,
+        bodyText: body,
+      }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      // 400 = no email context (normal for non-email tickets), don't log as error
+      if (res.status !== 400) {
+        console.error('[email-reply] Failed:', data.error || res.statusText)
+      }
+    }
+  } catch {
+    // Non-blocking — email failure should never prevent reply from being saved
+  }
 }
 
 export async function assignTicket(id: string, userId: string | null) {
@@ -3227,7 +3258,7 @@ export async function getMergedMessages(ticketId: string) {
   // Fetch messages from all source tickets
   const { data: messages, error } = await supabase
     .from('ticket_messages')
-    .select('*, sender:sender_id(id, first_name, last_name, initials, color)')
+    .select('*, sender:sender_id(id, first_name, last_name, initials, color, avatar_url)')
     .in('ticket_id', sourceIds)
     .order('created_at', { ascending: true })
 
@@ -3253,4 +3284,65 @@ export async function triggerAutoClose() {
   processAutoClose(adminClient, user.orgId).catch((err) => {
     console.error('Auto-close processing error:', err)
   })
+}
+
+// ============================================================================
+// AUTOGRUMP™ SETTINGS
+// ============================================================================
+
+export async function getAutogrumpStats() {
+  const user = await requirePermission('helpdesk', 'view')
+  const supabase = await createClient()
+
+  const { count } = await supabase
+    .from('tickets')
+    .select('*', { count: 'exact', head: true })
+    .eq('org_id', user.orgId)
+    .not('status', 'in', '("closed","resolved")')
+    .gte('tone_score', 3)
+
+  return { flagged: count || 0 }
+}
+
+export async function clearAllToneScores() {
+  const user = await requirePermission('helpdesk', 'admin')
+  const adminClient = createAdminClient()
+
+  // Count first
+  const { count } = await adminClient
+    .from('tickets')
+    .select('id', { count: 'exact', head: true })
+    .eq('org_id', user.orgId)
+    .not('tone_score', 'is', null)
+
+  // Then clear
+  await adminClient
+    .from('tickets')
+    .update({
+      tone_score: null,
+      tone_trend: null,
+      tone_summary: null,
+      tone_updated_at: null,
+    })
+    .eq('org_id', user.orgId)
+    .not('tone_score', 'is', null)
+
+  return { cleared: count || 0 }
+}
+
+export async function getFrustratedTicketStats() {
+  const user = await requirePermission('helpdesk', 'view')
+  const supabase = await createClient()
+
+  const { data } = await supabase
+    .from('tickets')
+    .select('tone_score, tone_trend')
+    .eq('org_id', user.orgId)
+    .not('status', 'in', '("closed","resolved")')
+    .gte('tone_score', 4)
+
+  const frustrated = data?.length || 0
+  const escalating = data?.filter(t => t.tone_trend === 'escalating').length || 0
+
+  return { frustrated, escalating }
 }

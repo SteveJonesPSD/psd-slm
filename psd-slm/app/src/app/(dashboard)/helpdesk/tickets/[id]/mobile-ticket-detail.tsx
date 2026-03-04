@@ -38,6 +38,7 @@ interface MobileTicketDetailProps {
   mergedMessages?: Record<string, unknown>[]
   mergeRecordId?: string | null
   currentUserId?: string
+  helenAvatarUrl?: string | null
 }
 
 type Tab = 'conversation' | 'details' | 'sla' | 'more'
@@ -49,7 +50,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'more', label: 'More' },
 ]
 
-export function MobileTicketDetail({ ticket, teamMembers, categories, tags, cannedResponses, drafts, departments }: MobileTicketDetailProps) {
+export function MobileTicketDetail({ ticket, teamMembers, categories, tags, cannedResponses, drafts, departments, helenAvatarUrl }: MobileTicketDetailProps) {
   const [activeTab, setActiveTab] = useState<Tab>('conversation')
   const [replyMode, setReplyMode] = useState<'reply' | 'note' | null>(null)
 
@@ -149,7 +150,7 @@ export function MobileTicketDetail({ ticket, teamMembers, categories, tags, cann
       <div className="flex-1 overflow-y-auto px-4 py-3">
         {activeTab === 'conversation' && (
           <div className="space-y-3">
-            <MobileConversation messages={msgs} />
+            <MobileConversation messages={msgs} helenAvatarUrl={helenAvatarUrl} />
             <DraftResponseBanner drafts={drafts} ticketId={t.id as string} />
           </div>
         )}

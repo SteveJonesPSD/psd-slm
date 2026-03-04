@@ -105,7 +105,8 @@ function buildDiagnosticPrompt(
   additionalContext: string | undefined,
   priorDiagnostics: PriorDiagnostic[] | undefined,
   helenPersona: string,
-  helenGuardrails: string
+  helenGuardrails: string,
+  toneData?: { tone_score: number | null; tone_trend: string | null; tone_summary: string | null } | null
 ): string {
   const conversationHistory = context.messages
     .map((m) => {
@@ -131,7 +132,13 @@ ${helenGuardrails ? `## Guardrails\n${helenGuardrails}\n` : ''}
 - **Type:** ${context.ticketType}
 - **Category:** ${context.category || 'Uncategorised'}
 - **Assigned to:** ${context.assigneeName || 'Unassigned'}
-${context.description ? `\n## Original Description\n${context.description}` : ''}
+${toneData?.tone_score && toneData.tone_score >= 3 ? `
+## Customer Tone (AutoGRUMP)
+- **Frustration level:** ${toneData.tone_score}/5 (${toneData.tone_score === 3 ? 'Mildly frustrated' : toneData.tone_score === 4 ? 'Frustrated' : 'Angry'})
+- **Trend:** ${toneData.tone_trend || 'unknown'}
+- **Summary:** ${toneData.tone_summary || 'N/A'}
+- **Recommendation:** Use empathetic, solution-focused language. Acknowledge the frustration directly.${toneData.tone_trend === 'escalating' ? ' Tone is escalating — prioritise a swift, concrete response.' : ''}
+` : ''}${context.description ? `\n## Original Description\n${context.description}` : ''}
 
 ## Conversation History
 ${conversationHistory || 'No messages yet.'}
@@ -231,10 +238,17 @@ export async function POST(request: NextRequest) {
     const helenPersona = settings.helen_persona || ''
     const helenGuardrails = settings.helen_guardrails || ''
 
+    // Fetch tone data for context enrichment
+    const { data: toneData } = await supabase
+      .from('tickets')
+      .select('tone_score, tone_trend, tone_summary')
+      .eq('id', ticketId)
+      .single()
+
     const client = new Anthropic({ apiKey })
     const model = 'claude-sonnet-4-20250514'
 
-    const systemPrompt = buildDiagnosticPrompt(ticketContext, additionalContext, priorDiagnostics, helenPersona, helenGuardrails)
+    const systemPrompt = buildDiagnosticPrompt(ticketContext, additionalContext, priorDiagnostics, helenPersona, helenGuardrails, toneData)
 
     // Truncate for audit log (first 500 chars of system prompt)
     const requestSummary = systemPrompt.slice(0, 500)

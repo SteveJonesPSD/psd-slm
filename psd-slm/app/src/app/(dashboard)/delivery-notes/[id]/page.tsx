@@ -31,13 +31,13 @@ export default async function DeliveryNoteDetailPage({ params }: PageProps) {
     <div>
       <Link
         href="/delivery-notes"
-        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-4"
+        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-6"
       >
         &larr; All Delivery Notes
       </Link>
 
       {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-10">
         <div>
           <div className="flex items-center gap-3 flex-wrap mb-1">
             <h2 className="text-2xl font-bold text-slate-900">{dn.dn_number}</h2>
@@ -63,7 +63,7 @@ export default async function DeliveryNoteDetailPage({ params }: PageProps) {
       </div>
 
       {/* Info cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
         {/* Delivery Address */}
         <div className="rounded-xl border border-gray-200 bg-white p-5">
           <h3 className="text-[15px] font-semibold mb-4">Delivery Address</h3>
@@ -108,14 +108,14 @@ export default async function DeliveryNoteDetailPage({ params }: PageProps) {
 
       {/* Notes */}
       {dn.notes && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-5 mb-6">
+        <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-5 mb-8">
           <h3 className="text-[13px] font-semibold text-amber-800 mb-2">Notes</h3>
           <p className="text-sm text-amber-900 whitespace-pre-wrap">{dn.notes}</p>
         </div>
       )}
 
       {/* Lines */}
-      <div className="rounded-xl border border-gray-200 bg-white mb-6">
+      <div className="rounded-xl border border-gray-200 bg-white mb-8">
         <div className="px-5 py-4 border-b border-gray-200">
           <h3 className="text-[15px] font-semibold">Lines</h3>
         </div>

@@ -49,7 +49,7 @@ export default async function VisitSchedulingPage() {
       />
 
       {/* Stats row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
         <StatCard
           label="Today's Visits"
           value={stats.todayCount}
@@ -74,7 +74,7 @@ export default async function VisitSchedulingPage() {
 
       {/* This week's schedule grid */}
       <div className="rounded-xl border border-gray-200 bg-white">
-        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3">
+        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
           <h3 className="text-sm font-semibold text-slate-900">This Week&apos;s Schedule</h3>
           <Link
             href="/visit-scheduling/review"
@@ -138,7 +138,7 @@ export default async function VisitSchedulingPage() {
                                     backgroundColor: statusCfg?.bg || '#f8fafc',
                                   }}
                                 >
-                                  <div className="font-medium text-slate-700 truncate max-w-[140px]">
+                                  <div className="font-medium text-slate-700 dark:text-slate-200 truncate max-w-[140px]">
                                     {visit.customer_name}
                                   </div>
                                   <div className="flex items-center gap-1 mt-0.5">

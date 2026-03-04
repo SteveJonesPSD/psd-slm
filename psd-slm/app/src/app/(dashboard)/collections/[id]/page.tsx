@@ -44,7 +44,7 @@ export default async function CollectionDetailPage({ params }: PageProps) {
 
   return (
     <div>
-      <div className="mb-4">
+      <div className="mb-6">
         <Link href="/collections" className="text-sm text-slate-500 hover:text-slate-700">
           &larr; Collections
         </Link>
@@ -62,7 +62,7 @@ export default async function CollectionDetailPage({ params }: PageProps) {
       />
 
       {/* Info cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
         {/* Job */}
         <div className="rounded-xl border border-gray-200 bg-white p-5">
           <div className="text-xs font-medium uppercase tracking-wide text-slate-400 mb-1">Job</div>
@@ -146,7 +146,7 @@ export default async function CollectionDetailPage({ params }: PageProps) {
 
       {/* Notes */}
       {collection.notes && (
-        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4">
+        <div className="mb-8 rounded-xl border border-amber-200 bg-amber-50 p-4">
           <div className="text-xs font-medium uppercase tracking-wide text-amber-600 mb-1">Notes</div>
           <div className="text-sm text-amber-800">{collection.notes}</div>
         </div>

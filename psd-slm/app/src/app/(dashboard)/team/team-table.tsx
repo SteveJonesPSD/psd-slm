@@ -344,7 +344,7 @@ export function TeamTable({ users, roles }: TeamTableProps) {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-3 mb-6">
+      <div className="flex flex-wrap items-center gap-3 mb-8">
         <input
           type="text"
           placeholder="Search team..."

@@ -39,13 +39,13 @@ export default async function ContractDetailPage({ params }: PageProps) {
       {/* Back link */}
       <Link
         href="/contracts"
-        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-4"
+        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-6"
       >
         &larr; Contracts
       </Link>
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-10">
         <div>
           <div className="flex items-center gap-2.5 flex-wrap">
             <h1 className="text-2xl font-bold text-slate-900">{contract.contract_number}</h1>
@@ -67,7 +67,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
       </div>
 
       {/* Info panel */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
+      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-8">
         <h3 className="text-[15px] font-semibold mb-4">Contract Details</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-3 text-sm">
           <DetailField label="Contract Type" value={contract.contract_type_name} />

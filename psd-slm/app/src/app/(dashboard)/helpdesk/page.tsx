@@ -50,7 +50,7 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
             subtitle="Ticket management and support queue"
           />
 
-          <div className="mb-8 flex gap-4">
+          <div className="mb-10 flex gap-4">
             <StatCard label="Open Tickets" value={openCount} accent="#2563eb" />
             <StatCard label="Unassigned" value={unassigned} accent={unassigned > 0 ? '#d97706' : '#1e293b'} />
             <StatCard label="New" value={newCount} accent="#6366f1" />

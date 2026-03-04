@@ -25,12 +25,12 @@ export default async function StockTakeDetailPage({ params }: PageProps) {
     <div>
       <Link
         href="/stock/takes"
-        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-4"
+        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-6"
       >
         &larr; All Stock Takes
       </Link>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-10">
         <div>
           <div className="flex items-center gap-3 flex-wrap mb-1">
             <h2 className="text-2xl font-bold text-slate-900">{st.st_number}</h2>

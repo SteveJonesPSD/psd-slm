@@ -23,6 +23,8 @@ import { MergeTicketModal } from './merge-ticket-modal'
 import { useTicketPresence } from './use-ticket-presence'
 import { PresenceBanner } from './presence-banner'
 import { AutogrumpBanner } from '@/components/helpdesk/autogrump-badge'
+import { EmailThreadSection } from './email-thread-section'
+import type { TicketEmail } from '@/lib/email/types'
 import type { HelenDraftType } from '@/types/database'
 
 interface DepartmentOption {
@@ -47,9 +49,11 @@ interface TicketDetailProps {
   mergeRecordId: string | null
   currentUserId: string
   helenAvatarUrl?: string | null
+  ticketEmails?: TicketEmail[]
+  emailContext?: { hasEmailContext: boolean; recipientAddress?: string; recipientName?: string | null; channelId?: string }
 }
 
-export function TicketDetail({ ticket, teamMembers, categories, tags, cannedResponses, drafts, departments, scratchpadNotes, assistHistory, mergedTickets, mergedMessages, mergeRecordId, currentUserId, helenAvatarUrl }: TicketDetailProps) {
+export function TicketDetail({ ticket, teamMembers, categories, tags, cannedResponses, drafts, departments, scratchpadNotes, assistHistory, mergedTickets, mergedMessages, mergeRecordId, currentUserId, helenAvatarUrl, ticketEmails, emailContext }: TicketDetailProps) {
   const t = ticket as Record<string, unknown>
   const statusCfg = TICKET_STATUS_CONFIG[t.status as string]
   const priorityCfg = TICKET_PRIORITY_CONFIG[t.priority as string]
@@ -127,6 +131,7 @@ export function TicketDetail({ ticket, teamMembers, categories, tags, cannedResp
             {statusCfg && <Badge label={statusCfg.label} color={statusCfg.color} bg={statusCfg.bg} />}
             {priorityCfg && <Badge label={priorityCfg.label} color={priorityCfg.color} bg={priorityCfg.bg} />}
             {typeCfg && <Badge label={typeCfg.label} color={typeCfg.color} bg={typeCfg.bg} />}
+            {t.source === 'email' && <Badge label="Email" color="#2563eb" bg="#eff6ff" />}
             {Boolean(t.hold_open) && <Badge label="Hold Open" color="#b45309" bg="#fef3c7" />}
           </div>
           {(t.tone_score as number | null) && (t.tone_score as number) >= 3 && (
@@ -200,6 +205,7 @@ export function TicketDetail({ ticket, teamMembers, categories, tags, cannedResp
                 ticketContext={ticketContext}
                 composeRef={composeRef}
                 viewers={viewers}
+                emailContext={emailContext}
               />
             </>
           )}
@@ -224,6 +230,9 @@ export function TicketDetail({ ticket, teamMembers, categories, tags, cannedResp
             ticketId={t.id as string}
             attachments={(t.attachments as Record<string, unknown>[]) || []}
           />
+          {ticketEmails && ticketEmails.length > 0 && (
+            <EmailThreadSection emails={ticketEmails} />
+          )}
           <ScratchpadPanel
             ticketId={t.id as string}
             notes={scratchpadNotes}

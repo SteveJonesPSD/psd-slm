@@ -64,13 +64,13 @@ export default async function SalesOrderDetailPage({ params }: PageProps) {
       {/* Back link */}
       <Link
         href="/orders"
-        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-4"
+        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-6"
       >
         &larr; All Sales Orders
       </Link>
 
       {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-10">
         <div>
           <div className="flex items-center gap-3 flex-wrap mb-1">
             <h2 className="text-2xl font-bold text-slate-900">{so.so_number}</h2>
@@ -103,7 +103,7 @@ export default async function SalesOrderDetailPage({ params }: PageProps) {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
         <StatCard label="Subtotal" value={formatCurrency(subtotal)} accent="#1e293b" />
         <StatCard label="VAT" value={formatCurrency(vatAmount)} sub={`${so.vat_rate}%`} accent="#6b7280" />
         <StatCard label="Grand Total" value={formatCurrency(grandTotal)} accent="#6366f1" />
@@ -116,7 +116,7 @@ export default async function SalesOrderDetailPage({ params }: PageProps) {
       </div>
 
       {/* Info cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {/* Delivery */}
         <div className="rounded-xl border border-gray-200 bg-white p-5">
           <h3 className="text-[15px] font-semibold mb-4">Delivery</h3>
@@ -163,7 +163,7 @@ export default async function SalesOrderDetailPage({ params }: PageProps) {
 
       {/* Notes */}
       {so.notes && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-5 mb-6">
+        <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-5 mb-8">
           <h3 className="text-[13px] font-semibold text-amber-800 mb-2">Internal Notes</h3>
           <p className="text-sm text-amber-900 whitespace-pre-wrap">{so.notes}</p>
         </div>
@@ -175,7 +175,7 @@ export default async function SalesOrderDetailPage({ params }: PageProps) {
         const customerSite = activeLines.filter((l: SoLineRow) => l.delivery_destination === 'customer_site')
         const services = activeLines.filter((l: SoLineRow) => l.is_service)
         return (
-          <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
+          <div className="rounded-xl border border-gray-200 bg-white p-5 mb-8">
             <h3 className="text-[15px] font-semibold mb-4">Delivery Summary</h3>
             <div className="grid grid-cols-3 gap-4 text-sm">
               <div className="rounded-lg bg-amber-50 p-3 text-center">

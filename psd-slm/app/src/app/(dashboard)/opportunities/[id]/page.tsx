@@ -89,13 +89,13 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
       {/* Back link */}
       <Link
         href="/pipeline"
-        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-4"
+        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-6"
       >
         &larr; Pipeline
       </Link>
 
       {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-10">
         <div>
           <div className="flex items-center gap-3 mb-1">
             <h2 className="text-2xl font-bold text-slate-900">{opportunity.title}</h2>
@@ -127,7 +127,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-10">
         <StatCard
           label="Estimated Value"
           value={formatCurrency(opportunity.estimated_value || 0)}
@@ -156,7 +156,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
       </div>
 
       {/* Details card */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
+      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-8">
         <h3 className="text-[15px] font-semibold mb-4">Details</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-3 text-sm">
           <DetailField label="Company" value={customer?.name} />
@@ -189,7 +189,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
       <NotesEditor opportunityId={opportunity.id} initialNotes={opportunity.notes || ''} />
 
       {/* Quotes section */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
+      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-8">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-[15px] font-semibold">
             Quotes ({quotes?.length || 0})

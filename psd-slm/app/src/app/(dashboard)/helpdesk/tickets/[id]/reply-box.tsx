@@ -7,6 +7,13 @@ import type { PresenceViewer } from '../../actions'
 import { AiSuggestModal } from './ai-suggest-modal'
 import type { TicketContext } from './ai-suggest-modal'
 
+interface EmailContextInfo {
+  hasEmailContext: boolean
+  recipientAddress?: string
+  recipientName?: string | null
+  channelId?: string
+}
+
 interface ReplyBoxProps {
   ticketId: string
   ticketStatus: string
@@ -14,9 +21,10 @@ interface ReplyBoxProps {
   ticketContext?: TicketContext
   composeRef?: React.MutableRefObject<((text: string) => void) | null>
   viewers?: PresenceViewer[]
+  emailContext?: EmailContextInfo
 }
 
-export function ReplyBox({ ticketId, ticketStatus, cannedResponses, ticketContext, composeRef, viewers }: ReplyBoxProps) {
+export function ReplyBox({ ticketId, ticketStatus, cannedResponses, ticketContext, composeRef, viewers, emailContext }: ReplyBoxProps) {
   const router = useRouter()
   const [body, setBody] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -142,6 +150,20 @@ export function ReplyBox({ ticketId, ticketStatus, cannedResponses, ticketContex
           )}
         </div>
       </div>
+
+      {/* Email indicator */}
+      {emailContext?.hasEmailContext && !isInternal && (
+        <div className="mb-2 flex items-center gap-2 rounded-md bg-blue-50 dark:bg-blue-900/20 px-3 py-1.5 text-xs text-blue-700 dark:text-blue-400">
+          <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+          </svg>
+          <span>Will be emailed to <strong>{emailContext.recipientName || emailContext.recipientAddress}</strong>
+            {emailContext.recipientName && (
+              <span className="font-normal text-blue-500 dark:text-blue-500"> ({emailContext.recipientAddress})</span>
+            )}
+          </span>
+        </div>
+      )}
 
       {/* Text area */}
       <textarea

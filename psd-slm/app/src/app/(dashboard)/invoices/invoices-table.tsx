@@ -147,7 +147,7 @@ export function InvoicesTable({ invoices }: InvoicesTableProps) {
   return (
     <div>
       {/* Filter Bar */}
-      <div className="flex flex-wrap items-center gap-3 mb-6">
+      <div className="flex flex-wrap items-center gap-3 mb-8">
         <input
           type="text"
           placeholder="Search invoices..."

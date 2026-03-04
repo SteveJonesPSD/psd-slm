@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+
 interface Message {
   id: string
   sender_type: string
@@ -8,11 +10,35 @@ interface Message {
   body: string
   is_internal: boolean
   created_at: string
-  sender?: { id: string; first_name: string; last_name: string; initials: string | null; color: string | null } | null
+  sender?: { id: string; first_name: string; last_name: string; initials: string | null; color: string | null; avatar_url?: string | null } | null
   origin_ticket_number?: string | null
 }
 
-export function ConversationThread({ messages }: { messages: Record<string, unknown>[] }) {
+function AvatarCircle({ src, initials, color, size = 7 }: { src?: string | null; initials: string; color: string; size?: number }) {
+  const [imgError, setImgError] = useState(false)
+  const sizeClass = size === 7 ? 'h-7 w-7' : 'h-8 w-8'
+  const textClass = size === 7 ? 'text-[10px]' : 'text-xs'
+
+  return (
+    <div
+      className={`flex ${sizeClass} items-center justify-center rounded-full ${textClass} font-semibold text-white overflow-hidden shrink-0`}
+      style={{ backgroundColor: color }}
+    >
+      {src && !imgError ? (
+        <img
+          src={src}
+          alt={initials}
+          className="h-full w-full object-cover"
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        initials
+      )}
+    </div>
+  )
+}
+
+export function ConversationThread({ messages, helenAvatarUrl }: { messages: Record<string, unknown>[]; helenAvatarUrl?: string | null }) {
   const msgs = messages as unknown as Message[]
 
   if (msgs.length === 0) {
@@ -23,8 +49,12 @@ export function ConversationThread({ messages }: { messages: Record<string, unkn
     )
   }
 
+  function isHelenMessage(msg: Message) {
+    return msg.sender_type === 'agent' && !msg.sender_id
+  }
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {msgs.map(msg => {
         if (msg.sender_type === 'system') {
           return (
@@ -52,12 +82,11 @@ export function ConversationThread({ messages }: { messages: Record<string, unkn
               <div className="mb-2 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   {msg.sender && (
-                    <div
-                      className="flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-semibold text-white"
-                      style={{ backgroundColor: msg.sender.color || '#6366f1' }}
-                    >
-                      {msg.sender.initials || '?'}
-                    </div>
+                    <AvatarCircle
+                      src={msg.sender.avatar_url}
+                      initials={msg.sender.initials || '?'}
+                      color={msg.sender.color || '#6366f1'}
+                    />
                   )}
                   <span className="text-sm font-medium text-amber-800">
                     {msg.sender ? `${msg.sender.first_name} ${msg.sender.last_name}` : msg.sender_name || 'Agent'}
@@ -81,6 +110,35 @@ export function ConversationThread({ messages }: { messages: Record<string, unkn
         }
 
         const isAgent = msg.sender_type === 'agent'
+        const isHelen = isHelenMessage(msg)
+
+        // Determine avatar
+        let avatarElement: React.ReactNode
+        if (isHelen) {
+          avatarElement = (
+            <AvatarCircle
+              src={helenAvatarUrl}
+              initials="H"
+              color="#7c3aed"
+            />
+          )
+        } else if (isAgent && msg.sender) {
+          avatarElement = (
+            <AvatarCircle
+              src={msg.sender.avatar_url}
+              initials={msg.sender.initials || '?'}
+              color={msg.sender.color || '#6366f1'}
+            />
+          )
+        } else {
+          avatarElement = (
+            <AvatarCircle
+              src={null}
+              initials={(msg.sender_name || 'C')[0].toUpperCase()}
+              color="#94a3b8"
+            />
+          )
+        }
 
         return (
           <div
@@ -91,24 +149,13 @@ export function ConversationThread({ messages }: { messages: Record<string, unkn
           >
             <div className="mb-2 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                {isAgent && msg.sender ? (
-                  <div
-                    className="flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-semibold text-white"
-                    style={{ backgroundColor: msg.sender.color || '#6366f1' }}
-                  >
-                    {msg.sender.initials || '?'}
-                  </div>
-                ) : (
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-300 text-[10px] font-semibold text-white">
-                    {(msg.sender_name || 'C')[0].toUpperCase()}
-                  </div>
-                )}
+                {avatarElement}
                 <span className="text-sm font-medium text-slate-800">
                   {isAgent && msg.sender
                     ? `${msg.sender.first_name} ${msg.sender.last_name}`
                     : msg.sender_name || 'Customer'}
                 </span>
-                {isAgent && !msg.sender_id && msg.sender_type === 'agent' ? (
+                {isHelen ? (
                   <span className="flex items-center gap-1 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-600">
                     <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-violet-500 text-[7px] font-bold text-white">AI</span>
                     Helen

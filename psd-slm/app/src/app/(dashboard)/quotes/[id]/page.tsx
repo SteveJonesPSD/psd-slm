@@ -157,7 +157,7 @@ export default async function QuoteDetailPage({ params }: PageProps) {
       {/* Back link */}
       <Link
         href="/quotes"
-        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-4"
+        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 no-underline mb-6"
       >
         &larr; All Quotes
       </Link>
@@ -189,7 +189,7 @@ export default async function QuoteDetailPage({ params }: PageProps) {
       )}
 
       {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-10">
         <div>
           <div className="flex items-center gap-3 flex-wrap mb-1">
             <h2 className="text-2xl font-bold text-slate-900">{quote.quote_number}</h2>
@@ -234,7 +234,7 @@ export default async function QuoteDetailPage({ params }: PageProps) {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
         <StatCard label="Subtotal" value={formatCurrency(subtotal)} accent="#1e293b" />
         <StatCard label="VAT" value={formatCurrency(vatAmount)} sub={`${quote.vat_rate}%`} accent="#6b7280" />
         <StatCard label="Grand Total" value={formatCurrency(grandTotal)} accent="#6366f1" />
@@ -247,7 +247,7 @@ export default async function QuoteDetailPage({ params }: PageProps) {
       </div>
 
       {/* Info cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         {/* Attribution */}
         <div className="rounded-xl border border-gray-200 bg-white p-5">
           <h3 className="text-[15px] font-semibold mb-4">Sales Attribution</h3>
@@ -299,7 +299,7 @@ export default async function QuoteDetailPage({ params }: PageProps) {
       </div>
 
       {/* Attachments */}
-      <div className="mb-6">
+      <div className="mb-8">
         <QuoteAttachmentsSection
           quoteId={id}
           attachments={attachmentRows}
@@ -310,14 +310,14 @@ export default async function QuoteDetailPage({ params }: PageProps) {
 
       {/* Notes */}
       {quote.customer_notes && (
-        <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-5 mb-6">
+        <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-5 mb-8">
           <h3 className="text-[13px] font-semibold text-blue-800 mb-2">Customer Notes</h3>
           <p className="text-sm text-blue-900 whitespace-pre-wrap">{quote.customer_notes}</p>
         </div>
       )}
 
       {quote.internal_notes && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-5 mb-6">
+        <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-5 mb-8">
           <h3 className="text-[13px] font-semibold text-amber-800 mb-2">Internal Notes</h3>
           <p className="text-sm text-amber-900 whitespace-pre-wrap">{quote.internal_notes}</p>
         </div>
@@ -325,7 +325,7 @@ export default async function QuoteDetailPage({ params }: PageProps) {
 
       {/* Portal link */}
       {portalUrl && (
-        <div className="rounded-xl border border-purple-200 bg-purple-50/50 p-5 mb-6">
+        <div className="rounded-xl border border-purple-200 bg-purple-50/50 p-5 mb-8">
           <h3 className="text-[13px] font-semibold text-purple-800 mb-2">Customer Portal Link</h3>
           <a href={portalUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-purple-700 underline hover:text-purple-900 break-all">{portalUrl}</a>
         </div>
@@ -335,7 +335,7 @@ export default async function QuoteDetailPage({ params }: PageProps) {
       <VersionHistoryPanel versions={siblingVersions} currentQuoteId={id} />
 
       {/* Grouped line items */}
-      <div className="rounded-xl border border-gray-200 bg-white mb-6">
+      <div className="rounded-xl border border-gray-200 bg-white mb-8">
         <div className="px-5 py-4 border-b border-gray-200">
           <h3 className="text-[15px] font-semibold">Line Items</h3>
         </div>

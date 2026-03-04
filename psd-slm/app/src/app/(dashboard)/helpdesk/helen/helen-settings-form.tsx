@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Textarea } from '@/components/ui/form-fields'
 import { saveSettings } from '../../settings/actions'
+import { getAutogrumpStats, clearAllToneScores } from '../actions'
 
 interface Props {
   initialSettings: Record<string, string>
@@ -68,9 +69,17 @@ export function HelenSettingsForm({ initialSettings }: Props) {
     helen_draft_enabled: initialSettings.helen_draft_enabled || 'true',
     helen_auto_send_needs_detail: initialSettings.helen_auto_send_needs_detail || 'false',
     helen_create_tags: initialSettings.helen_create_tags || 'false',
+    autogrump_enabled: initialSettings.autogrump_enabled || 'true',
   })
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [grumpStats, setGrumpStats] = useState<{ flagged: number } | null>(null)
+  const [clearing, setClearing] = useState(false)
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
+
+  useEffect(() => {
+    getAutogrumpStats().then(setGrumpStats).catch(() => {})
+  }, [])
 
   const update = (key: string, value: string) => {
     setSettings((prev) => ({ ...prev, [key]: value }))
@@ -187,7 +196,7 @@ export function HelenSettingsForm({ initialSettings }: Props) {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-xs text-slate-500">
                       <span><code className="rounded bg-slate-200 px-1">{'{ticket_number}'}</code> — Ticket reference</span>
                       <span><code className="rounded bg-slate-200 px-1">{'{customer_name}'}</code> — Company name</span>
-                      <span><code className="rounded bg-slate-200 px-1">{'{contact_name}'}</code> — Contact name</span>
+                      <span><code className="rounded bg-slate-200 px-1">{'{contact_name}'}</code> — Contact first name</span>
                       <span><code className="rounded bg-slate-200 px-1">{'{subject}'}</code> — Ticket subject</span>
                       <span><code className="rounded bg-slate-200 px-1">{'{priority}'}</code> — Priority level</span>
                       <span><code className="rounded bg-slate-200 px-1">{'{category}'}</code> — Ticket category</span>
@@ -244,6 +253,74 @@ export function HelenSettingsForm({ initialSettings }: Props) {
           </div>
         </>
       )}
+
+      {/* AutoGRUMP™ */}
+      <div className="rounded-xl border-2 border-amber-200 bg-amber-50/30">
+        <div className="border-b border-amber-100 px-6 py-4">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">😠</span>
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">AutoGRUMP™ — Tone Monitoring</h3>
+          </div>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Analyses incoming customer messages for frustration and flags tickets needing urgent attention.
+          </p>
+        </div>
+        <div className="space-y-4 p-6">
+          <Toggle
+            label="Enable AutoGRUMP"
+            description="When enabled, AutoGRUMP analyses the tone of incoming customer messages and flags tickets where customers appear frustrated or angry. This helps your team prioritise responses and adjust their communication style."
+            checked={settings.autogrump_enabled === 'true'}
+            onChange={() => toggleBool('autogrump_enabled')}
+          />
+          {grumpStats && (
+            <div className="rounded-lg bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {grumpStats.flagged > 0
+                  ? `${grumpStats.flagged} ticket${grumpStats.flagged !== 1 ? 's' : ''} currently flagged`
+                  : 'No tickets currently flagged'}
+                {' · Analysis runs automatically on each customer reply'}
+              </p>
+            </div>
+          )}
+          <div className="pt-2">
+            {!showClearConfirm ? (
+              <button
+                type="button"
+                onClick={() => setShowClearConfirm(true)}
+                className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50"
+              >
+                Clear All Scores
+              </button>
+            ) : (
+              <div className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 dark:bg-red-900/20 p-3">
+                <p className="text-xs text-red-700 dark:text-red-400">This will reset all tone scores on all tickets. Are you sure?</p>
+                <button
+                  type="button"
+                  disabled={clearing}
+                  onClick={async () => {
+                    setClearing(true)
+                    const result = await clearAllToneScores()
+                    setClearing(false)
+                    setShowClearConfirm(false)
+                    setGrumpStats({ flagged: 0 })
+                    setMessage({ type: 'success', text: `Cleared tone scores from ${result.cleared} ticket${result.cleared !== 1 ? 's' : ''}.` })
+                  }}
+                  className="shrink-0 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+                >
+                  {clearing ? 'Clearing...' : 'Confirm'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowClearConfirm(false)}
+                  className="shrink-0 text-xs text-slate-500 hover:text-slate-700"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* Save */}
       <div className="flex items-center justify-between">

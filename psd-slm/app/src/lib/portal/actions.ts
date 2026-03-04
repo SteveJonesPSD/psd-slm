@@ -296,6 +296,13 @@ export async function addPortalReply(ticketId: string, formData: FormData) {
     details: { contact_id: contact.id },
   }).then(() => {})
 
+  // Fire-and-forget AutoGRUMP tone analysis
+  import('@/lib/helpdesk/tone-analysis').then(({ analyseCustomerTone }) => {
+    analyseCustomerTone(ticketId).catch(err => {
+      console.error('AutoGRUMP analysis failed:', err)
+    })
+  })
+
   revalidatePath(`/portal/tickets/${ticketId}`)
   return { error: null }
 }

@@ -167,7 +167,7 @@ export function ProductsTable({ products, categories }: ProductsTableProps) {
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-6 flex-wrap">
+      <div className="flex items-center gap-3 mb-8 flex-wrap">
         <input
           type="text"
           placeholder="Search name, SKU, manufacturer..."

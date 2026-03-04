@@ -168,7 +168,7 @@ export function DealRegistrationsTable({ dealRegs, customerOptions, supplierOpti
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-3 mb-6">
+      <div className="flex flex-wrap items-center gap-3 mb-8">
         <input
           type="text"
           placeholder="Search deal registrations..."

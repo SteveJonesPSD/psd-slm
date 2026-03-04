@@ -136,13 +136,13 @@ export function MovementsTable({ movements, preFilterProductId }: MovementsTable
   return (
     <div>
       {preFilterProductId && (
-        <div className="mb-4 rounded-lg bg-blue-50 px-4 py-2 text-sm text-blue-700">
+        <div className="mb-6 rounded-lg bg-blue-50 px-4 py-2 text-sm text-blue-700">
           Showing movements for a specific product.{' '}
           <Link href="/stock/movements" className="underline">Show all</Link>
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-3 mb-6">
+      <div className="flex flex-wrap items-center gap-3 mb-8">
         <input
           type="text"
           placeholder="Search movements..."

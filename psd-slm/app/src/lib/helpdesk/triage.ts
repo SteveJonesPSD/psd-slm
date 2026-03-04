@@ -178,7 +178,7 @@ export async function triageTicket(
     const customerName = Array.isArray(customers) ? customers[0]?.name : customers?.name || 'Unknown'
     const contacts = ticket.contacts as unknown as { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null
     const contact = Array.isArray(contacts) ? contacts[0] : contacts
-    const contactName = contact ? `${contact.first_name} ${contact.last_name}` : 'there'
+    const contactName = contact ? contact.first_name : 'there'
     const categories = ticket.ticket_categories as unknown as { name: string } | { name: string }[] | null
     const categoryName = Array.isArray(categories) ? categories[0]?.name : categories?.name || 'Uncategorised'
 

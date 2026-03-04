@@ -20,7 +20,7 @@ export function VisitSchedulingSection({ visits }: VisitSchedulingSectionProps) 
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white">
-      <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3">
+      <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
         <h3 className="text-sm font-semibold text-slate-900">
           Scheduled Visits
           {visits.length > 0 && (

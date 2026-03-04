@@ -183,34 +183,39 @@ Per-user theme preference stored in `users.theme_preference` (`'light'`, `'dark'
 - **Dark palette:** `bg-slate-900` (page bg), `bg-slate-800` (cards/panels/sidebar), `border-slate-700` (borders), `text-slate-200` (body text), `text-white` (headings).
 
 ### Spacing & Vertical Rhythm
-Page-level and component-level spacing must follow these minimum rules. When in doubt, add MORE whitespace — the platform is a desktop business tool with plenty of viewport, not a mobile app fighting for pixels. These rules are mandatory for all new code and must be applied when modifying existing pages.
+These spacing rules are mandatory across the entire platform — both light and dark themes. When in doubt, use MORE whitespace. This is a desktop business tool with plenty of viewport space.
 
-**Page headers:**
-- Page title (`<h1>` / main heading) must have `mb-1` (4px) to its subtitle/count line
-- Subtitle/count line must have `mb-6` (24px) to the first interactive element below it (filters, buttons, tabs, stat cards)
-- If there's no subtitle, the title itself needs `mb-6` to the next element
-- Filter bars / action bars must have `mb-6` (24px) to the table or content below them
-- Stat card rows must have `mb-8` (32px) below them before tables/content
-- **Minimum 24px** between a page title block and the first piece of interactive content — no exceptions
+**Main content area (dashboard layout):**
+- Padding: `py-8 md:py-10 lg:py-12` vertical, `px-6 md:px-10 lg:px-12` horizontal
+- Never reduce these values
+
+**Page headers (PageHeader component):**
+- Bottom margin: `mb-12` (48px) — this is the gap between the title block and the first content below
+- Title to subtitle: `mb-1`
+
+**Detail pages:**
+- Back link / breadcrumb: `mb-6` below
+- Title + action buttons wrapper: `mb-10` below
+- Stat card grids: `gap-4` between cards, `mb-10` below the row
+- Content section cards: `mb-8` below each card/section
+- Info card grids (2-col layouts): `gap-6` between columns, `mb-8` below
+
+**List pages:**
+- Filter/search bars: `mb-8` below before the table
+- Stat card rows: `mb-10` below
+
+**Chat / message layouts (Helpdesk, AI agents, chat panel):**
+- Between messages: `space-y-5` (20px)
+- Avatar to content: `gap-3` (12px)
+- Bubble padding: `px-4 py-3` minimum
+- First line of message text must optically align with the vertical centre of the avatar — use `items-start` on the flex container with `mt-0.5` or `mt-1` on the text block to achieve this
 
 **Section headings within a page:**
 - Section titles (e.g. "Quote Lines", "Contacts") inside cards need `mb-4` (16px) to their content
 - Card/panel components need `p-5` or `p-6` internal padding, never `p-3` or `p-4` for primary content cards
 
-**Chat / message layouts (Helpdesk, AI agents, chat panel):**
-- Avatar and message content must have `gap-3` (12px) minimum horizontal spacing
-- Message bubbles need `px-4 py-3` internal padding minimum
-- Between consecutive messages: `gap-4` (16px) minimum vertical spacing
-- First line of message text must optically align with the vertical centre of the avatar — use `items-start` on the flex container with `mt-0.5` or `mt-1` on the text block to achieve this
-
-**Detail pages (quote detail, SO detail, invoice detail, ticket detail, job detail, contract detail):**
-- Breadcrumb / back button must have `mb-4` (16px) below it to the page title
-- Page title row (title + action buttons) must have `mb-6` (24px) to the first content section below
-- Stat card rows must have `mb-8` (32px) below them
-- Between content sections/cards: `gap-6` or `space-y-6` (24px) minimum
-
 **Tables inside cards:**
-- Card header (title + action buttons) needs `px-5 py-4` padding with `border-b` separating it from the table body
+- Card header padding: `px-5 py-4` with `border-b`
 - Table rows should have `py-3 px-4` cell padding minimum for comfortable readability
 
 **Forms and modals:**
@@ -219,8 +224,10 @@ Page-level and component-level spacing must follow these minimum rules. When in 
 - Form section labels/dividers: `mt-6 mb-3` for visual separation
 - Action button row at modal bottom: `mt-6` above, `gap-3` between buttons
 
-**General rules:**
-- Adjacent stat cards: `gap-4` between cards, `mb-6` below the stat row
+**General minimums:**
+- Between any two content sections/cards: `mb-8` (32px) minimum
+- Between stat rows and content below: `mb-10` (40px) minimum
+- Never use `mb-3`, `mb-4`, or `mb-5` as the gap between major page sections
 - Never stack two interactive elements (button, input, dropdown) with less than `gap-3` (12px) between them
 - Filter/search bars with multiple controls: `gap-3` between controls, `flex-wrap` for responsive behaviour
 - Empty states inside cards: `py-12` vertical padding to prevent the card feeling collapsed
@@ -587,6 +594,21 @@ Automatically closes helpdesk tickets in `waiting_on_customer` status after a co
 - **Hold Open:** Per-ticket toggle in metadata sidebar (amber styling). Badge in ticket header. Tickets with `hold_open=true` are exempt from auto-close.
 - **Auto-close countdown:** Metadata sidebar shows "Auto-close in X business hours" when `waiting_since` is set and ticket is not held open.
 
+## AutoGRUMP™ (Tone Monitoring)
+AI-powered customer frustration detection on helpdesk tickets.
+- **Migration:** `20260322000001_autogrump.sql` — `tone_score`, `tone_trend`, `tone_summary`, `tone_updated_at` on tickets; updated `v_ticket_summary` view
+- **Analysis:** `lib/helpdesk/tone-analysis.ts` — `analyseCustomerTone(ticketId)` calls Claude Haiku, fire-and-forget on customer reply
+- **Trigger:** Fires on every inbound customer message (portal). Does NOT fire on agent replies or internal notes.
+- **Toggle:** `org_settings` category `helen`, key `autogrump_enabled`. Managed from Helen AI settings page.
+- **UI:** `components/helpdesk/autogrump-badge.tsx` — `AutogrumpBadge` (amber for score 3, red for 4-5, hidden for 1-2 or null) and `AutogrumpBanner` (inline detail banner)
+- **Queue integration:** Sortable/filterable column in ticket list, tone banner on ticket detail header
+- **Helen enrichment:** Tone context injected into Helen assist and Helen agent API calls
+- **Dashboard:** "Frustrated Customers" red banner with click-through to filtered queue (`?frustrated=true`)
+- **Settings:** AutoGRUMP section on Helen AI settings page with toggle, stats display, and "Clear All Scores" button
+- **Scores:** 1=happy, 2=neutral, 3=mildly frustrated, 4=frustrated, 5=angry
+- **Trends:** escalating, stable, improving, new
+- **Types:** `ToneAnalysisResult`, `ToneTrend` in `types/database.ts`; `tone_score`/`tone_trend`/`tone_summary`/`tone_updated_at` added to `TicketSummary`
+
 ## System Presence (Online Avatars in Sidebar)
 Shows coloured avatars of online colleagues in the sidebar. Active users have full-colour avatars with emerald dot; idle users are greyed out (40% opacity); offline users are hidden.
 - **Migration:** `supabase/migrations/20260309000001_system_presence.sql` — `system_presence` table (PK `user_id`), `org_id` stored directly for simpler RLS, `last_heartbeat` + `last_active` timestamps
@@ -660,6 +682,24 @@ All agent system prompts enforce these formatting rules:
 - No Margin column in tables — mention average margin in summary text instead
 - Keep column content short and abbreviated
 - Lists use `list-inside` positioning to stay within bubble boundaries
+
+## Email Integration
+- **Migration:** `20260323000001_email_integration.sql` — `mail_connections`, `mail_channels`, `ticket_emails`, `mail_processing_log`, `source` column on tickets, updated `v_ticket_summary` view
+- **Architecture:** 3-layer design: Graph API client (`lib/email/graph-client.ts`) → Mail poller/router (`lib/email/mail-poller.ts`, `mail-router.ts`) → Module handlers (`lib/email/handlers/helpdesk.ts`)
+- **Auth:** Azure AD app registration with application-level `Mail.Read` + `Mail.Send` permissions, client credentials OAuth flow
+- **Polling:** 60-second interval via API route (`/api/email/poll`), protected by shared secret (`org_settings` key: `email_poll_secret`)
+- **Helpdesk handler:** 4-tier threading (In-Reply-To → References → ticket number in subject `[TKT-YYYY-NNNN]` → Graph conversationId), auto-creates tickets from unknown senders with `source='email'`
+- **Outbound:** `lib/email/email-sender.ts` sends via Graph API with In-Reply-To/References headers for proper threading, ticket reference injected into subject, branded HTML template wrapper
+- **Email sending trigger:** `addMessage` in `helpdesk/actions.ts` fire-and-forgets email via `/api/email/send` when replying to email-context tickets (non-internal replies only)
+- **Storage:** `email-attachments` bucket in Supabase Storage (25MB, private)
+- **Settings:** `/settings/email` — connection credentials form with test button, channels table with status badges, processing log viewer, manual poll button, cron setup instructions
+- **Server actions:** `lib/email/actions.ts` — CRUD for connections/channels, processing log queries, ticket email queries, manual poll trigger
+- **Ticket detail integration:** `EmailThreadSection` in sidebar (collapsible, shows inbound/outbound email cards with body expand), email indicator in `ReplyBox` showing recipient, source badge on ticket header and queue list
+- **Permissions:** `email.view`, `email.edit` — admin/super_admin only
+- **Types:** `lib/email/types.ts` — `MailConnection`, `MailChannel`, `TicketEmail`, `GraphMessage`, `ProcessedEmail`, `HandlerResult`, `PollResult`
+- **Portability:** No webhook dependency, no Vercel-specific cron. Poll endpoint is a standard POST route callable by any scheduler.
+- **Utilities:** `lib/email/email-utils.ts` — HTML sanitisation, plain text conversion, signature stripping, quoted reply stripping, header parsing
+- **Existing tables:** `email_threads` (helpdesk migration placeholder) is NOT used — `ticket_emails` replaces it with full Graph API integration
 
 ## Reference
 The original React prototype is available in the project as `psd-slm-prototype.jsx`. Use it for UI patterns and data model reference but do NOT import from it — we're rebuilding with proper architecture.

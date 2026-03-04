@@ -175,6 +175,18 @@ async function buildHelpdeskContext(supabase: Awaited<ReturnType<typeof createCl
     }
   }
 
+  // Frustrated customers (AutoGRUMP)
+  const frustrated = tickets.filter((t: Record<string, unknown>) => (t.tone_score as number) >= 3)
+  if (frustrated.length > 0) {
+    const scoreLabel = (s: number) => s === 3 ? 'mildly frustrated' : s === 4 ? 'frustrated' : s === 5 ? 'angry' : 'unknown'
+    ctx += `\n### Frustrated Customers (${frustrated.length} tickets)\n`
+    for (const t of frustrated) {
+      const tone = t as unknown as Record<string, unknown>
+      ctx += `- ${t.ticket_number} — "${t.subject}" | customer: ${t.customer_name} | tone: ${scoreLabel(tone.tone_score as number)} (${tone.tone_score}/5, ${tone.tone_trend}) | ${tone.tone_summary || ''}\n`
+    }
+    ctx += `\nNote: These customers may need prioritised, empathetic responses.\n`
+  }
+
   // All active tickets listing
   ctx += `\n### All Active Tickets\n`
   for (const t of tickets) {
@@ -182,7 +194,8 @@ async function buildHelpdeskContext(supabase: Awaited<ReturnType<typeof createCl
     if (t.sla_response_due_at) slaInfo.push(`resp due: ${new Date(t.sla_response_due_at).toLocaleString('en-GB')}`)
     if (t.sla_resolution_due_at) slaInfo.push(`res due: ${new Date(t.sla_resolution_due_at).toLocaleString('en-GB')}`)
     const slaStr = slaInfo.length > 0 ? ` [${slaInfo.join(', ')}]` : ''
-    ctx += `- ${t.ticket_number} | ${t.status} | ${t.priority} | "${t.subject}" | customer: ${t.customer_name} | assigned: ${t.assigned_to_name || 'unassigned'} | category: ${t.category_name || 'none'} | created: ${new Date(t.created_at).toLocaleString('en-GB')}${slaStr}\n`
+    const toneStr = (t as unknown as Record<string, unknown>).tone_score ? ` | tone: ${(t as unknown as Record<string, unknown>).tone_score}/5` : ''
+    ctx += `- ${t.ticket_number} | ${t.status} | ${t.priority} | "${t.subject}" | customer: ${t.customer_name} | assigned: ${t.assigned_to_name || 'unassigned'} | category: ${t.category_name || 'none'} | created: ${new Date(t.created_at).toLocaleString('en-GB')}${slaStr}${toneStr}\n`
   }
 
   // Recently resolved

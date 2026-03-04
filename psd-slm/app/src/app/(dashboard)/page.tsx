@@ -54,6 +54,22 @@ export default async function DashboardPage() {
     // Contracts module may not be deployed yet
   }
 
+  // Frustrated customers (AutoGRUMP)
+  let frustratedCount = 0
+  let escalatingCount = 0
+  try {
+    const { data: toneData } = await supabase
+      .from('tickets')
+      .select('tone_score, tone_trend')
+      .not('status', 'in', '("closed","resolved")')
+      .gte('tone_score', 4)
+
+    frustratedCount = toneData?.length || 0
+    escalatingCount = toneData?.filter(t => t.tone_trend === 'escalating').length || 0
+  } catch {
+    // AutoGRUMP migration may not be applied yet
+  }
+
   // Pending collections
   let pendingCollections = 0
   let collectedToday = 0
@@ -113,7 +129,7 @@ export default async function DashboardPage() {
   return (
     <div>
       {/* Stats row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
         <StatCard
           label="Pipeline Value"
           value={formatCurrency(pipelineValue)}
@@ -140,7 +156,7 @@ export default async function DashboardPage() {
 
       {/* Contracts due for renewal */}
       {contractsDueRenewal > 0 && (
-        <Link href="/contracts?status=active" className="no-underline block mb-6">
+        <Link href="/contracts?status=active" className="no-underline block mb-8">
           <div className={`rounded-xl border p-4 flex items-center justify-between ${
             contractsDueUrgent ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'
           }`}>
@@ -161,7 +177,7 @@ export default async function DashboardPage() {
 
       {/* Visit scheduling banner */}
       {(visitStats.todayCount > 0 || visitStats.unconfirmedCount > 0) && (
-        <Link href="/visit-scheduling" className="no-underline block mb-6">
+        <Link href="/visit-scheduling" className="no-underline block mb-8">
           <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 flex items-center justify-between">
             <div>
               <div className="text-sm font-semibold text-blue-700">
@@ -180,7 +196,7 @@ export default async function DashboardPage() {
 
       {/* Pending collections banner */}
       {pendingCollections > 0 && (
-        <Link href="/collections?status=pending" className="no-underline block mb-6">
+        <Link href="/collections?status=pending" className="no-underline block mb-8">
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 flex items-center justify-between">
             <div>
               <div className="text-sm font-semibold text-amber-700">
@@ -191,6 +207,23 @@ export default async function DashboardPage() {
               </div>
             </div>
             <span className="text-xs font-medium text-amber-600">View &rarr;</span>
+          </div>
+        </Link>
+      )}
+
+      {/* Frustrated customers banner */}
+      {frustratedCount > 0 && (
+        <Link href="/helpdesk?frustrated=true" className="no-underline block mb-8">
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4 flex items-center justify-between">
+            <div>
+              <div className="text-sm font-semibold text-red-700">
+                {frustratedCount} Frustrated Customer{frustratedCount !== 1 ? 's' : ''}
+              </div>
+              <div className="text-xs text-red-500">
+                {escalatingCount > 0 ? `${escalatingCount} escalating` : 'Tickets with frustrated or angry customers'}
+              </div>
+            </div>
+            <span className="text-xs font-medium text-red-600">View Tickets &rarr;</span>
           </div>
         </Link>
       )}

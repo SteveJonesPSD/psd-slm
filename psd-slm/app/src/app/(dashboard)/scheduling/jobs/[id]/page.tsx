@@ -17,7 +17,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
 
   const desktop = (
     <div>
-      <div className="mb-4">
+      <div className="mb-6">
         <Link href="/scheduling" className="text-sm text-slate-500 hover:text-slate-700">
           &larr; Scheduling
         </Link>

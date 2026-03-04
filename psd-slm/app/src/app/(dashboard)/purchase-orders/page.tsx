@@ -42,7 +42,7 @@ export default async function PurchaseOrdersPage() {
         ) : undefined}
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
         <StatCard label="Draft" value={draftCount} accent="#6b7280" />
         <StatCard label="Outstanding" value={outstandingCount} accent="#2563eb" />
         <StatCard label="Partially Received" value={partialCount} accent="#d97706" />

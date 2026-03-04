@@ -17,7 +17,7 @@ export function PDFViewer({ pdfUrl, filename }: PDFViewerProps) {
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-      <div className="flex items-center justify-between border-b border-gray-200 px-4 py-2 bg-slate-50">
+      <div className="flex items-center justify-between border-b border-gray-200 px-4 py-4 bg-slate-50">
         <span className="text-xs font-medium text-slate-500 truncate">
           {filename || 'Purchase Order PDF'}
         </span>

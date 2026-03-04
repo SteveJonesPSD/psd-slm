@@ -162,7 +162,7 @@ export function CollectionsTable({ collections }: { collections: JobCollectionWi
   return (
     <div>
       {/* Filters */}
-      <div className="mb-6 flex flex-wrap items-center gap-3">
+      <div className="mb-8 flex flex-wrap items-center gap-3">
         <input
           type="text"
           placeholder="Search slips, jobs, customers…"

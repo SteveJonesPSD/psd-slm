@@ -137,7 +137,7 @@ export function PortalQuoteView({ quote, token }: PortalQuoteViewProps) {
       {/* Optional items */}
       {optionalLines.length > 0 && (
         <div className="rounded-xl border border-gray-200 bg-white mb-6">
-          <div className="px-6 py-3 bg-slate-50 border-b border-gray-200">
+          <div className="px-6 py-4 bg-slate-50 border-b border-gray-200">
             <span className="text-sm font-semibold text-slate-700">Optional Items</span>
           </div>
           <table className="w-full text-sm">

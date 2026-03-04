@@ -165,7 +165,7 @@ export function MonthReview({ engineers, selectedEngineers, year, month }: Month
           return (
             <div key={eng.engineer_id} className="rounded-xl border border-gray-200 bg-white">
               {/* Engineer header */}
-              <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3">
+              <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
                 <div className="flex items-center gap-2">
                   <div
                     className="h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold text-white"
@@ -301,17 +301,17 @@ function MonthVisitBlock({ visit, columnIndex }: { visit: VisitInstanceWithDetai
       </div>
 
       {/* Hover tooltip */}
-      <div className={`hidden group-hover:block absolute z-30 ${tooltipAlign} top-full mt-1 w-52 rounded-lg border border-slate-200 bg-white p-2.5 shadow-lg text-[11px]`}>
-        <div className="font-semibold text-slate-800 mb-1">{visit.customer_name}</div>
-        <div className="space-y-0.5 text-slate-600">
+      <div className={`hidden group-hover:block absolute z-30 ${tooltipAlign} top-full mt-1 w-52 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-2.5 shadow-lg text-[11px]`}>
+        <div className="font-semibold text-slate-800 dark:text-slate-200 mb-1">{visit.customer_name}</div>
+        <div className="space-y-0.5 text-slate-600 dark:text-slate-300">
           <div className="flex items-center gap-1.5">
-            <span className="text-slate-400 w-12">Status</span>
+            <span className="text-slate-400 dark:text-slate-500 w-12">Status</span>
             {statusCfg && (
               <Badge label={statusCfg.label} color={statusCfg.color} bg={statusCfg.bg} className="text-[9px] px-1.5 py-0" />
             )}
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="text-slate-400 w-12">Slot</span>
+            <span className="text-slate-400 dark:text-slate-500 w-12">Slot</span>
             {slotCfg && (
               <Badge label={slotCfg.label} color={slotCfg.color} bg={slotCfg.bg} className="text-[9px] px-1.5 py-0" />
             )}
@@ -321,13 +321,13 @@ function MonthVisitBlock({ visit, columnIndex }: { visit: VisitInstanceWithDetai
           </div>
           {visit.contract_number && (
             <div className="flex items-center gap-1.5">
-              <span className="text-slate-400 w-12">Contract</span>
+              <span className="text-slate-400 dark:text-slate-500 w-12">Contract</span>
               <span>{visit.contract_number}</span>
             </div>
           )}
           {visit.job_id && visit.job_number && (
             <div className="flex items-center gap-1.5">
-              <span className="text-slate-400 w-12">Job</span>
+              <span className="text-slate-400 dark:text-slate-500 w-12">Job</span>
               <a
                 href={`/scheduling/jobs/${visit.job_id}`}
                 className="text-indigo-600 hover:text-indigo-800 font-medium"

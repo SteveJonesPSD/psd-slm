@@ -137,7 +137,7 @@ export function AgentChat({ agentId, agentName, agentRole, agentColor, apiEndpoi
       )}
 
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4" onClick={handleMarkdownClick}>
+      <div className="flex-1 overflow-y-auto p-6 space-y-5" onClick={handleMarkdownClick}>
         {/* Welcome card */}
         {messages.length === 0 && !loading && (
           <div className="flex items-start gap-3 max-w-2xl">
@@ -210,7 +210,7 @@ export function AgentChat({ agentId, agentName, agentRole, agentColor, apiEndpoi
 
       {/* Input bar */}
       <div className="border-t border-slate-200 p-4">
-        <form onSubmit={handleSubmit} className="flex items-end gap-2">
+        <form onSubmit={handleSubmit} className="flex items-end gap-3">
           <textarea
             ref={inputRef}
             value={input}

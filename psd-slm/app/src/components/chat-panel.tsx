@@ -286,7 +286,7 @@ export function ChatPanel({ agentAvatars }: { agentAvatars?: AgentAvatars }) {
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4" onClick={handleMarkdownClick}>
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-5" onClick={handleMarkdownClick}>
           {messages.length === 0 && !isLoading && (
             <div className="space-y-3 pt-4">
               <p className="text-center text-xs text-slate-400">
@@ -368,7 +368,7 @@ export function ChatPanel({ agentAvatars }: { agentAvatars?: AgentAvatars }) {
 
         {/* Input */}
         <div className="border-t border-slate-200 dark:border-slate-700 px-4 py-3">
-          <div className="flex items-end gap-2">
+          <div className="flex items-end gap-3">
             <textarea
               ref={textareaRef}
               value={input}

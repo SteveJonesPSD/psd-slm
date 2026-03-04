@@ -84,7 +84,7 @@ export function QuoteMatchPanel({
 
     return (
       <div className="rounded-xl border border-gray-200 bg-white">
-        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-4">
           <h3 className="text-sm font-semibold text-slate-700">Quote Match</h3>
           {confidenceLabel && <Badge {...confidenceLabel} />}
         </div>
@@ -132,7 +132,7 @@ export function QuoteMatchPanel({
   // Search / no match state
   return (
     <div className="rounded-xl border border-gray-200 bg-white">
-      <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+      <div className="flex items-center justify-between border-b border-gray-200 px-4 py-4">
         <h3 className="text-sm font-semibold text-slate-700">Quote Match</h3>
         {searchMode && (
           <button

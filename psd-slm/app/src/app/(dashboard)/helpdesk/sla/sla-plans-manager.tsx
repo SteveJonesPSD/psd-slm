@@ -320,7 +320,7 @@ export function SlaPlansManager({ initialData }: { initialData: SlaPlanRow[] }) 
 
   return (
     <div>
-      <div className="mb-4 flex justify-end">
+      <div className="mb-8 flex justify-end">
         <button
           onClick={openCreate}
           className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"

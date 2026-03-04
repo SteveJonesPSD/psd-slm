@@ -90,7 +90,7 @@ export function AssistUsageView({ usage: initialUsage, teamMembers }: AssistUsag
       </p>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
         <StatCard
           label="Calls This Month"
           value={totalCallsThisMonth}
@@ -110,7 +110,7 @@ export function AssistUsageView({ usage: initialUsage, teamMembers }: AssistUsag
       </div>
 
       {/* Filters */}
-      <div className="mb-4 flex flex-wrap items-end gap-3">
+      <div className="mb-8 flex flex-wrap items-end gap-3">
         <div>
           <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">User</label>
           <select

@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+
 interface Message {
   id: string
   sender_type: string
@@ -8,10 +10,26 @@ interface Message {
   body: string
   is_internal: boolean
   created_at: string
-  sender?: { id: string; first_name: string; last_name: string; initials: string | null; color: string | null } | null
+  sender?: { id: string; first_name: string; last_name: string; initials: string | null; color: string | null; avatar_url?: string | null } | null
 }
 
-export function MobileConversation({ messages }: { messages: Record<string, unknown>[] }) {
+function MobileAvatar({ src, initials, color }: { src?: string | null; initials: string; color: string }) {
+  const [imgError, setImgError] = useState(false)
+  return (
+    <div
+      className="flex h-6 w-6 items-center justify-center rounded-full text-[9px] font-semibold text-white overflow-hidden shrink-0"
+      style={{ backgroundColor: color }}
+    >
+      {src && !imgError ? (
+        <img src={src} alt={initials} className="h-full w-full object-cover" onError={() => setImgError(true)} />
+      ) : (
+        initials
+      )}
+    </div>
+  )
+}
+
+export function MobileConversation({ messages, helenAvatarUrl }: { messages: Record<string, unknown>[]; helenAvatarUrl?: string | null }) {
   const msgs = messages as unknown as Message[]
 
   if (msgs.length === 0) {
@@ -20,6 +38,10 @@ export function MobileConversation({ messages }: { messages: Record<string, unkn
         No messages yet.
       </div>
     )
+  }
+
+  function isHelenMessage(msg: Message) {
+    return msg.sender_type === 'agent' && !msg.sender_id
   }
 
   return (
@@ -46,12 +68,11 @@ export function MobileConversation({ messages }: { messages: Record<string, unkn
               <div className="mb-1.5 flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   {msg.sender && (
-                    <div
-                      className="flex h-6 w-6 items-center justify-center rounded-full text-[9px] font-semibold text-white"
-                      style={{ backgroundColor: msg.sender.color || '#6366f1' }}
-                    >
-                      {msg.sender.initials || '?'}
-                    </div>
+                    <MobileAvatar
+                      src={msg.sender.avatar_url}
+                      initials={msg.sender.initials || '?'}
+                      color={msg.sender.color || '#6366f1'}
+                    />
                   )}
                   <span className="text-xs font-medium text-amber-800">
                     {msg.sender ? `${msg.sender.first_name} ${msg.sender.last_name}` : msg.sender_name || 'Agent'}
@@ -70,6 +91,16 @@ export function MobileConversation({ messages }: { messages: Record<string, unkn
         }
 
         const isAgent = msg.sender_type === 'agent'
+        const isHelen = isHelenMessage(msg)
+
+        let avatarElement: React.ReactNode
+        if (isHelen) {
+          avatarElement = <MobileAvatar src={helenAvatarUrl} initials="H" color="#7c3aed" />
+        } else if (isAgent && msg.sender) {
+          avatarElement = <MobileAvatar src={msg.sender.avatar_url} initials={msg.sender.initials || '?'} color={msg.sender.color || '#6366f1'} />
+        } else {
+          avatarElement = <MobileAvatar src={null} initials={(msg.sender_name || 'C')[0].toUpperCase()} color="#94a3b8" />
+        }
 
         return (
           <div
@@ -80,24 +111,13 @@ export function MobileConversation({ messages }: { messages: Record<string, unkn
           >
             <div className="mb-1.5 flex items-center justify-between">
               <div className="flex items-center gap-1.5">
-                {isAgent && msg.sender ? (
-                  <div
-                    className="flex h-6 w-6 items-center justify-center rounded-full text-[9px] font-semibold text-white"
-                    style={{ backgroundColor: msg.sender.color || '#6366f1' }}
-                  >
-                    {msg.sender.initials || '?'}
-                  </div>
-                ) : (
-                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-300 text-[9px] font-semibold text-white">
-                    {(msg.sender_name || 'C')[0].toUpperCase()}
-                  </div>
-                )}
+                {avatarElement}
                 <span className="text-xs font-medium text-slate-800">
                   {isAgent && msg.sender
                     ? `${msg.sender.first_name} ${msg.sender.last_name}`
                     : msg.sender_name || 'Customer'}
                 </span>
-                {isAgent && !msg.sender_id && msg.sender_type === 'agent' ? (
+                {isHelen ? (
                   <span className="flex items-center gap-0.5 rounded bg-violet-100 px-1 py-0.5 text-[9px] font-semibold text-violet-600">
                     <span className="inline-flex h-3 w-3 items-center justify-center rounded-full bg-violet-500 text-[6px] font-bold text-white">AI</span>
                     Helen

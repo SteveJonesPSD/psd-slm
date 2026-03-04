@@ -18,7 +18,7 @@ export default async function InboundPODetailPage({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (
     <div>
-      <div className="mb-4">
+      <div className="mb-6">
         <Link
           href="/inbound-pos"
           className="text-sm text-slate-400 hover:text-slate-600 transition-colors"
