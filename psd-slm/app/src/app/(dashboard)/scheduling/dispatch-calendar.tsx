@@ -101,7 +101,7 @@ export function DispatchCalendar({ allJobs, jobTypes, engineers, initialDate, ca
   return (
     <div>
       {/* Stat Bar */}
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard label="Today's Jobs" value={dayJobs.length} accent="#2563eb" />
         <StatCard label="Unscheduled" value={unscheduledJobs.length} accent={unscheduledJobs.length > 0 ? '#d97706' : '#6b7280'} />
         <StatCard label="Engineers on Duty" value={onDutyEngineers} accent="#7c3aed" />
@@ -109,7 +109,7 @@ export function DispatchCalendar({ allJobs, jobTypes, engineers, initialDate, ca
       </div>
 
       {/* Top Controls */}
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <button onClick={() => navigate(-1)} className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50">&larr;</button>
           <button onClick={goToday} className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium hover:bg-gray-50">Today</button>

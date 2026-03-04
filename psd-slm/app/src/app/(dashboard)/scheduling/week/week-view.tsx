@@ -133,7 +133,7 @@ export function WeekView({ allJobs, engineers, initialWeekStart, canEdit }: {
   return (
     <div>
       {/* Controls */}
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <button onClick={() => navigateWeek(-1)} className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50">&larr;</button>
           <button onClick={goThisWeek} className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium hover:bg-gray-50">This Week</button>

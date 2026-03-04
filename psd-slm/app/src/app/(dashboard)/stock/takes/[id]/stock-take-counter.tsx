@@ -72,7 +72,7 @@ export function StockTakeCounter({ stockTakeId, status, lines }: StockTakeCounte
       )}
 
       {/* Summary bar */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-3 gap-4 mb-8">
         <div className="rounded-lg bg-slate-50 p-4 text-center">
           <div className="text-2xl font-bold text-slate-800">{localLines.length}</div>
           <div className="text-xs text-slate-500">Total Lines</div>

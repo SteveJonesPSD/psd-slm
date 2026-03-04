@@ -141,7 +141,7 @@ export default async function DealRegistrationDetailPage({ params }: PageProps) 
       />
 
       {/* Stats */}
-      <div className="flex flex-wrap gap-6 mb-6">
+      <div className="flex flex-wrap gap-6 mb-8">
         <StatCard label="Products Covered" value={lineRows.length} />
         <StatCard
           label="Total Saving"

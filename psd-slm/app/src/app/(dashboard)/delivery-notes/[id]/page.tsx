@@ -87,7 +87,7 @@ export default async function DeliveryNoteDetailPage({ params }: PageProps) {
       </div>
 
       {/* Timestamps */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
         <div className="rounded-lg bg-slate-50 p-3 text-center">
           <div className="text-xs text-slate-400 uppercase mb-1">Created</div>
           <div className="text-sm font-medium">{formatDate(dn.created_at)}</div>

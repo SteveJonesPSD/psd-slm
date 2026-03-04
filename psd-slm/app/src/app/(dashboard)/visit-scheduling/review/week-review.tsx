@@ -182,7 +182,7 @@ export function WeekReview({ engineers }: WeekReviewProps) {
   return (
     <div>
       {/* Controls */}
-      <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
         <div className="flex items-center gap-2">
           {viewMode === 'week' ? (
             <>
@@ -264,7 +264,7 @@ export function WeekReview({ engineers }: WeekReviewProps) {
       </div>
 
       {/* Engineer toggles */}
-      <div className="flex items-center gap-2 flex-wrap mb-4">
+      <div className="flex items-center gap-2 flex-wrap mb-6">
         {engineers.map(eng => {
           const active = selectedEngineers.includes(eng.id)
           return (

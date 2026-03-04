@@ -62,7 +62,7 @@ export default async function CollectionDetailPage({ params }: PageProps) {
       />
 
       {/* Info cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {/* Job */}
         <div className="rounded-xl border border-gray-200 bg-white p-5">
           <div className="text-xs font-medium uppercase tracking-wide text-slate-400 mb-1">Job</div>

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { TICKET_STATUS_CONFIG, TICKET_PRIORITY_CONFIG, TICKET_TYPE_CONFIG } from '@/components/ui/badge'
+import { AutogrumpBadge } from '@/components/helpdesk/autogrump-badge'
 import { assignTicket, getTickets, approveDraftResponse } from './actions'
 import type { PresenceViewer } from './actions'
 import { useAuth } from '@/components/auth-provider'
@@ -35,9 +36,10 @@ interface TicketQueueProps {
   ticketTagMap: Record<string, TicketTag[]>
   selectedTagIds: string[]
   initialPresence: Record<string, PresenceViewer[]>
+  initialFrustrated?: boolean
 }
 
-export function TicketQueue({ initialData, teamMembers, categories, brands, pendingDrafts, ticketTagMap, selectedTagIds, initialPresence }: TicketQueueProps) {
+export function TicketQueue({ initialData, teamMembers, categories, brands, pendingDrafts, ticketTagMap, selectedTagIds, initialPresence, initialFrustrated }: TicketQueueProps) {
   const { user } = useAuth()
   const router = useRouter()
   const [tickets, setTickets] = useState(initialData)
@@ -71,6 +73,8 @@ export function TicketQueue({ initialData, teamMembers, categories, brands, pend
   const [assignedFilter, setAssignedFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
+  const [frustratedOnly, setFrustratedOnly] = useState(initialFrustrated || false)
+  const [sortByTone, setSortByTone] = useState(false)
 
   // Build a map of ticket_id → draft for quick lookup
   const draftMap = new Map<string, PendingDraft>()
@@ -80,13 +84,21 @@ export function TicketQueue({ initialData, teamMembers, categories, brands, pend
     }
   }
 
-  // Apply tag filter (client-side since tags come from a junction table)
-  const filteredTickets = selectedTagIds.length > 0
+  // Apply tag filter + frustrated filter (client-side)
+  let filteredTickets = selectedTagIds.length > 0
     ? tickets.filter(t => {
         const ticketTags = ticketTagMap[t.id] || []
         return selectedTagIds.some(tagId => ticketTags.some(tt => tt.id === tagId))
       })
     : tickets
+
+  if (frustratedOnly) {
+    filteredTickets = filteredTickets.filter(t => (t.tone_score || 0) >= 3)
+  }
+
+  if (sortByTone) {
+    filteredTickets = [...filteredTickets].sort((a, b) => (b.tone_score || 0) - (a.tone_score || 0))
+  }
 
   async function applyFilters() {
     setLoading(true)
@@ -159,7 +171,7 @@ export function TicketQueue({ initialData, teamMembers, categories, brands, pend
         }
       `}</style>
       {/* Filter bar */}
-      <div className="mb-4 flex flex-wrap items-center gap-3">
+      <div className="mb-6 flex flex-wrap items-center gap-3">
         <input
           type="text"
           value={search}
@@ -198,6 +210,16 @@ export function TicketQueue({ initialData, teamMembers, categories, brands, pend
           <option value="onsite_job">Onsite Job</option>
         </select>
 
+        {/* Frustrated filter */}
+        <button
+          onClick={() => setFrustratedOnly(v => !v)}
+          className={`rounded-md px-2.5 py-1 text-xs font-medium ${
+            frustratedOnly ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'
+          }`}
+        >
+          😠 Frustrated
+        </button>
+
         {/* Status toggles */}
         <div className="ml-auto flex gap-1">
           <button
@@ -224,6 +246,13 @@ export function TicketQueue({ initialData, teamMembers, categories, brands, pend
         <table className="w-full text-sm min-w-[900px]">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50/50">
+              <th
+                className="w-10 px-2 py-3 text-center font-medium text-slate-500 whitespace-nowrap cursor-pointer select-none"
+                onClick={() => setSortByTone(v => !v)}
+                title="Sort by customer frustration"
+              >
+                <span className={`text-xs ${sortByTone ? 'text-amber-600' : ''}`}>😠</span>
+              </th>
               <th className="px-4 py-3 text-left font-medium text-slate-500 whitespace-nowrap">Ticket</th>
               <th className="px-4 py-3 text-left font-medium text-slate-500 whitespace-nowrap">Priority</th>
               <th className="px-4 py-3 text-left font-medium text-slate-500 whitespace-nowrap">Subject</th>
@@ -237,11 +266,11 @@ export function TicketQueue({ initialData, teamMembers, categories, brands, pend
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-slate-400">Loading...</td>
+                <td colSpan={9} className="px-4 py-8 text-center text-slate-400">Loading...</td>
               </tr>
             ) : filteredTickets.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={9} className="px-4 py-8 text-center text-slate-400">
                   {selectedTagIds.length > 0 ? 'No tickets match the selected tags.' : 'No tickets found.'}
                 </td>
               </tr>
@@ -253,6 +282,9 @@ export function TicketQueue({ initialData, teamMembers, categories, brands, pend
                 const ticketTags = ticketTagMap[ticket.id] || []
                 return (
                   <tr key={ticket.id} className="border-b border-gray-50 hover:bg-gray-50/50">
+                    <td className="w-10 px-2 py-3 text-center whitespace-nowrap">
+                      <AutogrumpBadge toneScore={ticket.tone_score} toneTrend={ticket.tone_trend} toneSummary={ticket.tone_summary} />
+                    </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex items-center gap-1.5">
                         <Link

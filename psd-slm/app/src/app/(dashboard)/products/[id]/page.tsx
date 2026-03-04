@@ -93,7 +93,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
       />
 
       {/* Stats */}
-      <div className="flex flex-wrap gap-6 mb-6">
+      <div className="flex flex-wrap gap-6 mb-8">
         <StatCard
           label="Default Buy Price"
           value={product.default_buy_price != null ? formatCurrency(product.default_buy_price) : 'Not set'}

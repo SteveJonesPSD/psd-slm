@@ -62,7 +62,7 @@ export function TeamDashboard({ stats, panels }: { stats: DashboardStats; panels
       </div>
 
       {/* Stat Cards */}
-      <div className="mb-6 flex flex-wrap gap-4">
+      <div className="mb-8 flex flex-wrap gap-4">
         <StatCard
           label="Open Tickets"
           value={stats.openCount}

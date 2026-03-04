@@ -94,7 +94,7 @@ export default async function TemplateDetailPage({ params }: PageProps) {
       </div>
 
       {/* Summary stats */}
-      <div className="flex gap-6 mb-6">
+      <div className="flex gap-6 mb-8">
         <div className="rounded-xl border border-gray-200 bg-white px-5 py-3">
           <div className="text-xs font-medium text-slate-400 uppercase tracking-wide">Groups</div>
           <div className="text-lg font-bold text-slate-900">{typedGroups.length}</div>

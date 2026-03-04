@@ -63,7 +63,7 @@ export default async function SupplierDetailPage({ params }: PageProps) {
       />
 
       {/* Stats */}
-      <div className="flex flex-wrap gap-6 mb-6">
+      <div className="flex flex-wrap gap-6 mb-8">
         <StatCard label="Products" value={products.length} />
         <StatCard label="Payment Terms" value={`${supplier.payment_terms} days`} accent="#059669" />
         <StatCard label="Created" value={formatDate(supplier.created_at)} />

@@ -45,7 +45,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
       </Link>
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-8">
         <div>
           <div className="flex items-center gap-2.5 flex-wrap">
             <h1 className="text-2xl font-bold text-slate-900">{contract.contract_number}</h1>

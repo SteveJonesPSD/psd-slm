@@ -84,7 +84,7 @@ export function ChatArchiveList({ initialSessions }: { initialSessions: Archived
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
         <div className="rounded-lg border border-slate-200 bg-white p-4">
           <p className="text-2xl font-bold text-slate-900">{totalSessions}</p>
           <p className="text-xs text-slate-500">Total Sessions</p>

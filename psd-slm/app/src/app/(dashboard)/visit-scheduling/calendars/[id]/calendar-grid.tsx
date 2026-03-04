@@ -91,7 +91,7 @@ export function CalendarGrid({ calendarId, calendarStatus, weeks, bankHolidays }
   return (
     <div>
       {/* Action bar */}
-      <div className="flex items-center gap-2 flex-wrap mb-4">
+      <div className="flex items-center gap-2 flex-wrap mb-6">
         {calendarStatus === 'draft' && (
           <button
             onClick={handleActivate}

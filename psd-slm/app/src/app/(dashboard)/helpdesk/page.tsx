@@ -5,9 +5,10 @@ import { getTickets, getTeamMembers, getCategories, getBrandsForSelect, getPendi
 import { TicketQueue } from './ticket-queue'
 import { MobileTicketQueue } from './mobile-ticket-queue'
 
-export default async function HelpdeskPage({ searchParams }: { searchParams: Promise<{ tags?: string }> }) {
+export default async function HelpdeskPage({ searchParams }: { searchParams: Promise<{ tags?: string; frustrated?: string }> }) {
   const params = await searchParams
   const selectedTagIds = params.tags?.split(',').filter(Boolean) || []
+  const initialFrustrated = params.frustrated === 'true'
 
   // Fire-and-forget: process auto-close on stale tickets
   triggerAutoClose()
@@ -49,7 +50,7 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
             subtitle="Ticket management and support queue"
           />
 
-          <div className="mb-6 flex gap-4">
+          <div className="mb-8 flex gap-4">
             <StatCard label="Open Tickets" value={openCount} accent="#2563eb" />
             <StatCard label="Unassigned" value={unassigned} accent={unassigned > 0 ? '#d97706' : '#1e293b'} />
             <StatCard label="New" value={newCount} accent="#6366f1" />
@@ -65,6 +66,7 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
             ticketTagMap={tagMap}
             selectedTagIds={selectedTagIds}
             initialPresence={presenceMap}
+            initialFrustrated={initialFrustrated}
           />
         </div>
       }
