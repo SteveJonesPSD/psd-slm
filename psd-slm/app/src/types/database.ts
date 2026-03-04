@@ -1548,6 +1548,20 @@ export interface TicketSummary {
   merged_into_ticket_id: string | null
   message_count: number
   total_time_minutes: number
+  tone_score: number | null
+  tone_trend: string | null
+  tone_summary: string | null
+  tone_updated_at: string | null
+  source: 'manual' | 'portal' | 'email' | null
+}
+
+// AutoGRUMP tone analysis
+export type ToneTrend = 'escalating' | 'stable' | 'improving' | 'new'
+
+export interface ToneAnalysisResult {
+  score: number        // 1-5
+  trend: ToneTrend
+  summary: string      // One-line, max 100 chars
 }
 
 export interface AgentWorkload {
