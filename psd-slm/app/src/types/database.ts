@@ -1530,8 +1530,8 @@ export interface TicketSummary {
   sla_response_met: boolean | null
   sla_resolution_met: boolean | null
   escalation_level: number
-  customer_id: string
-  customer_name: string
+  customer_id: string | null
+  customer_name: string | null
   contact_id: string | null
   contact_name: string | null
   assigned_to_id: string | null
@@ -2001,6 +2001,18 @@ export interface SoLineFulfilment {
   qty_po_received: number
   qty_unallocated: number
   fulfilment_status: FulfilmentStatus
+}
+
+// --- Customer Email Domains ---
+
+export interface CustomerEmailDomain {
+  id: string
+  org_id: string
+  customer_id: string
+  domain: string
+  is_active: boolean
+  created_at: string
+  created_by: string | null
 }
 
 export interface SystemPresence {

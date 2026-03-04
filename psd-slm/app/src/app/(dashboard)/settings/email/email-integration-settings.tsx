@@ -15,6 +15,7 @@ import {
   triggerPoll,
   clearProcessingLog,
   setAutoPollingEnabled,
+  testConnectionFresh,
 } from '@/lib/email/actions'
 
 interface Props {
@@ -36,6 +37,8 @@ export function EmailIntegrationSettings({ connections, channels, processingLog,
   const [showLog, setShowLog] = useState(false)
   const [autoPoll, setAutoPoll] = useState(initialAutoPolling)
   const [togglingAutoPoll, setTogglingAutoPoll] = useState(false)
+  const [reconnecting, setReconnecting] = useState(false)
+  const [reconnectResult, setReconnectResult] = useState<string | null>(null)
 
   const connection = connections[0] || null
 
@@ -89,6 +92,19 @@ export function EmailIntegrationSettings({ connections, channels, processingLog,
     setTogglingAutoPoll(false)
   }
 
+  const handleReconnect = async () => {
+    if (!connection) return
+    setReconnecting(true)
+    setReconnectResult(null)
+    const result = await testConnectionFresh(connection.id)
+    if (result.success) {
+      setReconnectResult(`Connected successfully${result.displayName ? ` — ${result.displayName}` : ''}`)
+    } else {
+      setReconnectResult(`Error: ${result.error}`)
+    }
+    setReconnecting(false)
+  }
+
   return (
     <div className="space-y-8">
       {/* Connection Card */}
@@ -137,9 +153,21 @@ export function EmailIntegrationSettings({ connections, channels, processingLog,
                 {connection.last_error && (
                   <p className="text-xs text-red-600 dark:text-red-400">Error: {connection.last_error}</p>
                 )}
+                {reconnectResult && (
+                  <p className={`text-xs ${reconnectResult.startsWith('Error') ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                    {reconnectResult}
+                  </p>
+                )}
               </div>
 
               <div className="flex items-center gap-2">
+                <button
+                  onClick={handleReconnect}
+                  disabled={reconnecting}
+                  className="rounded-lg border border-emerald-200 dark:border-emerald-800 px-3 py-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 disabled:opacity-50"
+                >
+                  {reconnecting ? 'Testing...' : 'Reconnect'}
+                </button>
                 <button
                   onClick={() => { setEditingConnection(connection); setShowConnectionForm(true) }}
                   className="rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"

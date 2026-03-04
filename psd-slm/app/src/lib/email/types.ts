@@ -111,7 +111,7 @@ export interface ProcessedEmail {
 }
 
 export interface HandlerResult {
-  action: 'created_ticket' | 'threaded_to_ticket' | 'skipped' | 'error'
+  action: 'created_ticket' | 'threaded_to_ticket' | 'skipped' | 'rejected' | 'error'
   ticketId?: string
   ticketNumber?: string
   notes: string
@@ -122,7 +122,9 @@ export interface PollResult {
   messagesFound: number
   messagesProcessed: number
   messagesSkipped: number
+  messagesRejected: number
   errors: { messageId: string; error: string }[]
+  rejections: { messageId: string; reason: string }[]
 }
 
 export interface MailProcessingLog {
@@ -134,7 +136,9 @@ export interface MailProcessingLog {
   messages_found: number
   messages_processed: number
   messages_skipped: number
+  messages_rejected: number
   errors: { messageId: string; error: string }[]
+  rejections: { messageId: string; reason: string }[]
   created_at: string
 }
 

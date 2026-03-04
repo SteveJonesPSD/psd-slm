@@ -1109,24 +1109,43 @@ export async function addMessage(ticketId: string, formData: {
 
 async function sendEmailReplyIfNeeded(ticketId: string, body: string, userId: string, orgId: string) {
   try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/email/send`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ticketId,
-        bodyHtml: `<p>${body.replace(/\n/g, '<br>')}</p>`,
-        bodyText: body,
-      }),
+    // Use admin client to bypass RLS on mail_channels/mail_connections
+    const adminSupabase = createAdminClient()
+    const { getTicketEmailContext, sendTicketReply } = await import('@/lib/email/email-sender')
+
+    // Check if this ticket has email context (originated from email)
+    const emailContext = await getTicketEmailContext(adminSupabase, ticketId)
+    if (!emailContext) return // Not an email ticket — nothing to send
+
+    // Get ticket number
+    const { data: ticket } = await adminSupabase
+      .from('tickets')
+      .select('ticket_number')
+      .eq('id', ticketId)
+      .single()
+
+    if (!ticket) return
+
+    const result = await sendTicketReply(adminSupabase, {
+      orgId,
+      ticketId,
+      ticketNumber: ticket.ticket_number,
+      channelId: emailContext.channelId,
+      fromAddress: emailContext.fromAddress,
+      toAddress: emailContext.toAddress,
+      toName: emailContext.toName || undefined,
+      subject: emailContext.subject,
+      bodyHtml: `<p>${body.replace(/\n/g, '<br>')}</p>`,
+      bodyText: body,
+      userId,
     })
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      // 400 = no email context (normal for non-email tickets), don't log as error
-      if (res.status !== 400) {
-        console.error('[email-reply] Failed:', data.error || res.statusText)
-      }
+
+    if (!result.success) {
+      console.error('[email-reply] Send failed:', result.error)
     }
-  } catch {
+  } catch (err) {
     // Non-blocking — email failure should never prevent reply from being saved
+    console.error('[email-reply] Error:', err instanceof Error ? err.message : err)
   }
 }
 
@@ -2936,7 +2955,10 @@ export async function mergeTickets(ticketId1: string, ticketId2: string) {
   const t1 = tickets.find(t => t.id === ticketId1)!
   const t2 = tickets.find(t => t.id === ticketId2)!
 
-  // Validate same customer
+  // Validate same customer (and both must have a customer assigned)
+  if (!t1.customer_id || !t2.customer_id) {
+    return { error: 'Both tickets must have a customer assigned before merging' }
+  }
   if (t1.customer_id !== t2.customer_id) {
     return { error: 'Tickets must belong to the same customer to merge' }
   }

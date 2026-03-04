@@ -25,11 +25,14 @@ export class GraphClient {
   // Token management
   // ---------------------------------------------------------------------------
 
-  async getToken(): Promise<string> {
-    // Return cached token if still valid (with 5min buffer)
-    if (this.tokenCache && Date.now() < this.tokenCache.expiresAt - 300_000) {
+  async getToken(forceRefresh = false): Promise<string> {
+    // Return cached token if still valid (with 5min buffer) — unless forced
+    if (!forceRefresh && this.tokenCache && Date.now() < this.tokenCache.expiresAt - 300_000) {
+      console.log('[GraphClient] Using cached token (expires in', Math.round((this.tokenCache.expiresAt - Date.now()) / 1000), 'seconds)')
       return this.tokenCache.token
     }
+
+    console.log('[GraphClient] Fetching new token from Azure AD', forceRefresh ? '(forced refresh)' : this.tokenCache ? '(cache expired)' : '(no cache)')
 
     const url = TOKEN_URL_TEMPLATE.replace('{tenantId}', this.connection.tenant_id)
     const body = new URLSearchParams({
@@ -56,7 +59,13 @@ export class GraphClient {
       expiresAt: Date.now() + (data.expires_in * 1000),
     }
 
+    console.log('[GraphClient] New token acquired, expires in', data.expires_in, 'seconds')
     return this.tokenCache.token
+  }
+
+  clearTokenCache(): void {
+    this.tokenCache = null
+    console.log('[GraphClient] Token cache cleared')
   }
 
   // ---------------------------------------------------------------------------
@@ -73,6 +82,21 @@ export class GraphClient {
         ...options.headers,
       },
     })
+
+    // Retry on 403 (Forbidden) — token may be stale after policy changes
+    if (res.status === 403) {
+      console.log('[GraphClient] Got 403, clearing token cache and retrying with fresh token')
+      this.clearTokenCache()
+      const freshToken = await this.getToken(true)
+      return fetch(`${GRAPH_BASE}${path}`, {
+        ...options,
+        headers: {
+          Authorization: `Bearer ${freshToken}`,
+          'Content-Type': 'application/json',
+          ...options.headers,
+        },
+      })
+    }
 
     // Retry once on 429 (rate limited) or 503 (service unavailable)
     if (res.status === 429 || res.status === 503) {
@@ -98,7 +122,9 @@ export class GraphClient {
   async listMessages(mailbox: string, since: string | null, top: number = 50): Promise<GraphMessage[]> {
     let filter = ''
     if (since) {
-      filter = `&$filter=receivedDateTime gt ${since}`
+      // Ensure ISO 8601 with Z suffix — Supabase TIMESTAMPTZ may omit it
+      const sinceIso = new Date(since).toISOString()
+      filter = `&$filter=receivedDateTime gt ${sinceIso}`
     } else {
       // First run safety: only fetch last 24 hours
       const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()

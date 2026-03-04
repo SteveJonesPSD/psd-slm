@@ -213,7 +213,7 @@ export function MobileTicketQueue({
 
                 {/* Row 3: company, assignee, status */}
                 <div className="mb-1.5 flex items-center gap-2 text-xs text-slate-500">
-                  <span className="truncate">{ticket.customer_name}</span>
+                  <span className={`truncate ${!ticket.customer_name ? 'text-red-500 font-medium' : ''}`}>{ticket.customer_name || 'Unmatched'}</span>
                   <span className="text-slate-300">|</span>
                   {ticket.assigned_to_name ? (
                     <span className="flex items-center gap-1 truncate">

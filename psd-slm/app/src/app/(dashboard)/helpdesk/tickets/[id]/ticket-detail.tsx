@@ -145,7 +145,7 @@ export function TicketDetail({ ticket, teamMembers, categories, tags, cannedResp
           )}
           <h3 className="mt-1 text-lg text-slate-700">{t.subject as string}</h3>
           <div className="mt-1 flex items-center gap-4 text-xs text-slate-400">
-            <span>{(t.customers as Record<string, unknown>)?.name as string}</span>
+            <span>{(t.customers as Record<string, unknown>)?.name as string || <span className="text-red-500 font-medium">Unmatched sender — assign customer</span>}</span>
             {t.contacts ? (
               <span>
                 Contact: {(t.contacts as Record<string, unknown>).first_name as string} {(t.contacts as Record<string, unknown>).last_name as string}

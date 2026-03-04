@@ -10,9 +10,11 @@ import { QuotesSection } from './quotes-section'
 import { ContractsSection } from './contracts-section'
 import { SupportTicketsSection } from './support-tickets-section'
 import { VisitSchedulingSection } from './visit-scheduling-section'
+import { EmailDomainsSection } from './email-domains-section'
 import { getCompanyTickets } from '../../helpdesk/actions'
 import { getContractsByCompany } from '../../contracts/actions'
 import { getCompanyVisits } from '../../visit-scheduling/actions'
+import { getCustomerDomains } from '../domain-actions'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -76,6 +78,14 @@ export default async function CustomerDetailPage({ params }: PageProps) {
     visitsData = await getCompanyVisits(id)
   } catch {
     // Visit scheduling module may not be deployed yet
+  }
+
+  // Fetch email domains (may fail if migration not applied yet)
+  let emailDomains: Awaited<ReturnType<typeof getCustomerDomains>> = []
+  try {
+    emailDomains = await getCustomerDomains(id)
+  } catch {
+    // Email domains migration may not be applied yet
   }
 
   if (!customer) notFound()
@@ -148,6 +158,9 @@ export default async function CustomerDetailPage({ params }: PageProps) {
           )}
         </div>
       </div>
+
+      {/* Email Domains */}
+      <EmailDomainsSection domains={emailDomains} customerId={id} />
 
       {/* Contacts */}
       <ContactsSection contacts={contacts || []} customerId={id} />

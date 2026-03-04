@@ -9,6 +9,7 @@ Innov8iv Engage is a custom SLM platform built with Next.js + TypeScript + Supab
 - **Hosting:** Vercel (auto-deploys from GitHub main branch)
 - **Repo:** GitHub private repository
 - **AI Integration:** Anthropic Claude API (Helen AI — service desk triage, draft responses, diagnostic assist; inbound PO extraction; AI product creation from URL/paste/screenshot; AI quote generation from supplier PDFs; AI quote acceptance from customer PO documents)
+- **Email Integration:** Microsoft 365 via Graph API (inbound polling, outbound sending, helpdesk ticket creation/threading)
 
 ## Critical Business Rules
 
@@ -123,7 +124,7 @@ Recurring visit calendar for SchoolCare (education brand). Schools get ICT suppo
 - **Holiday overlays on review:** `getHolidaysForRange(startDate, endDate)` in `visit-scheduling/actions.ts` fetches school holiday weeks (`visit_calendar_weeks` where `is_holiday = true`) and bank holidays for a date range. Week view: amber banner for full school holiday weeks, amber pills on bank holiday day headers, muted holiday labels in empty day cells. Month view: `bg-amber-50/60` tinted cells with `text-[9px]` amber labels. Display-only — no actionable buttons. Type: `HolidayData` in `lib/visit-scheduling/types.ts`.
 
 ## Database
-Schema is deployed to Supabase. Key tables: `organisations`, `customers`, `contacts`, `products`, `product_categories`, `suppliers`, `product_suppliers`, `deal_registrations`, `deal_registration_lines`, `opportunities`, `quotes`, `quote_groups`, `quote_lines`, `quote_attributions`, `quote_attachments`, `sales_orders`, `sales_order_lines`, `purchase_orders`, `purchase_order_lines`, `invoices`, `invoice_lines`, `contract_types`, `customer_contracts`, `contract_lines`, `contract_renewals`, `contract_entitlements`, `contract_visit_slots`, `commission_entries`, `commission_rates`, `org_settings`, `brands`, `activity_log`, `job_gps_log`, `visit_settings`, `visit_calendars`, `visit_calendar_weeks`, `visit_instances`, `bank_holidays`, `job_collections`, `job_collection_lines`.
+Schema is deployed to Supabase. Key tables: `organisations`, `customers`, `contacts`, `products`, `product_categories`, `suppliers`, `product_suppliers`, `deal_registrations`, `deal_registration_lines`, `opportunities`, `quotes`, `quote_groups`, `quote_lines`, `quote_attributions`, `quote_attachments`, `sales_orders`, `sales_order_lines`, `purchase_orders`, `purchase_order_lines`, `invoices`, `invoice_lines`, `contract_types`, `customer_contracts`, `contract_lines`, `contract_renewals`, `contract_entitlements`, `contract_visit_slots`, `commission_entries`, `commission_rates`, `org_settings`, `brands`, `activity_log`, `job_gps_log`, `visit_settings`, `visit_calendars`, `visit_calendar_weeks`, `visit_instances`, `bank_holidays`, `job_collections`, `job_collection_lines`, `mail_connections`, `mail_channels`, `ticket_emails`, `mail_processing_log`.
 
 **Important:** The `companies` table was renamed to `customers` and all `company_id` FKs renamed to `customer_id` (including on `invoices`, `contacts`, `quotes`, `sales_orders`, etc.). Always use `customer_id` in new code. Note: `jobs` still uses `company_id` (not yet renamed).
 
@@ -252,6 +253,7 @@ These spacing rules are mandatory across the entire platform — both light and 
 10d. ~~Visit Scheduling~~ ✅ Built (academic year calendars, 4-week cycle patterns, slot templates with ProFlex quick-fill, visit generation, week review with bulk confirm, customer visit history integration)
 11. ~~AI Chat Agents~~ ✅ Built (3 agents — Jasper/Helen/Lucia with tool-calling, floating chat panel, dedicated pages, persistent sessions, admin chat archive, markdown rendering with auto-linking)
 12. ~~Engineer Stock Collection~~ ✅ Built (QR-based magic link collection slips, PDF generation, touch-to-confirm mobile UI, GPS capture, partial collection support)
+13. ~~Email Integration~~ ✅ Built (Microsoft 365 Graph API, inbound polling with helpdesk ticket creation/threading, outbound email from ticket replies, auto-polling with toggle, connection testing, processing log)
 
 ## Development Workflow
 - **Claude Project chats:** Architecture discussions, module planning, prompt generation, code review
@@ -684,22 +686,85 @@ All agent system prompts enforce these formatting rules:
 - Lists use `list-inside` positioning to stay within bubble boundaries
 
 ## Email Integration
+Microsoft 365 mailbox integration via Microsoft Graph API. Polls connected mailboxes for inbound emails, routes them to module handlers (helpdesk creates/threads tickets), and sends outbound emails when agents reply to email-originated tickets.
+
+### Schema & Migration
 - **Migration:** `20260323000001_email_integration.sql` — `mail_connections`, `mail_channels`, `ticket_emails`, `mail_processing_log`, `source` column on tickets, updated `v_ticket_summary` view
-- **Architecture:** 3-layer design: Graph API client (`lib/email/graph-client.ts`) → Mail poller/router (`lib/email/mail-poller.ts`, `mail-router.ts`) → Module handlers (`lib/email/handlers/helpdesk.ts`)
-- **Auth:** Azure AD app registration with application-level `Mail.Read` + `Mail.Send` permissions, client credentials OAuth flow
-- **Polling:** 60-second interval via API route (`/api/email/poll`), protected by shared secret (`org_settings` key: `email_poll_secret`)
-- **Helpdesk handler:** 4-tier threading (In-Reply-To → References → ticket number in subject `[TKT-YYYY-NNNN]` → Graph conversationId), auto-creates tickets from unknown senders with `source='email'`
-- **Outbound:** `lib/email/email-sender.ts` sends via Graph API with In-Reply-To/References headers for proper threading, ticket reference injected into subject, branded HTML template wrapper
-- **Email sending trigger:** `addMessage` in `helpdesk/actions.ts` fire-and-forgets email via `/api/email/send` when replying to email-context tickets (non-internal replies only)
-- **Storage:** `email-attachments` bucket in Supabase Storage (25MB, private)
-- **Settings:** `/settings/email` — connection credentials form with test button, channels table with status badges, processing log viewer, manual poll button, cron setup instructions
-- **Server actions:** `lib/email/actions.ts` — CRUD for connections/channels, processing log queries, ticket email queries, manual poll trigger
-- **Ticket detail integration:** `EmailThreadSection` in sidebar (collapsible, shows inbound/outbound email cards with body expand), email indicator in `ReplyBox` showing recipient, source badge on ticket header and queue list
 - **Permissions:** `email.view`, `email.edit` — admin/super_admin only
-- **Types:** `lib/email/types.ts` — `MailConnection`, `MailChannel`, `TicketEmail`, `GraphMessage`, `ProcessedEmail`, `HandlerResult`, `PollResult`
-- **Portability:** No webhook dependency, no Vercel-specific cron. Poll endpoint is a standard POST route callable by any scheduler.
-- **Utilities:** `lib/email/email-utils.ts` — HTML sanitisation, plain text conversion, signature stripping, quoted reply stripping, header parsing
+- **Storage:** `email-attachments` bucket in Supabase Storage (25MB, private)
 - **Existing tables:** `email_threads` (helpdesk migration placeholder) is NOT used — `ticket_emails` replaces it with full Graph API integration
+
+### Architecture
+3-layer design: Graph API client → Mail poller/router → Module handlers.
+- **Graph client:** `lib/email/graph-client.ts` — `GraphClient` class with per-instance token caching (5min buffer), retry on 403 (clear cache + fresh token) and 429/503, logging on token fetch vs cache hit. Methods: `getToken(forceRefresh?)`, `clearTokenCache()`, `listMessages()`, `getMessageHeaders()`, `getAttachments()`, `sendMail()`, `markAsRead()`, `testConnection()`. Token cache is per-instance (not module-level), and `pollChannel()` creates a new `GraphClient` per poll cycle — tokens do NOT persist between polls or across server restarts.
+- **Mail poller:** `lib/email/mail-poller.ts` — `pollMailChannels()` fetches active channels, checks poll intervals, processes messages via handlers, updates cursors, logs to `mail_processing_log`
+- **Mail router:** `lib/email/mail-router.ts` — handler registry mapping `'helpdesk'` → `handleHelpdeskEmail`
+- **Email sender:** `lib/email/email-sender.ts` — `sendTicketReply()` builds References header chain, ensures subject contains `[TKT-YYYY-NNNN]`, wraps in branded HTML template, records outbound in `ticket_emails`
+- **Utilities:** `lib/email/email-utils.ts` — HTML sanitisation, plain text conversion, signature stripping (RFC 3676 + mobile), quoted reply stripping, header parsing
+- **Types:** `lib/email/types.ts` — `MailConnection`, `MailChannel`, `TicketEmail`, `GraphMessage`, `ProcessedEmail`, `HandlerResult`, `PollResult`, `MailProcessingLog`, badge configs
+
+### Auth & Connection
+- **Azure AD:** App registration with application-level `Mail.Read` + `Mail.Send` permissions, client credentials OAuth flow
+- **Credentials:** Stored in `mail_connections` table (tenant_id, client_id, client_secret), client_secret masked in UI
+- **Test connection:** `/api/email/test-connection` — accepts raw credentials for new connections or `connectionId` to read saved credentials from DB (avoids re-entering masked secret)
+
+### Inbound Polling
+- **Poll route:** `/api/email/poll` — POST, excluded from session auth in `proxy.ts`, protected by shared secret (`org_settings` key: `email_poll_secret`). In production, secret is required. In development, passes through without secret for easy testing.
+- **Manual poll:** `triggerPoll()` server action — directly imports `pollMailChannels` (no HTTP fetch), admin-only
+- **Auto-polling:** `backgroundPoll()` server action for client-side polling hook. `use-email-polling.ts` hook polls every 60s with concurrency guard. `EmailPoller` wrapper component integrated into dashboard layout. Toggle via `org_settings` key `email_auto_poll_enabled`, managed from settings UI.
+- **Processing log:** Collapsible log table in settings showing poll cycles with expandable error details. `clearProcessingLog()` action to purge.
+
+### Helpdesk Handler
+- **File:** `lib/email/handlers/helpdesk.ts`
+- **Threading:** 4-tier matching: In-Reply-To → References → ticket number in subject `[TKT-YYYY-NNNN]` → Graph conversationId
+- **New tickets:** Auto-creates from unknown senders with `source='email'`, resolves contact by email/domain, resolves SLA from support contracts
+- **Threading to existing:** Adds message, records email, reopens ticket if resolved/closed/waiting
+- **Attachments:** Uploads to `email-attachments` storage bucket
+
+### Outbound Email
+- **Trigger:** `addMessage` in `helpdesk/actions.ts` fire-and-forgets email via `/api/email/send` when replying to email-context tickets (non-internal replies only). Failures are silent — never blocks the agent reply.
+- **API route:** `/api/email/send` — POST, requires `helpdesk.edit` permission, sends via Graph API
+- **Template:** Branded HTML wrapper with footer, References header chain for proper threading
+
+### Settings UI
+- **Route:** `/settings/email` ("Email Integration" in settings nav)
+- **Components:** `email-integration-settings.tsx` (main), `connection-form.tsx` (credentials modal with test button), `channel-form.tsx` (channel modal), `processing-log.tsx` (collapsible log)
+- **Features:** Connection CRUD with masked secrets, channel management with status badges, auto-poll toggle switch, manual poll button, processing log viewer, "Reconnect" button (forces fresh token + tests mailbox access)
+- **Connection form:** Never populates client_secret from saved connection (always blank, "Leave blank to keep existing secret" hint). Test button uses `connectionId` for saved connections.
+- **Reconnect:** `testConnectionFresh()` server action reads real credentials from DB, creates fresh `GraphClient`, clears token cache, and tests connection. Useful after Azure AD policy changes (e.g. ApplicationAccessPolicy).
+
+### Helpdesk Integration
+- **Ticket detail:** `EmailThreadSection` in sidebar (collapsible, shows inbound/outbound email cards with body expand), email indicator in `ReplyBox` showing recipient name/address, source badge on ticket header
+- **Ticket queue:** Blue envelope icon next to ticket numbers for `source === 'email'`
+- **Types:** `TicketSummary.source` field: `'manual' | 'portal' | 'email' | null`
+
+### Server Actions
+`lib/email/actions.ts`:
+- Connection CRUD: `getMailConnections()`, `saveMailConnection()`, `deleteMailConnection()`
+- Channel CRUD: `getMailChannels()`, `saveMailChannel()`, `toggleChannelActive()`, `deleteMailChannel()`
+- Processing log: `getProcessingLog()`, `clearProcessingLog()`
+- Ticket queries: `getTicketEmails()`, `getTicketEmailContext()`
+- Polling: `triggerPoll()`, `backgroundPoll()`
+- Auto-poll setting: `getAutoPollingEnabled()`, `setAutoPollingEnabled()`
+- Connection test: `testConnectionFresh()` (forces fresh token, reads real credentials from DB)
+
+### Email Domain Matching
+Inbound emails are matched to customers via `customer_email_domains` table. Each customer can have multiple approved domains. Flow: extract sender domain → lookup `customer_email_domains` (org-scoped, case-insensitive) → if no match, reject email (logged but no ticket created, marked as read) → if match, find or auto-create contact → create ticket. Domain uniqueness enforced org-wide — no two customers share a domain. Auto-created contacts have `is_auto_created = true` and an internal note flagging them for review. Manage domains on customer detail page under "Approved Email Domains" section.
+- **Migration:** `20260325000001_customer_email_domains.sql` — table, indexes, RLS, seed domains, `messages_rejected`/`rejections` columns on `mail_processing_log`
+- **Server actions:** `customers/domain-actions.ts` — `getCustomerDomains`, `addCustomerDomain`, `removeCustomerDomain`, `resolveCustomerByDomain`
+- **UI:** `customers/[id]/email-domains-section.tsx`
+- **Handler changes:** `resolveContact()` replaced with domain-first matching in `handlers/helpdesk.ts`
+- **Rejection tracking:** `PollResult` and `MailProcessingLog` include `messagesRejected`/`rejections` fields; processing log UI shows amber "Rejected" column
+
+### Outbound Email & Acknowledgements
+Agent replies to email-originated tickets are sent back to the customer via Graph API. `addMessage()` in `helpdesk/actions.ts` calls `sendEmailReplyIfNeeded()` fire-and-forget — uses admin Supabase client to call `sendTicketReply()` directly (not via internal HTTP fetch, which would lose the auth session). Only non-internal replies on tickets with `source='email'` are sent. Internal notes never go out.
+- **Acknowledgement emails:** When a new ticket is created from an inbound email, `createNewTicket()` in `handlers/helpdesk.ts` fire-and-forgets `sendTicketAcknowledgement()` from `email-sender.ts`. Includes ticket number in subject `[TKT-YYYY-NNNN] Re: {subject}`, branded HTML template, threading headers (In-Reply-To the original inbound email). Recorded in `ticket_emails` as outbound.
+- **Subject threading:** All outbound emails include `[TKT-YYYY-NNNN]` in the subject. `sendTicketReply()` prepends it if missing. Inbound emails are matched back via Tier 3 (subject line regex) in `findExistingTicket()`.
+- **Self-send protection:** `pollChannel()` in `mail-poller.ts` skips messages where the sender address matches the channel's mailbox address. This prevents ack emails and agent replies from being re-processed as inbound tickets. Skipped messages are marked as read and counted in `messagesSkipped`.
+- **Email sender:** `lib/email/email-sender.ts` — `sendTicketReply()` (agent replies), `sendTicketAcknowledgement()` (new ticket acks), `getTicketEmailContext()` (finds email recipient/channel for a ticket)
+
+### Portability
+No webhook dependency, no Vercel-specific cron. Poll endpoint is a standard POST route callable by any scheduler (cron, systemd timer, AWS EventBridge, etc.).
 
 ## Reference
 The original React prototype is available in the project as `psd-slm-prototype.jsx`. Use it for UI patterns and data model reference but do NOT import from it — we're rebuilding with proper architecture.

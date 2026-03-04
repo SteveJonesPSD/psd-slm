@@ -113,7 +113,7 @@ export function MobileTicketDetail({ ticket, teamMembers, categories, tags, cann
         </div>
         <div className="ml-10 text-sm text-slate-700 line-clamp-1 font-medium">{t.subject as string}</div>
         <div className="ml-10 mt-0.5 text-xs text-slate-400">
-          {customer?.name as string}
+          {(customer?.name as string) || <span className="text-red-500">Unmatched sender</span>}
           {assignee && <span> &middot; {assignee.first_name as string} {assignee.last_name as string}</span>}
         </div>
       </div>

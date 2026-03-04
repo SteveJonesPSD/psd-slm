@@ -120,6 +120,121 @@ export async function sendTicketReply(
 }
 
 /**
+ * Send an acknowledgement email when a new ticket is created from an inbound email.
+ * Fire-and-forget — failures are logged but never block ticket creation.
+ */
+export async function sendTicketAcknowledgement(
+  supabase: SupabaseClient,
+  params: {
+    orgId: string
+    ticketId: string
+    ticketNumber: string
+    channelId: string
+    fromAddress: string    // mailbox address (we send FROM this)
+    toAddress: string      // customer email
+    toName: string | null
+    contactFirstName: string
+    originalSubject: string
+    inReplyToMessageId: string | null  // internet_message_id of the inbound email
+  }
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Fetch the channel and its connection
+    const { data: channel } = await supabase
+      .from('mail_channels')
+      .select('*, mail_connections(*)')
+      .eq('id', params.channelId)
+      .single()
+
+    if (!channel || !channel.mail_connections) {
+      return { success: false, error: 'Mail channel or connection not found' }
+    }
+
+    const connection = channel.mail_connections as MailConnection
+
+    // Build subject with ticket reference
+    const cleanSubject = params.originalSubject.replace(/^Re:\s*/i, '')
+    const subject = `[${params.ticketNumber}] Re: ${cleanSubject}`
+
+    // Build acknowledgement body
+    const bodyHtml = buildAckHtml(params.contactFirstName, params.ticketNumber, params.originalSubject)
+
+    // Threading headers — reply to the original inbound email
+    const inReplyTo = params.inReplyToMessageId || undefined
+    const references = params.inReplyToMessageId ? [params.inReplyToMessageId] : undefined
+
+    // Send via Graph API
+    const client = new GraphClient(connection)
+    await client.sendMail(params.fromAddress, {
+      to: [{ address: params.toAddress, name: params.toName || undefined }],
+      subject,
+      bodyHtml,
+      inReplyTo,
+      references,
+    })
+
+    // Record the outbound acknowledgement
+    await supabase.from('ticket_emails').insert({
+      org_id: params.orgId,
+      ticket_id: params.ticketId,
+      channel_id: params.channelId,
+      direction: 'outbound',
+      from_address: params.fromAddress,
+      from_name: 'PSD Group Service Desk',
+      to_addresses: [{ address: params.toAddress, name: params.toName }],
+      cc_addresses: [],
+      subject,
+      body_text: `Hi ${params.contactFirstName}, Thank you for contacting PSD Group IT Support. Your request has been logged as ticket ${params.ticketNumber}.`,
+      body_html: bodyHtml,
+      has_attachments: false,
+      attachments: [],
+      sent_at: new Date().toISOString(),
+      processing_notes: `Acknowledgement sent for ${params.ticketNumber}`,
+    })
+
+    return { success: true }
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error sending acknowledgement'
+    console.error('[email-sender] Ack failed:', errorMessage)
+    return { success: false, error: errorMessage }
+  }
+}
+
+/**
+ * Build the HTML body for a ticket acknowledgement email.
+ */
+function buildAckHtml(firstName: string, ticketNumber: string, originalSubject: string): string {
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1e293b; line-height: 1.6; margin: 0; padding: 0; }
+  .container { max-width: 640px; margin: 0 auto; padding: 24px; }
+  .content { margin-bottom: 24px; }
+  .footer { border-top: 1px solid #e2e8f0; padding-top: 16px; margin-top: 24px; font-size: 12px; color: #94a3b8; }
+  .ref { font-size: 11px; color: #94a3b8; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="content">
+    <p>Hi ${firstName},</p>
+    <p>Thank you for contacting PSD Group IT Support. Your request has been logged as ticket <strong>${ticketNumber}</strong>.</p>
+    <p><strong>Subject:</strong> ${originalSubject}</p>
+    <p>A member of our team will review your request and get back to you shortly. You can reply to this email to add more information to your ticket.</p>
+    <p>Kind regards,<br>PSD Group IT Support</p>
+  </div>
+  <div class="footer">
+    <p>PSD Group Service Desk</p>
+    <p class="ref">Reference: ${ticketNumber} — Please do not change the subject line to ensure your reply reaches the right ticket.</p>
+  </div>
+</div>
+</body>
+</html>`
+}
+
+/**
  * Find the email channel and recipient for a ticket.
  * Returns null if the ticket has no email context.
  */

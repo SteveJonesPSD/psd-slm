@@ -2,11 +2,14 @@
 // Helpdesk Email Handler
 // Creates new tickets from inbound emails or threads replies to existing tickets.
 // Uses a 4-tier matching strategy for threading.
+// Domain-first matching for new tickets via customer_email_domains table.
 // =============================================================================
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ProcessedEmail, MailChannel, HandlerResult, EmailAttachmentMeta } from '../types'
 import { sanitiseHtml, htmlToPlainText, extractNewContent, getHeader, parseReferences } from '../email-utils'
+import { sendTicketAcknowledgement } from '../email-sender'
+import { resolveCustomerByDomain } from '@/app/(dashboard)/customers/domain-actions'
 
 const TICKET_NUMBER_REGEX = /\[TKT-\d{4}-\d{4,}\]/
 
@@ -21,8 +24,9 @@ export async function handleHelpdeskEmail(
   supabase: SupabaseClient
 ): Promise<HandlerResult> {
   const msg = email.graphMessage
-  const fromAddress = msg.from.emailAddress.address.toLowerCase()
-  const fromName = msg.from.emailAddress.name || fromAddress
+  const rawAddress = msg.from?.emailAddress?.address || ''
+  const fromAddress = rawAddress.trim().toLowerCase()
+  const fromName = msg.from?.emailAddress?.name || fromAddress
   const subject = msg.subject || '(No subject)'
 
   // Extract body content
@@ -216,7 +220,6 @@ async function threadToTicket(
       .update({
         status: 'open',
         updated_at: new Date().toISOString(),
-        // Clear waiting_since and auto-close tracking
         waiting_since: null,
         auto_close_warning_sent_at: null,
       })
@@ -258,7 +261,7 @@ async function threadToTicket(
 }
 
 // -----------------------------------------------------------------------------
-// Create a new ticket from an email
+// Create a new ticket from an email (domain-first matching)
 // -----------------------------------------------------------------------------
 
 async function createNewTicket(
@@ -276,16 +279,79 @@ async function createNewTicket(
 ): Promise<HandlerResult> {
   const msg = email.graphMessage
 
-  // Look up sender contact and customer
-  const { contactId, customerId } = await resolveContact(supabase, orgId, fromAddress)
+  // Step 1: Extract sender domain
+  const senderDomain = fromAddress.split('@')[1]
+  if (!senderDomain) {
+    return {
+      action: 'rejected',
+      notes: `Invalid email address: ${fromAddress}`,
+    }
+  }
 
-  // Generate ticket number
+  // Step 2: Domain lookup
+  const domainMatch = await resolveCustomerByDomain(orgId, senderDomain)
+  if (!domainMatch) {
+    return {
+      action: 'rejected',
+      notes: `No matching domain for ${senderDomain} (sender: ${fromAddress})`,
+    }
+  }
+
+  const { customerId, customerName } = domainMatch
+
+  // Step 3: Contact lookup
+  const { data: existingContact } = await supabase
+    .from('contacts')
+    .select('id')
+    .eq('customer_id', customerId)
+    .ilike('email', fromAddress)
+    .limit(1)
+    .maybeSingle()
+
+  let contactId: string | null = existingContact?.id || null
+  let contactAutoCreated = false
+
+  // Step 4: Auto-create contact if not found
+  if (!contactId) {
+    const { firstName, lastName } = parseDisplayName(fromName, fromAddress)
+
+    const { data: newContact } = await supabase
+      .from('contacts')
+      .insert({
+        org_id: orgId,
+        customer_id: customerId,
+        first_name: firstName,
+        last_name: lastName,
+        email: fromAddress,
+        is_primary: false,
+        is_billing: false,
+        is_active: true,
+        is_auto_created: true,
+      })
+      .select('id')
+      .single()
+
+    if (newContact) {
+      contactId = newContact.id
+      contactAutoCreated = true
+
+      // Log contact creation
+      await supabase.from('activity_log').insert({
+        org_id: orgId,
+        entity_type: 'contact',
+        entity_id: newContact.id,
+        action: 'auto_created',
+        details: { source: 'email_ingestion', email: fromAddress, customer: customerName },
+        created_at: new Date().toISOString(),
+      })
+    }
+  }
+
+  // Step 5: Generate ticket number
   const ticketNumber = await generateTicketNumber(supabase, orgId)
-
-  // Generate portal token
   const portalToken = crypto.randomUUID()
 
-  // Resolve SLA plan
+  // Resolve SLA
   const sla = await resolveSla(supabase, orgId, customerId)
 
   const { data: ticket, error } = await supabase
@@ -328,6 +394,18 @@ async function createNewTicket(
     is_internal: false,
   })
 
+  // Add internal note if contact was auto-created
+  if (contactAutoCreated) {
+    await supabase.from('ticket_messages').insert({
+      ticket_id: ticket.id,
+      sender_type: 'system',
+      sender_id: null,
+      sender_name: 'System',
+      body: `Contact auto-created from inbound email. Please verify name and details.\nSender: ${fromAddress} (matched to ${customerName} via domain ${senderDomain})`,
+      is_internal: true,
+    })
+  }
+
   // Record the email
   await supabase.from('ticket_emails').insert({
     org_id: orgId,
@@ -348,13 +426,8 @@ async function createNewTicket(
     has_attachments: attachmentMeta.length > 0,
     attachments: attachmentMeta,
     sent_at: msg.receivedDateTime,
-    processing_notes: `New ticket created: ${ticket.ticket_number}`,
+    processing_notes: `New ticket created: ${ticketNumber}`,
   })
-
-  // Update attachment storage keys if we stored them with 'pending' ticket ID
-  if (attachmentMeta.length > 0) {
-    // Attachments were already stored under the correct path since we passed ticket.id
-  }
 
   // Log activity
   await supabase.from('activity_log').insert({
@@ -367,56 +440,79 @@ async function createNewTicket(
       from: fromAddress,
       subject,
       ticket_number: ticket.ticket_number,
+      customer_name: customerName,
+      contact_auto_created: contactAutoCreated,
     },
     created_at: new Date().toISOString(),
+  })
+
+  // Fire-and-forget: send acknowledgement email to the customer
+  const { firstName: ackFirstName } = parseDisplayName(fromName, fromAddress)
+  const mailboxAddress = channel.mailbox_address || ''
+  sendTicketAcknowledgement(supabase, {
+    orgId,
+    ticketId: ticket.id,
+    ticketNumber: ticket.ticket_number,
+    channelId: channel.id,
+    fromAddress: mailboxAddress,
+    toAddress: fromAddress,
+    toName: fromName !== fromAddress ? fromName : null,
+    contactFirstName: ackFirstName,
+    originalSubject: subject,
+    inReplyToMessageId: msg.internetMessageId || null,
+  }).catch(err => {
+    console.error('[email] Ack send failed (non-blocking):', err instanceof Error ? err.message : err)
   })
 
   return {
     action: 'created_ticket',
     ticketId: ticket.id,
     ticketNumber: ticket.ticket_number,
-    notes: `New ticket created: ${ticket.ticket_number}`,
+    notes: `New ticket created: ${ticketNumber}${contactAutoCreated ? ' (contact auto-created)' : ''}`,
   }
 }
 
 // -----------------------------------------------------------------------------
-// Contact/customer resolution
+// Parse display name from email sender
 // -----------------------------------------------------------------------------
 
-async function resolveContact(
-  supabase: SupabaseClient,
-  orgId: string,
+function parseDisplayName(
+  displayName: string,
   email: string
-): Promise<{ contactId: string | null; customerId: string | null }> {
-  // Look up contact by email
-  const { data: contact } = await supabase
-    .from('contacts')
-    .select('id, customer_id')
-    .eq('org_id', orgId)
-    .ilike('email', email)
-    .limit(1)
-    .maybeSingle()
+): { firstName: string; lastName: string } {
+  const trimmed = displayName.trim()
 
-  if (contact) {
-    return { contactId: contact.id, customerId: contact.customer_id }
+  if (trimmed && trimmed !== email) {
+    // Has a proper display name
+    if (trimmed.includes(' ')) {
+      // "Steve Jones" → first=Steve, last=Jones
+      // "Mary Jane Watson" → first=Mary Jane, last=Watson
+      const lastSpace = trimmed.lastIndexOf(' ')
+      return {
+        firstName: trimmed.substring(0, lastSpace),
+        lastName: trimmed.substring(lastSpace + 1),
+      }
+    }
+    // Single word like "Steve"
+    return { firstName: trimmed, lastName: '(Unknown)' }
   }
 
-  // No contact found — try matching by email domain to a customer
-  const domain = email.split('@')[1]?.toLowerCase()
-  if (domain) {
-    const { data: customers } = await supabase
-      .from('contacts')
-      .select('customer_id')
-      .eq('org_id', orgId)
-      .ilike('email', `%@${domain}`)
-      .limit(1)
+  // No display name — parse from email local part
+  const localPart = email.split('@')[0] || 'unknown'
 
-    if (customers && customers.length > 0) {
-      return { contactId: null, customerId: customers[0].customer_id }
+  // Try splitting on . or _
+  const parts = localPart.split(/[._]/).filter(Boolean)
+  if (parts.length >= 2) {
+    const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()
+    return {
+      firstName: titleCase(parts[0]),
+      lastName: titleCase(parts[parts.length - 1]),
     }
   }
 
-  return { contactId: null, customerId: null }
+  // Can't parse — use local part as first name
+  const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()
+  return { firstName: titleCase(localPart), lastName: '(Unknown)' }
 }
 
 // -----------------------------------------------------------------------------
@@ -507,7 +603,7 @@ async function resolveSla(
   const target = slaPlan.sla_plan_targets.find((t: { priority: string }) => t.priority === 'medium')
   if (!target) return { slaPlanId, contractId, responseDueAt: null, resolutionDueAt: null }
 
-  // Simple deadline calculation (business hours calculation is in lib/sla.ts but we keep it simple here)
+  // Simple deadline calculation
   const now = new Date()
   const responseDue = new Date(now.getTime() + target.response_time_minutes * 60_000)
   const resolutionDue = new Date(now.getTime() + target.resolution_time_minutes * 60_000)

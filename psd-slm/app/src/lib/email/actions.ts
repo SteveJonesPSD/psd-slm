@@ -462,6 +462,59 @@ export async function setAutoPollingEnabled(enabled: boolean): Promise<{ error?:
 }
 
 // =============================================================================
+// Test Connection (fresh token — forces re-auth)
+// =============================================================================
+
+export async function testConnectionFresh(connectionId: string): Promise<{
+  success: boolean
+  displayName?: string
+  error?: string
+}> {
+  const user = await requireAuth()
+  requireAdmin(user)
+  const supabase = createAdminClient()
+
+  const { data: conn, error } = await supabase
+    .from('mail_connections')
+    .select('*')
+    .eq('id', connectionId)
+    .eq('org_id', user.orgId)
+    .single()
+
+  if (error || !conn) {
+    return { success: false, error: 'Connection not found' }
+  }
+
+  // Get the first active channel's mailbox (or fall back to testing token only)
+  const { data: channels } = await supabase
+    .from('mail_channels')
+    .select('mailbox_address')
+    .eq('connection_id', connectionId)
+    .eq('org_id', user.orgId)
+    .eq('is_active', true)
+    .limit(1)
+
+  const { GraphClient } = await import('./graph-client')
+  const client = new GraphClient(conn)
+
+  // Force a fresh token (no cache)
+  client.clearTokenCache()
+
+  const mailbox = channels?.[0]?.mailbox_address
+  if (mailbox) {
+    return client.testConnection(mailbox)
+  }
+
+  // No channels — just test token acquisition
+  try {
+    await client.getToken(true)
+    return { success: true, displayName: 'Token acquired (no mailbox to test)' }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Token acquisition failed' }
+  }
+}
+
+// =============================================================================
 // Helpers
 // =============================================================================
 

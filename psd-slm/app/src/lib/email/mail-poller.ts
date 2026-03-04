@@ -56,7 +56,9 @@ async function pollChannel(
     messagesFound: 0,
     messagesProcessed: 0,
     messagesSkipped: 0,
+    messagesRejected: 0,
     errors: [],
+    rejections: [],
   }
 
   // Start processing log entry
@@ -111,6 +113,19 @@ async function pollChannel(
     let latestMessageTime = channel.last_message_at
 
     for (const msg of messages) {
+      // Skip our own outbound emails (acks and agent replies sent from this mailbox)
+      const senderAddress = msg.from?.emailAddress?.address?.toLowerCase() || ''
+      if (senderAddress === channel.mailbox_address.toLowerCase()) {
+        result.messagesSkipped++
+        // Mark as read so it doesn't reappear next poll
+        await client.markAsRead(channel.mailbox_address, msg.id).catch(() => {})
+        // Track time even for skipped
+        if (!latestMessageTime || msg.receivedDateTime > latestMessageTime) {
+          latestMessageTime = msg.receivedDateTime
+        }
+        continue
+      }
+
       // Skip messages we've already processed (duplicate detection)
       const { data: existing } = await supabase
         .from('ticket_emails')
@@ -133,6 +148,9 @@ async function pollChannel(
 
         if (handlerResult.action === 'error') {
           result.errors.push({ messageId: msg.id, error: handlerResult.notes })
+        } else if (handlerResult.action === 'rejected') {
+          result.messagesRejected++
+          result.rejections.push({ messageId: msg.id, reason: handlerResult.notes })
         } else {
           result.messagesProcessed++
         }
@@ -239,7 +257,9 @@ async function finishLog(
       messages_found: result.messagesFound,
       messages_processed: result.messagesProcessed,
       messages_skipped: result.messagesSkipped,
+      messages_rejected: result.messagesRejected,
       errors: result.errors,
+      rejections: result.rejections,
     })
     .eq('id', logId)
 }
