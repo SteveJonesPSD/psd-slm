@@ -32,7 +32,7 @@ export function AdjustmentForm({ locations }: AdjustmentFormProps) {
   const [locationId, setLocationId] = useState(locations.find(l => l.is_default)?.id || locations[0]?.id || '')
   const [adjustmentType, setAdjustmentType] = useState<'increase' | 'decrease'>('increase')
   const [quantity, setQuantity] = useState(1)
-  const [reason, setReason] = useState(ADJUSTMENT_REASONS[0])
+  const [reason, setReason] = useState<string>(ADJUSTMENT_REASONS[0])
   const [notes, setNotes] = useState('')
   const [serialNumbers, setSerialNumbers] = useState('')
 
