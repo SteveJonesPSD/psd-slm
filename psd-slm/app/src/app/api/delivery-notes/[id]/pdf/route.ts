@@ -53,11 +53,11 @@ export async function GET(
   const soNumber = (salesOrder as { so_number: string } | null)?.so_number || null
   const customerName = ((salesOrder as { customers: { name: string } | null } | null)?.customers as { name: string } | null)?.name || null
 
-  const pdfLines = (lines || []).map((l: { id: string; description: string; quantity: number; serial_numbers: string[] | null; products: { sku: string } | null }) => ({
-    id: l.id,
-    description: l.description,
-    quantity: l.quantity,
-    sku: (l.products as { sku: string } | null)?.sku || null,
+  const pdfLines = (lines || []).map((l: Record<string, unknown>) => ({
+    id: l.id as string,
+    description: l.description as string,
+    quantity: l.quantity as number,
+    sku: ((l.products as { sku: string } | null) as { sku: string } | null)?.sku || null,
     serialNumbers: (l.serial_numbers as string[]) || [],
   }))
 
