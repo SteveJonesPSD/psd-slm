@@ -11,14 +11,14 @@ export function Input({ label, onChange, className, ...props }: InputProps) {
   return (
     <div className={className}>
       {label && (
-        <label className="mb-1 block text-xs font-medium text-slate-500">
+        <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
           {label}
         </label>
       )}
       <input
         {...props}
         onChange={(e) => onChange?.(e.target.value)}
-        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+        className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 dark:text-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
       />
     </div>
   )
@@ -35,14 +35,14 @@ export function Select({ label, options, placeholder, onChange, className, ...pr
   return (
     <div className={className}>
       {label && (
-        <label className="mb-1 block text-xs font-medium text-slate-500">
+        <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
           {label}
         </label>
       )}
       <select
         {...props}
         onChange={(e) => onChange?.(e.target.value)}
-        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+        className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 dark:text-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
       >
         {placeholder && <option value="">{placeholder}</option>}
         {options.map((o) => (
@@ -64,7 +64,7 @@ export function Textarea({ label, onChange, className, ...props }: TextareaProps
   return (
     <div className={className}>
       {label && (
-        <label className="mb-1 block text-xs font-medium text-slate-500">
+        <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
           {label}
         </label>
       )}
@@ -72,7 +72,7 @@ export function Textarea({ label, onChange, className, ...props }: TextareaProps
         {...props}
         onChange={(e) => onChange?.(e.target.value)}
         rows={props.rows || 3}
-        className="w-full resize-vertical rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400 font-[inherit]"
+        className="w-full resize-vertical rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 dark:text-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 font-[inherit]"
       />
     </div>
   )
@@ -94,7 +94,7 @@ export function Checkbox({ label, checked, onChange, className }: CheckboxProps)
         onChange={(e) => onChange(e.target.checked)}
         className="rounded border-slate-300"
       />
-      <span className="text-slate-700">{label}</span>
+      <span className="text-slate-700 dark:text-slate-300">{label}</span>
     </label>
   )
 }
@@ -164,19 +164,19 @@ export function SearchableSelect({
 
   const isSm = size === 'sm'
   const inputCls = isSm
-    ? 'w-full rounded border border-slate-200 bg-white px-2 py-1 text-xs outline-none focus:border-slate-400 disabled:bg-slate-50 disabled:opacity-50'
-    : 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50 disabled:opacity-50'
+    ? 'w-full rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 dark:text-slate-200 px-2 py-1 text-xs outline-none focus:border-slate-400 disabled:bg-slate-50 dark:disabled:bg-slate-700 disabled:opacity-50'
+    : 'w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 dark:text-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50 dark:disabled:bg-slate-700 disabled:opacity-50'
   const dropdownCls = isSm
-    ? 'absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded shadow-lg max-h-48 overflow-y-auto'
-    : 'absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto'
+    ? 'absolute z-20 mt-1 w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded shadow-lg max-h-48 overflow-y-auto'
+    : 'absolute z-20 mt-1 w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg shadow-lg max-h-48 overflow-y-auto'
   const itemCls = isSm
-    ? 'w-full text-left px-2 py-1 text-xs hover:bg-slate-50 truncate'
-    : 'w-full text-left px-3 py-2 text-sm hover:bg-slate-50 truncate'
+    ? 'w-full text-left px-2 py-1 text-xs hover:bg-slate-50 dark:hover:bg-slate-700 dark:text-slate-200 truncate'
+    : 'w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 dark:text-slate-200 truncate'
 
   return (
     <div className={className}>
       {label && (
-        <label className="mb-1 block text-xs font-medium text-slate-500">
+        <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
           {label}{required && ' *'}
         </label>
       )}

@@ -21,7 +21,7 @@ export default async function HelenSettingsPage() {
     <div>
       <PageHeader
         title="Helen AI"
-        subtitle="Configure the Helen AI helpdesk agent — auto-acknowledgement, triage, and draft responses"
+        subtitle="Configure the Helen AI service desk agent — auto-acknowledgement, triage, and draft responses"
       />
       <HelenSettingsForm initialSettings={settingsMap} />
     </div>

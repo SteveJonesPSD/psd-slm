@@ -17,6 +17,26 @@ export async function getMyAiPreferences(): Promise<Record<string, string>> {
   return (data?.ai_preferences as Record<string, string>) || {}
 }
 
+export async function saveThemePreference(
+  theme: string
+): Promise<{ success?: boolean; error?: string }> {
+  if (!['light', 'dark', 'system'].includes(theme)) {
+    return { error: 'Invalid theme value' }
+  }
+  const user = await requireAuth()
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('users')
+    .update({ theme_preference: theme, updated_at: new Date().toISOString() })
+    .eq('id', user.id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/profile')
+  return { success: true }
+}
+
 export async function saveMyAiPreferences(
   prefs: Record<string, string>
 ): Promise<{ success?: boolean; error?: string }> {

@@ -45,7 +45,7 @@ export default async function HelpdeskPage({ searchParams }: { searchParams: Pro
       desktop={
         <div>
           <PageHeader
-            title="Helpdesk"
+            title="Service Desk"
             subtitle="Ticket management and support queue"
           />
 

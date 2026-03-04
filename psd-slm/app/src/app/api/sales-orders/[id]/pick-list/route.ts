@@ -52,20 +52,14 @@ export async function GET(
     return NextResponse.json({ error: 'No allocated items to pick' }, { status: 404 })
   }
 
-  const customerName = (so.customers as { name: string } | null)?.name || null
+  const customerName = ((so.customers as unknown) as { name: string } | null)?.name || null
 
-  const lines = allocations.map((a: {
-    id: string
-    quantity_allocated: number
-    serial_numbers: string[] | null
-    sales_order_lines: { id: string; description: string; products: { sku: string } | null } | null
-    stock_locations: { name: string } | null
-  }) => ({
-    id: a.id,
-    description: (a.sales_order_lines as { description: string } | null)?.description || '',
-    sku: ((a.sales_order_lines as { products: { sku: string } | null } | null)?.products as { sku: string } | null)?.sku || null,
-    quantity: a.quantity_allocated,
-    location: (a.stock_locations as { name: string } | null)?.name || 'MAIN',
+  const lines = allocations.map((a: Record<string, unknown>) => ({
+    id: a.id as string,
+    description: ((a.sales_order_lines as Record<string, unknown> | null)?.description as string) || '',
+    sku: (((a.sales_order_lines as Record<string, unknown> | null)?.products as { sku: string } | null) as unknown as { sku: string } | null)?.sku || null,
+    quantity: a.quantity_allocated as number,
+    location: ((a.stock_locations as unknown as { name: string } | null))?.name || 'MAIN',
     serialNumbers: (a.serial_numbers as string[]) || [],
   }))
 

@@ -10,13 +10,13 @@ export default async function HelenPage() {
   return (
     <div>
       <PageHeader
-        title="Helen — Helpdesk Agent"
+        title="Helen — Service Desk Agent"
         subtitle="AI assistant for support ticket queries, SLA information, and troubleshooting guidance"
       />
       <AgentChat
         agentId="helen"
         agentName="Helen"
-        agentRole="Helpdesk Agent"
+        agentRole="Service Desk Agent"
         agentColor="#8b5cf6"
         apiEndpoint="/api/agents/helen"
         userName={user.firstName}

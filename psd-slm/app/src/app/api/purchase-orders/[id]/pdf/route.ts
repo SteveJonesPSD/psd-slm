@@ -55,12 +55,12 @@ export async function GET(
       .maybeSingle(),
   ])
 
-  const pdfLines = (lines || []).map((l: { id: string; description: string; quantity: number; unit_cost: number; products: { sku: string } | null }) => ({
-    id: l.id,
-    description: l.description,
-    quantity: l.quantity,
-    unit_cost: l.unit_cost,
-    sku: (l.products as { sku: string } | null)?.sku || null,
+  const pdfLines = (lines || []).map((l: Record<string, unknown>) => ({
+    id: l.id as string,
+    description: l.description as string,
+    quantity: l.quantity as number,
+    unit_cost: l.unit_cost as number,
+    sku: ((l.products as { sku: string } | null) as { sku: string } | null)?.sku || null,
   }))
 
   try {

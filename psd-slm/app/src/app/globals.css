@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   --font-sans: var(--font-dm-sans);
 }
@@ -11,4 +13,113 @@
 
 body {
   margin: 0;
+}
+
+/* Dark mode overrides for common patterns */
+.dark {
+  color-scheme: dark;
+}
+
+/* Cards, panels, modals — bg-white surfaces */
+.dark .bg-white {
+  background-color: rgb(30 41 59); /* slate-800 */
+}
+
+/* Borders */
+.dark .border-gray-200 {
+  border-color: rgb(51 65 85); /* slate-700 */
+}
+
+.dark .border-gray-300 {
+  border-color: rgb(71 85 105); /* slate-600 */
+}
+
+.dark .border-slate-100 {
+  border-color: rgb(51 65 85); /* slate-700 */
+}
+
+.dark .border-slate-200 {
+  border-color: rgb(71 85 105); /* slate-600 */
+}
+
+/* Table header background */
+.dark .bg-slate-50 {
+  background-color: rgb(30 41 59); /* slate-800 */
+}
+
+.dark .bg-gray-50 {
+  background-color: rgb(30 41 59); /* slate-800 */
+}
+
+.dark .bg-gray-50\/50 {
+  background-color: rgb(30 41 59 / 0.5);
+}
+
+/* Hover states */
+.dark .hover\:bg-slate-50:hover {
+  background-color: rgb(51 65 85); /* slate-700 */
+}
+
+.dark .hover\:bg-gray-50:hover {
+  background-color: rgb(51 65 85); /* slate-700 */
+}
+
+/* Text colours */
+.dark .text-slate-900 {
+  color: rgb(241 245 249); /* slate-100 */
+}
+
+.dark .text-slate-800 {
+  color: rgb(226 232 240); /* slate-200 */
+}
+
+.dark .text-slate-700 {
+  color: rgb(203 213 225); /* slate-300 */
+}
+
+.dark .text-slate-600 {
+  color: rgb(148 163 184); /* slate-400 */
+}
+
+.dark .text-gray-900 {
+  color: rgb(241 245 249); /* slate-100 */
+}
+
+.dark .text-gray-700 {
+  color: rgb(203 213 225); /* slate-300 */
+}
+
+.dark .text-gray-600 {
+  color: rgb(148 163 184); /* slate-400 */
+}
+
+/* Modal overlays */
+.dark .bg-black\/50 {
+  background-color: rgb(0 0 0 / 0.7);
+}
+
+/* Input backgrounds in dark mode */
+.dark input,
+.dark select,
+.dark textarea {
+  color-scheme: dark;
+}
+
+/* Scrollbar styling for dark mode */
+.dark ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: rgb(30 41 59);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgb(71 85 105);
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgb(100 116 139);
 }

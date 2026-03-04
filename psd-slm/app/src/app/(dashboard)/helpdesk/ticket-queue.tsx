@@ -194,7 +194,7 @@ export function TicketQueue({ initialData, teamMembers, categories, brands, pend
           className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
         >
           <option value="">All Types</option>
-          <option value="helpdesk">Helpdesk</option>
+          <option value="helpdesk">Service Desk</option>
           <option value="onsite_job">Onsite Job</option>
         </select>
 

@@ -131,7 +131,7 @@ export function MobileTicketQueue({
     <div className="pb-4">
       {/* Header */}
       <div className="mb-3 flex items-center justify-between">
-        <h1 className="text-lg font-bold text-slate-900">Helpdesk</h1>
+        <h1 className="text-lg font-bold text-slate-900">Service Desk</h1>
         <div className="flex items-center gap-2">
           <Link
             href="/helpdesk/tickets/new"

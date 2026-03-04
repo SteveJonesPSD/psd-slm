@@ -30,7 +30,7 @@ const PRIORITIES = [
 
 const TYPES = [
   { value: '', label: 'All' },
-  { value: 'helpdesk', label: 'Helpdesk' },
+  { value: 'helpdesk', label: 'Service Desk' },
   { value: 'onsite_job', label: 'Onsite' },
 ]
 

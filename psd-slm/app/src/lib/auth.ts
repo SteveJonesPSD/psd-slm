@@ -12,6 +12,7 @@ export interface AuthUser {
   initials: string | null
   color: string | null
   avatarUrl: string | null
+  themePreference: string
   mustChangePassword: boolean
   role: {
     id: string
@@ -37,7 +38,7 @@ export const getUser = cache(async (): Promise<AuthUser | null> => {
   // Fetch app user with role join
   const { data: appUser } = await supabase
     .from('users')
-    .select('id, org_id, email, first_name, last_name, initials, color, avatar_url, must_change_password, role_id, roles(id, name, display_name)')
+    .select('id, org_id, email, first_name, last_name, initials, color, avatar_url, theme_preference, must_change_password, role_id, roles(id, name, display_name)')
     .eq('auth_id', authUser.id)
     .eq('is_active', true)
     .single()
@@ -66,6 +67,7 @@ export const getUser = cache(async (): Promise<AuthUser | null> => {
     initials: appUser.initials,
     color: appUser.color,
     avatarUrl: appUser.avatar_url,
+    themePreference: appUser.theme_preference ?? 'system',
     mustChangePassword: appUser.must_change_password,
     role: {
       id: role.id,

@@ -41,7 +41,7 @@ export function DataTable<T extends { id?: string }>({
 
   if (data.length === 0) {
     return (
-      <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-slate-400">
+      <div className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-10 text-center text-sm text-slate-400">
         {emptyMessage}
       </div>
     )
@@ -59,14 +59,14 @@ export function DataTable<T extends { id?: string }>({
 
   return (
     <div>
-      <div className="overflow-x-auto rounded-xl border border-gray-200">
+      <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-slate-700">
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr>
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500"
+                  className="whitespace-nowrap border-b-2 border-gray-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
                   style={{ textAlign: col.align || 'left' }}
                 >
                   {col.label}
@@ -79,8 +79,8 @@ export function DataTable<T extends { id?: string }>({
               <tr
                 key={row.id || startIdx + i}
                 onClick={() => onRowClick?.(row)}
-                className={`border-b border-slate-100 text-slate-700 ${
-                  onRowClick ? 'cursor-pointer hover:bg-slate-50' : ''
+                className={`border-b border-slate-100 dark:border-slate-700 text-slate-700 dark:text-slate-300 ${
+                  onRowClick ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700' : ''
                 }`}
               >
                 {columns.map((col) => (
@@ -118,8 +118,8 @@ export function DataTable<T extends { id?: string }>({
                 }}
                 className={`rounded px-2 py-1 text-xs ${
                   pageSize === opt
-                    ? 'bg-slate-800 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    ? 'bg-slate-800 text-white dark:bg-slate-600'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-400 dark:hover:bg-slate-600'
                 }`}
               >
                 {opt === 0 ? 'All' : opt}
@@ -132,7 +132,7 @@ export function DataTable<T extends { id?: string }>({
               type="button"
               disabled={safePage === 0 || showAll}
               onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium disabled:opacity-30 hover:bg-slate-50 disabled:hover:bg-transparent"
+              className="rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-1.5 text-xs font-medium disabled:opacity-30 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:hover:bg-transparent"
             >
               Prev
             </button>
@@ -145,7 +145,7 @@ export function DataTable<T extends { id?: string }>({
               type="button"
               disabled={safePage >= totalPages - 1 || showAll}
               onClick={() => setCurrentPage((p) => p + 1)}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium disabled:opacity-30 hover:bg-slate-50 disabled:hover:bg-transparent"
+              className="rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-1.5 text-xs font-medium disabled:opacity-30 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:hover:bg-transparent"
             >
               Next
             </button>

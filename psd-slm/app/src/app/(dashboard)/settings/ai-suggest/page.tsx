@@ -22,7 +22,7 @@ export default async function AiSuggestSettingsPage() {
     <div>
       <PageHeader
         title="AI Suggest"
-        subtitle="Configure AI response style and behaviour for helpdesk suggestions"
+        subtitle="Configure AI response style and behaviour for service desk suggestions"
       />
       <AiSuggestSettingsForm initialSettings={settingsMap} />
     </div>

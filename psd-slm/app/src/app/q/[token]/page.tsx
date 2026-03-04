@@ -56,7 +56,7 @@ export default async function PortalPage({ params }: PageProps) {
     contacts: rawQuote.contacts as unknown as { first_name: string; last_name: string; email: string | null } | null,
     brands: rawQuote.brands as unknown as { name: string; logo_path: string | null; phone: string | null; email: string | null; website: string | null; footer_text: string | null } | null,
     quote_groups: (rawQuote.quote_groups || []) as { id: string; name: string; sort_order: number }[],
-    quote_lines: ((rawQuote.quote_lines || []) as { id: string; group_id: string | null; sort_order: number; description: string; quantity: number; sell_price: number; is_optional: boolean; requires_contract: boolean; products: { product_type: string } | null }[])
+    quote_lines: ((rawQuote.quote_lines || []) as unknown as { id: string; group_id: string | null; sort_order: number; description: string; quantity: number; sell_price: number; is_optional: boolean; requires_contract: boolean; products: { product_type: string } | null }[])
       .filter((l) => !(l.products?.product_type === 'service' && l.sell_price === 0)),
   }
 

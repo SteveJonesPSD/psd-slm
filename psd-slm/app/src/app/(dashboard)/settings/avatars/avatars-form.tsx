@@ -14,7 +14,7 @@ interface AgentCard {
 }
 
 const AGENTS: AgentCard[] = [
-  { key: 'helen', settingKey: 'agent_helen_avatar', name: 'Helen', role: 'Helpdesk Agent', color: '#8b5cf6' },
+  { key: 'helen', settingKey: 'agent_helen_avatar', name: 'Helen', role: 'Service Desk Agent', color: '#8b5cf6' },
   { key: 'jasper', settingKey: 'agent_jasper_avatar', name: 'Jasper', role: 'Sales Agent', color: '#3b82f6' },
   { key: 'lucia', settingKey: 'agent_lucia_avatar', name: 'Lucia', role: 'Administration Agent', color: '#10b981' },
 ]

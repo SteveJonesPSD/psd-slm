@@ -130,13 +130,15 @@ export default async function DeliveryNoteDetailPage({ params }: PageProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {dn.lines.map((line: { id: string; description: string; quantity: number; serial_numbers: string[] | null; products: { sku: string } | null }) => (
-                <tr key={line.id}>
-                  <td className="px-5 py-2.5 font-medium">{line.description}</td>
+              {dn.lines.map((line: Record<string, unknown>) => {
+                const prod = Array.isArray(line.products) ? line.products[0] : line.products
+                return (
+                <tr key={line.id as string}>
+                  <td className="px-5 py-2.5 font-medium">{line.description as string}</td>
                   <td className="px-5 py-2.5 font-mono text-xs text-slate-400">
-                    {(line.products as { sku: string } | null)?.sku || '\u2014'}
+                    {(prod as { sku: string } | null)?.sku || '\u2014'}
                   </td>
-                  <td className="px-5 py-2.5 text-right">{line.quantity}</td>
+                  <td className="px-5 py-2.5 text-right">{line.quantity as number}</td>
                   <td className="px-5 py-2.5">
                     {(line.serial_numbers as string[] | null)?.length ? (
                       <span className="text-xs font-mono text-slate-500">
@@ -145,7 +147,7 @@ export default async function DeliveryNoteDetailPage({ params }: PageProps) {
                     ) : '\u2014'}
                   </td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>

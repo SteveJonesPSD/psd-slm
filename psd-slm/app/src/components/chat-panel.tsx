@@ -242,16 +242,16 @@ export function ChatPanel({ agentAvatars }: { agentAvatars?: AgentAvatars }) {
 
       {/* Drawer */}
       <div
-        className={`fixed bottom-2 right-2 z-50 flex w-full flex-col rounded-xl bg-white shadow-2xl transition-transform duration-300 sm:w-[420px] h-[50vh] min-h-[320px] max-h-[calc(100vh-16px)] ${
+        className={`fixed bottom-2 right-2 z-50 flex w-full flex-col rounded-xl bg-white dark:bg-slate-800 shadow-2xl transition-transform duration-300 sm:w-[420px] h-[50vh] min-h-[320px] max-h-[calc(100vh-16px)] ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 px-4 py-3">
           <div className="flex items-center gap-2.5">
             <AgentAvatar agent={agent} size={32} avatarUrl={agentAvatarUrl} />
             <div>
-              <h2 className="text-sm font-semibold text-slate-900">{agent.name}</h2>
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-white">{agent.name}</h2>
               <span
                 className="inline-block mt-0.5 rounded-full px-2 py-0.5 text-[11px] font-medium"
                 style={{ backgroundColor: `${agent.color}15`, color: agent.color }}
@@ -297,7 +297,7 @@ export function ChatPanel({ agentAvatars }: { agentAvatars?: AgentAvatars }) {
                   <button
                     key={q}
                     onClick={() => sendMessage(q)}
-                    className="block w-full rounded-lg border border-slate-200 px-3 py-2 text-left text-xs text-slate-600 transition-colors hover:bg-slate-50"
+                    className="block w-full rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 text-left text-xs text-slate-600 dark:text-slate-300 transition-colors hover:bg-slate-50 dark:hover:bg-slate-700"
                     style={{
                       borderColor: undefined,
                     }}
@@ -367,7 +367,7 @@ export function ChatPanel({ agentAvatars }: { agentAvatars?: AgentAvatars }) {
         </div>
 
         {/* Input */}
-        <div className="border-t border-slate-200 px-4 py-3">
+        <div className="border-t border-slate-200 dark:border-slate-700 px-4 py-3">
           <div className="flex items-end gap-2">
             <textarea
               ref={textareaRef}
@@ -377,7 +377,7 @@ export function ChatPanel({ agentAvatars }: { agentAvatars?: AgentAvatars }) {
               placeholder={`Message ${agent.name}...`}
               disabled={isLoading}
               rows={1}
-              className="flex-1 resize-none rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-1 disabled:opacity-50"
+              className="flex-1 resize-none rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-xs text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-1 disabled:opacity-50"
               style={{
                 maxHeight: '80px',
                 borderColor: undefined,

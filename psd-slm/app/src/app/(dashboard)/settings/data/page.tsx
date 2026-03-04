@@ -36,9 +36,9 @@ export default function DataSettingsPage() {
         <div className="rounded-xl border border-gray-200 bg-white p-6">
           <div className="flex items-start justify-between">
             <div>
-              <h3 className="text-base font-semibold text-slate-900">Seed Helpdesk Data</h3>
+              <h3 className="text-base font-semibold text-slate-900">Seed Service Desk Data</h3>
               <p className="mt-1 text-sm text-slate-500">
-                Populate helpdesk categories, tags, SLA plans, contracts, canned responses,
+                Populate service desk categories, tags, SLA plans, contracts, canned responses,
                 sample tickets, and KB articles. Idempotent — safe to run multiple times.
               </p>
             </div>

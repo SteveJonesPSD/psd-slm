@@ -18,8 +18,8 @@ export default async function HelpdeskSettingsPage() {
   return (
     <div>
       <PageHeader
-        title="Helpdesk Settings"
-        subtitle="Configure auto-close behaviour for helpdesk tickets"
+        title="Service Desk Settings"
+        subtitle="Configure auto-close behaviour for service desk tickets"
       />
       <AutoCloseSettingsForm initialSettings={settingsMap} />
     </div>

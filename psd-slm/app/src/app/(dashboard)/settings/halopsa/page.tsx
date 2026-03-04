@@ -5,7 +5,7 @@ export default function HaloPSASettingsPage() {
     <div>
       <PageHeader
         title="HaloPSA Integration"
-        subtitle="Connect your helpdesk and PSA system"
+        subtitle="Connect your service desk and PSA system"
       />
       <div className="rounded-xl border border-gray-200 bg-white p-8 text-center">
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
