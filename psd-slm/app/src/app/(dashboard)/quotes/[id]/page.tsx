@@ -230,7 +230,16 @@ export default async function QuoteDetailPage({ params }: PageProps) {
           </div>
         </div>
 
-        <QuoteDetailActions quote={quote} portalUrl={portalUrl} existingSoId={existingSo?.id || null} />
+        <QuoteDetailActions
+          quote={quote}
+          portalUrl={portalUrl}
+          existingSoId={existingSo?.id || null}
+          contact={contact ? { first_name: contact.first_name, last_name: contact.last_name, email: contact.email } : null}
+          customer={customer ? { name: customer.name } : null}
+          brand={brand ? { name: brand.name } : null}
+          assignedUser={assignedUser ? { id: assignedUser.id, first_name: assignedUser.first_name, last_name: assignedUser.last_name } : null}
+          totalIncVat={grandTotal}
+        />
       </div>
 
       {/* Stats */}

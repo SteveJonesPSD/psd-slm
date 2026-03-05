@@ -1,23 +1,48 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
 import { renderToBuffer } from '@react-pdf/renderer'
 import React from 'react'
 import { QuotePdfDocument } from './quote-pdf-document'
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
+  const { searchParams } = new URL(request.url)
+  const portalToken = searchParams.get('token')
 
-  try {
-    await requirePermission('quotes', 'view')
-  } catch {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  let supabase: ReturnType<typeof createAdminClient> | Awaited<ReturnType<typeof createClient>>
+
+  if (portalToken) {
+    // Token-based access for portal PDF download (no auth required)
+    const adminClient = createAdminClient()
+
+    // Validate token matches this quote
+    const { data: tokenCheck } = await adminClient
+      .from('quotes')
+      .select('id')
+      .eq('id', id)
+      .eq('portal_token', portalToken)
+      .single()
+
+    if (!tokenCheck) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 403 })
+    }
+
+    supabase = adminClient
+  } else {
+    // Authenticated access
+    try {
+      await requirePermission('quotes', 'view')
+    } catch {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    supabase = await createClient()
   }
-
-  const supabase = await createClient()
 
   const { data: quote } = await supabase
     .from('quotes')
@@ -83,7 +108,7 @@ export async function GET(
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename="${quote.quote_number}.pdf"`,
+        'Content-Disposition': `${portalToken ? 'attachment' : 'inline'}; filename="${quote.quote_number}.pdf"`,
       },
     })
   } catch (pdfError) {

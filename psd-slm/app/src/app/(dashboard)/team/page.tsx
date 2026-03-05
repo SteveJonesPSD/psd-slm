@@ -1,22 +1,33 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getUser } from '@/lib/auth'
 import { PageHeader } from '@/components/ui/page-header'
 import { TeamTable } from './team-table'
 import type { User, Role } from '@/types/database'
+import type { UserMailCredential } from '@/lib/email/types'
 
 type UserWithRole = User & { roles: { id: string; name: string; display_name: string } }
 
 export default async function TeamPage() {
   const supabase = await createClient()
+  const user = await getUser()
 
-  const { data: users } = await supabase
-    .from('users')
-    .select('*, roles(id, name, display_name)')
-    .order('first_name')
+  const [{ data: users }, { data: roles }] = await Promise.all([
+    supabase.from('users').select('*, roles(id, name, display_name)').order('first_name'),
+    supabase.from('roles').select('id, name, display_name').order('sort_order'),
+  ])
 
-  const { data: roles } = await supabase
-    .from('roles')
-    .select('id, name, display_name')
-    .order('sort_order')
+  // Fetch mail credentials (admin client to see all users' creds)
+  let mailCredentials: UserMailCredential[] = []
+  if (user && ['super_admin', 'admin'].includes(user.role.name)) {
+    const adminSupabase = createAdminClient()
+    const { data: creds } = await adminSupabase
+      .from('user_mail_credentials')
+      .select('*')
+      .eq('org_id', user.orgId)
+      .eq('is_active', true)
+    mailCredentials = (creds || []) as UserMailCredential[]
+  }
 
   const allUsers = (users as UserWithRole[]) || []
   const activeCount = allUsers.filter((u) => u.is_active).length
@@ -35,6 +46,7 @@ export default async function TeamPage() {
       <TeamTable
         users={allUsers}
         roles={(roles as Pick<Role, 'id' | 'name' | 'display_name'>[]) || []}
+        mailCredentials={mailCredentials}
       />
     </div>
   )

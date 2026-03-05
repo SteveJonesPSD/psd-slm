@@ -76,6 +76,37 @@ export interface EmailAttachmentMeta {
   storageKey: string
 }
 
+// Per-user delegated OAuth credentials for sending from personal mailboxes
+export interface UserMailCredential {
+  id: string
+  org_id: string
+  user_id: string
+  email_address: string
+  display_name: string | null
+  access_token: string | null
+  refresh_token: string
+  token_expires_at: string
+  granted_at: string
+  granted_by: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface QuoteEmailSend {
+  id: string
+  org_id: string
+  quote_id: string
+  send_method: 'pdf' | 'portal' | 'both'
+  sender_user_id: string
+  sender_email: string
+  recipient_addresses: string[]
+  subject: string
+  graph_message_id: string | null
+  sent_at: string
+  created_at: string
+}
+
 // Microsoft Graph API types
 
 export interface GraphMessage {

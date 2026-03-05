@@ -5,22 +5,29 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Modal } from '@/components/ui/modal'
 import { useAuth } from '@/components/auth-provider'
-import { sendQuoteToCustomer, deleteQuote, createRevision, duplicateQuote, addSupplierLinesToQuote, manuallyAcceptQuote } from '../actions'
+import { deleteQuote, createRevision, duplicateQuote, addSupplierLinesToQuote, manuallyAcceptQuote } from '../actions'
 import { SupplierQuoteModal, type MergeLinesData } from '../supplier-quote-modal'
 import { SaveAsTemplateModal } from './save-as-template-modal'
 import { AiAcceptModal } from './ai-accept-modal'
+import { SendQuoteModal } from './send-quote-modal'
 import type { Quote } from '@/types/database'
 
 interface QuoteDetailActionsProps {
   quote: Quote
   portalUrl: string | null
   existingSoId: string | null
+  contact: { first_name: string; last_name: string; email: string | null } | null
+  customer: { name: string } | null
+  brand: { name: string } | null
+  assignedUser: { id: string; first_name: string; last_name: string } | null
+  totalIncVat: number
 }
 
-export function QuoteDetailActions({ quote, portalUrl, existingSoId }: QuoteDetailActionsProps) {
+export function QuoteDetailActions({ quote, portalUrl, existingSoId, contact, customer, brand, assignedUser, totalIncVat }: QuoteDetailActionsProps) {
   const router = useRouter()
   const { hasPermission } = useAuth()
   const [showSendModal, setShowSendModal] = useState(false)
+  const [showResendModal, setShowResendModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [showRevisionModal, setShowRevisionModal] = useState(false)
   const [showSaveAsTemplate, setShowSaveAsTemplate] = useState(false)
@@ -29,7 +36,6 @@ export function QuoteDetailActions({ quote, portalUrl, existingSoId }: QuoteDeta
   const [showAiAcceptModal, setShowAiAcceptModal] = useState(false)
   const [acceptPo, setAcceptPo] = useState('')
   const [accepting, setAccepting] = useState(false)
-  const [sending, setSending] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [acting, setActing] = useState(false)
 
@@ -37,17 +43,6 @@ export function QuoteDetailActions({ quote, portalUrl, existingSoId }: QuoteDeta
   const canDelete = hasPermission('quotes', 'delete')
   const canCreate = hasPermission('quotes', 'create')
   const canCreateTemplate = hasPermission('templates', 'create')
-
-  const handleSend = async () => {
-    setSending(true)
-    const result = await sendQuoteToCustomer(quote.id)
-    setSending(false)
-    if ('error' in result && result.error) {
-      alert(result.error)
-    } else {
-      setShowSendModal(false)
-    }
-  }
 
   const handleDelete = async () => {
     setDeleting(true)
@@ -179,6 +174,17 @@ export function QuoteDetailActions({ quote, portalUrl, existingSoId }: QuoteDeta
           </Button>
         )}
 
+        {/* Resend — only for sent quotes */}
+        {canEdit && quote.status === 'sent' && (
+          <Button
+            size="sm"
+            variant="blue"
+            onClick={() => setShowResendModal(true)}
+          >
+            Resend
+          </Button>
+        )}
+
         {/* Accept Quote — only for sent quotes */}
         {canEdit && quote.status === 'sent' && (
           <Button
@@ -268,25 +274,31 @@ export function QuoteDetailActions({ quote, portalUrl, existingSoId }: QuoteDeta
 
       {/* Send Modal */}
       {showSendModal && (
-        <Modal title="Send Quote to Customer" onClose={() => setShowSendModal(false)}>
-          <p className="text-sm text-slate-600 mb-4">
-            This will mark the quote as <strong>Sent</strong> and make it accessible via the customer portal.
-          </p>
-          {portalUrl && (
-            <div className="mb-4 p-3 bg-slate-50 rounded-lg">
-              <div className="text-xs font-medium text-slate-400 mb-1">Portal Link</div>
-              <div className="text-sm text-slate-700 break-all">{portalUrl}</div>
-            </div>
-          )}
-          <div className="flex justify-end gap-2">
-            <Button size="sm" variant="default" onClick={() => setShowSendModal(false)}>
-              Cancel
-            </Button>
-            <Button size="sm" variant="blue" onClick={handleSend} disabled={sending}>
-              {sending ? 'Sending...' : 'Send Quote'}
-            </Button>
-          </div>
-        </Modal>
+        <SendQuoteModal
+          quote={quote}
+          contact={contact}
+          customer={customer}
+          brand={brand}
+          assignedUser={assignedUser}
+          portalUrl={portalUrl}
+          totalIncVat={totalIncVat}
+          onClose={() => setShowSendModal(false)}
+        />
+      )}
+
+      {/* Resend Modal */}
+      {showResendModal && (
+        <SendQuoteModal
+          quote={quote}
+          contact={contact}
+          customer={customer}
+          brand={brand}
+          assignedUser={assignedUser}
+          portalUrl={portalUrl}
+          totalIncVat={totalIncVat}
+          isResend
+          onClose={() => setShowResendModal(false)}
+        />
       )}
 
       {/* Revision Confirmation Modal */}

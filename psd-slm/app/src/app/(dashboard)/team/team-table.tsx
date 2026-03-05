@@ -10,13 +10,16 @@ import { Modal } from '@/components/ui/modal'
 import { Input, Select, Checkbox } from '@/components/ui/form-fields'
 import { useAuth } from '@/components/auth-provider'
 import { inviteUser, updateUser, deactivateUser, reactivateUser, resetPassword } from './actions'
+import { disconnectMailCredential } from '@/app/(dashboard)/quotes/send-actions'
 import type { User, Role } from '@/types/database'
+import type { UserMailCredential } from '@/lib/email/types'
 
 type UserWithRole = User & { roles: { id: string; name: string; display_name: string } }
 
 interface TeamTableProps {
   users: UserWithRole[]
   roles: Pick<Role, 'id' | 'name' | 'display_name'>[]
+  mailCredentials?: UserMailCredential[]
 }
 
 const PRESET_COLOURS = [
@@ -35,7 +38,7 @@ const EMPTY_FORM = {
   avatar_url: '' as string | null,
 }
 
-export function TeamTable({ users, roles }: TeamTableProps) {
+export function TeamTable({ users, roles, mailCredentials = [] }: TeamTableProps) {
   const router = useRouter()
   const { user: currentUser, hasPermission } = useAuth()
 
@@ -59,6 +62,38 @@ export function TeamTable({ users, roles }: TeamTableProps) {
   const [resetError, setResetError] = useState('')
   const [avatarUploading, setAvatarUploading] = useState(false)
   const avatarInputRef = useRef<HTMLInputElement>(null)
+  const [connectingMailFor, setConnectingMailFor] = useState<string | null>(null)
+
+  const getMailCred = (userId: string) => mailCredentials.find(c => c.user_id === userId)
+
+  const handleConnectMailbox = async (userId: string) => {
+    setConnectingMailFor(userId)
+    try {
+      const res = await fetch(`/api/auth/mail-connect?user_id=${userId}`)
+      const data = await res.json()
+      if (data.authorizeUrl) {
+        window.location.href = data.authorizeUrl
+      } else {
+        alert(data.error || 'Failed to initiate mailbox connection')
+      }
+    } catch {
+      alert('Failed to connect mailbox')
+    } finally {
+      setConnectingMailFor(null)
+    }
+  }
+
+  const handleDisconnectMailbox = async (userId: string) => {
+    const cred = getMailCred(userId)
+    if (!cred) return
+    if (!confirm(`Disconnect ${cred.email_address}? This user won't be able to send quotes via email.`)) return
+    const result = await disconnectMailCredential(userId)
+    if (result.error) {
+      alert(result.error)
+    } else {
+      router.refresh()
+    }
+  }
 
   const filtered = users.filter((u) => {
     if (!showInactive && !u.is_active) return false
@@ -289,6 +324,24 @@ export function TeamTable({ users, roles }: TeamTableProps) {
           <Badge label="Inactive" color="#9ca3af" bg="#f3f4f6" />
         ),
     },
+    {
+      key: 'mailbox',
+      label: 'Email Sending',
+      nowrap: true,
+      render: (r) => {
+        const cred = getMailCred(r.id)
+        if (!r.is_active) return <span className="text-xs text-slate-300">&mdash;</span>
+        if (cred) {
+          return (
+            <div className="flex items-center gap-1.5">
+              <Badge label="Connected" color="#059669" bg="#ecfdf5" />
+              <span className="text-[11px] text-slate-400">{cred.email_address}</span>
+            </div>
+          )
+        }
+        return <Badge label="Not connected" color="#9ca3af" bg="#f3f4f6" />
+      },
+    },
   ]
 
   if (showActions) {
@@ -307,6 +360,25 @@ export function TeamTable({ users, roles }: TeamTableProps) {
                 onClick={(e) => { e.stopPropagation(); openEdit(r) }}
               >
                 Edit
+              </Button>
+            )}
+            {canEdit && r.is_active && !getMailCred(r.id) && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={(e) => { e.stopPropagation(); handleConnectMailbox(r.id) }}
+                disabled={connectingMailFor === r.id}
+              >
+                {connectingMailFor === r.id ? 'Connecting...' : 'Connect Mailbox'}
+              </Button>
+            )}
+            {canEdit && r.is_active && getMailCred(r.id) && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={(e) => { e.stopPropagation(); handleDisconnectMailbox(r.id) }}
+              >
+                Disconnect
               </Button>
             )}
             {canEdit && !isSelf && r.is_active && (
