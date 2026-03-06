@@ -188,7 +188,7 @@ export default async function QuoteDetailPage({ params }: PageProps) {
   )
 
   const desktopDetail = (
-    <div>
+    <div className="pb-16">
       {/* Back link */}
       <Link
         href="/quotes"
@@ -412,7 +412,7 @@ export default async function QuoteDetailPage({ params }: PageProps) {
                 <table className="w-full text-sm">
                   <thead>
                     <tr>
-                      <th className="px-5 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">SKU</th>
+                      <th className="px-5 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 max-w-[160px]">SKU</th>
                       <th className="px-5 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Description</th>
                       <th className="px-5 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">Route</th>
                       <th className="px-5 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Supplier</th>
@@ -436,7 +436,7 @@ export default async function QuoteDetailPage({ params }: PageProps) {
 
                       return (
                         <tr key={line.id} className={`border-t border-slate-100 ${line.is_optional ? 'bg-slate-50/50' : ''}`}>
-                          <td className="px-5 py-2.5 whitespace-nowrap text-xs text-slate-400 font-mono">
+                          <td className="px-5 py-2.5 text-xs text-slate-400 font-mono max-w-[160px] break-words">
                             {line.products?.sku || '\u2014'}
                           </td>
                           <td className="px-5 py-2.5">
@@ -542,6 +542,36 @@ export default async function QuoteDetailPage({ params }: PageProps) {
 
       {/* Bottom Edit Button */}
       <QuoteBottomEdit quoteId={quote.id} status={quote.status} version={quote.version} />
+
+      {/* Floating totals bar */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm shadow-lg">
+        <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between gap-6">
+          <div className="flex items-center gap-6 text-sm">
+            <div>
+              <span className="text-slate-400 text-xs uppercase tracking-wide mr-1.5">Subtotal</span>
+              <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(subtotal)}</span>
+            </div>
+            <div>
+              <span className="text-slate-400 text-xs uppercase tracking-wide mr-1.5">Cost</span>
+              <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(totalCost)}</span>
+            </div>
+            <div>
+              <span className="text-slate-400 text-xs uppercase tracking-wide mr-1.5">Margin</span>
+              <span className={`font-semibold ${getMarginColor(totalCost, subtotal, marginThresholds.green, marginThresholds.amber)}`}>
+                {formatCurrency(marginAmt)} ({marginPct.toFixed(1)}%)
+              </span>
+            </div>
+            <div>
+              <span className="text-slate-400 text-xs uppercase tracking-wide mr-1.5">VAT</span>
+              <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(vatAmount)}</span>
+            </div>
+          </div>
+          <div className="text-right">
+            <span className="text-slate-400 text-xs uppercase tracking-wide mr-2">Grand Total</span>
+            <span className="text-lg font-bold text-slate-900 dark:text-white">{formatCurrency(grandTotal)}</span>
+          </div>
+        </div>
+      </div>
     </div>
   )
 
