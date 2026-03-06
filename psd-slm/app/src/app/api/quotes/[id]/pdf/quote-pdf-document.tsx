@@ -410,7 +410,7 @@ export function QuotePdfDocument({ quote, customer, contact, brand, groups, line
           </View>
         </View>
 
-        {/* Line Items (grouped for ordering, no group headers shown to customer) */}
+        {/* Line Items */}
         <View style={styles.tableHeader}>
           <Text style={[styles.tableHeaderText, styles.colDescription]}>Description</Text>
           <Text style={[styles.tableHeaderText, styles.colQty]}>Qty</Text>
@@ -418,33 +418,44 @@ export function QuotePdfDocument({ quote, customer, contact, brand, groups, line
           <Text style={[styles.tableHeaderText, styles.colTotal]}>Total</Text>
         </View>
 
-        {sortedGroups.flatMap((group) =>
-          nonOptionalLines
+        {sortedGroups.map((group) => {
+          const groupLines = nonOptionalLines
             .filter((l) => l.group_id === group.id)
             .sort((a, b) => a.sort_order - b.sort_order)
-        ).map((line) => (
-          <View key={line.id} style={styles.tableRow}>
-            <View style={styles.colDescription}>
-              <Text>
-                {line.description}
-                {line.requires_contract ? ' *' : ''}
-              </Text>
-              {line.requires_contract && (
-                <Text style={styles.contractBadge}>* Contract Required</Text>
+          if (groupLines.length === 0) return null
+          return (
+            <View key={group.id}>
+              {sortedGroups.length > 1 && (
+                <View style={styles.groupHeader}>
+                  <Text style={styles.groupName}>{group.name}</Text>
+                </View>
               )}
+              {groupLines.map((line) => (
+                <View key={line.id} style={styles.tableRow} wrap={false}>
+                  <View style={styles.colDescription}>
+                    <Text>
+                      {line.description}
+                      {line.requires_contract ? ' *' : ''}
+                    </Text>
+                    {line.requires_contract && (
+                      <Text style={styles.contractBadge}>* Contract Required</Text>
+                    )}
+                  </View>
+                  <Text style={styles.colQty}>{line.quantity}</Text>
+                  <Text style={styles.colPrice}>{formatCurrency(line.sell_price)}</Text>
+                  <Text style={styles.colTotal}>{formatCurrency(line.quantity * line.sell_price)}</Text>
+                </View>
+              ))}
             </View>
-            <Text style={styles.colQty}>{line.quantity}</Text>
-            <Text style={styles.colPrice}>{formatCurrency(line.sell_price)}</Text>
-            <Text style={styles.colTotal}>{formatCurrency(line.quantity * line.sell_price)}</Text>
-          </View>
-        ))}
+          )
+        })}
 
         {/* Optional Items */}
         {optionalLines.length > 0 && (
           <View style={styles.optionalSection}>
             <Text style={styles.optionalLabel}>Optional Items (not included in total)</Text>
             {optionalLines.map((line) => (
-              <View key={line.id} style={styles.tableRow}>
+              <View key={line.id} style={styles.tableRow} wrap={false}>
                 <Text style={styles.colDescription}>{line.description}</Text>
                 <Text style={styles.colQty}>{line.quantity}</Text>
                 <Text style={styles.colPrice}>{formatCurrency(line.sell_price)}</Text>
