@@ -84,7 +84,7 @@ export async function GET(
       supplier: supplier || null,
       soNumber: (salesOrder as { so_number: string } | null)?.so_number || null,
       lines: pdfLines,
-      brand: poBrand as PoPdfDocumentProps['brand'],
+      brand: poBrand as unknown as PoPdfDocumentProps['brand'],
     })
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
