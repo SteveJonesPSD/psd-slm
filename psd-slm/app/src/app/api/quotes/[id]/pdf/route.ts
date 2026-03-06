@@ -52,7 +52,7 @@ export async function GET(
       contacts!quotes_contact_id_fkey(first_name, last_name),
       brands(name, legal_entity, logo_path, logo_width, phone, fax, email, website, footer_text, default_terms, default_payment_terms_text, address_line1, address_line2, city, county, postcode, company_reg_number, vat_number),
       quote_groups(id, name, sort_order),
-      quote_lines(id, group_id, sort_order, description, quantity, sell_price, is_optional, requires_contract, products(product_type))
+      quote_lines(id, group_id, sort_order, description, quantity, sell_price, is_optional, requires_contract)
     `)
     .eq('id', id)
     .single()
@@ -74,7 +74,6 @@ export async function GET(
   const lines = (quote.quote_lines || []) as {
     id: string; group_id: string | null; sort_order: number; description: string;
     quantity: number; sell_price: number; is_optional: boolean; requires_contract: boolean;
-    products: { product_type: string } | null
   }[]
 
   try {
@@ -97,10 +96,7 @@ export async function GET(
       contact,
       brand,
       groups,
-      lines: lines.map((l) => ({
-        ...l,
-        is_hidden_service: l.products?.product_type === 'service' && l.sell_price === 0,
-      })),
+      lines,
       portalUrl,
     })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

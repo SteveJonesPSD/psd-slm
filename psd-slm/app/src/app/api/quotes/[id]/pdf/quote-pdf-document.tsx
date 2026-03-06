@@ -265,7 +265,6 @@ interface QuotePdfLine {
   sell_price: number
   is_optional: boolean
   requires_contract: boolean
-  is_hidden_service?: boolean
 }
 
 interface QuotePdfGroup {
@@ -325,10 +324,8 @@ interface QuotePdfDocumentProps {
 
 export function QuotePdfDocument({ quote, customer, contact, brand, groups, lines, portalUrl }: QuotePdfDocumentProps) {
   const sortedGroups = [...groups].sort((a, b) => a.sort_order - b.sort_order)
-  // Hide £0 service lines (e.g. absorbed delivery costs) from customer-facing PDF
-  const visibleLines = lines.filter((l) => !l.is_hidden_service)
-  const nonOptionalLines = visibleLines.filter((l) => !l.is_optional)
-  const optionalLines = visibleLines.filter((l) => l.is_optional)
+  const nonOptionalLines = lines.filter((l) => !l.is_optional)
+  const optionalLines = lines.filter((l) => l.is_optional)
 
   const subtotal = nonOptionalLines.reduce((sum, l) => sum + l.quantity * l.sell_price, 0)
   const vatAmount = subtotal * (quote.vat_rate / 100)
