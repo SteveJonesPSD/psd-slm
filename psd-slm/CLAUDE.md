@@ -43,9 +43,17 @@ Stock must never be auto-allocated to an SO from general inventory — the purch
 ---
 
 ## Database
-Schema deployed to Supabase (EU region). Key tables: `companies`, `contacts`, `products`, `suppliers`, `deal_registrations`, `deal_registration_lines`, `opportunities`, `quotes`, `quote_groups`, `quote_lines`, `quote_attributions`, `sales_orders`, `sales_order_lines`, `purchase_orders`, `purchase_order_lines`, `invoices`, `invoice_lines`, `commission_entries`, `commission_rates`, `activity_log`, `tickets`, `ticket_emails`, `mail_connections`, `mail_channels`, `customer_email_domains`, `chat_sessions`, `chat_messages`, `system_presence`, `contracts`, `contract_visit_slots`, `jobs`, `job_tasks`, `api_keys`, `user_mail_credentials`, `quote_email_sends`.
+Schema deployed to Supabase (EU region). Key tables: `companies`, `contacts`, `products`, `suppliers`, `deal_registrations`, `deal_registration_lines`, `opportunities`, `quotes`, `quote_groups`, `quote_lines`, `quote_attributions`, `sales_orders`, `sales_order_lines`, `purchase_orders`, `purchase_order_lines`, `invoices`, `invoice_lines`, `commission_entries`, `commission_rates`, `activity_log`, `tickets` (includes `auto_nudge_sent_at`), `ticket_emails`, `mail_connections`, `mail_channels`, `customer_email_domains`, `chat_sessions`, `chat_messages`, `system_presence`, `customer_contracts`, `contract_types`, `contract_visit_slots`, `jobs`, `job_tasks`, `api_keys`, `user_mail_credentials`, `quote_email_sends`, `user_working_hours`, `portal_users`, `portal_magic_links`.
 
 Key views: `v_margin_traceability`, `v_commission_summary`, `v_active_deal_pricing`, `v_ticket_summary`.
+
+### Contract Data Model (Unified)
+`customer_contracts` is the **single source of truth** for all contracts — both service desk (SLA/support hours) and visit scheduling. The old `support_contracts` table is deprecated and no longer queried.
+
+- `customer_contracts` — one contract per customer engagement. Key columns: `contract_type_id` (FK → `contract_types`), `sla_plan_id` (FK → `sla_plans`, nullable), `monthly_hours` (support hours allowance, nullable), `calendar_id` (FK → `visit_calendars`, nullable), `status` ('draft'/'active'/'expired'/'cancelled').
+- `contract_types` — defines what a contract includes: `name`, `includes_remote_support` (bool), `includes_telephone` (bool), `includes_onsite` (bool), `allowed_schedule_weeks` (int array), `default_sla_plan_id` (FK → `sla_plans`, nullable), `default_monthly_hours` (numeric, nullable). ProFlex 1–4 are the standard types. SLA inheritance: contract direct `sla_plan_id` → type `default_sla_plan_id` → org default SLA plan → null.
+- `tickets.customer_contract_id` — FK linking a ticket to its customer contract (for SLA resolution and entitlement badges). The old `tickets.contract_id` (→ `support_contracts`) is deprecated.
+- Entitlement badges on ticket detail derive from `contract_types.includes_remote_support/telephone/onsite` — not from an enum.
 
 ---
 
@@ -325,6 +333,32 @@ Per-user theme preference in `users.theme_preference` (`'light'`, `'dark'`, `'sy
 - **Polling — NEVER use server actions for recurring calls.** Server actions trigger RSC payload refresh, re-rendering server components and resetting client state. All polling uses `fetch()` to API routes or browser Supabase client.
 - **Polling state guards:** All polling hooks compare new data against previous value before `setState`. Use `useRef` with JSON string equality guard. Only call setter when data actually changed.
 - **Git:** Use feature branches (`feature/auth`, `feature/products`). Never `git add .` — only stage specific files each session created or modified.
+- **Versioning:** See the Versioning section below. Every commit MUST include an appropriate version bump in `lib/version.ts`.
+
+---
+
+## Versioning
+Single source of truth: `app/src/lib/version.ts` exports `APP_VERSION` and `BUILD_DATE`.
+
+**Format:** Semantic versioning — `MAJOR.MINOR.PATCH`
+- **MAJOR** — breaking changes, major rewrites, or significant platform milestones (e.g. multi-tenancy launch)
+- **MINOR** — new features, new modules, significant UI additions (e.g. new portal section, new scheduling view)
+- **PATCH** — bug fixes, small tweaks, styling changes, refactors, config updates
+
+**Rules — MANDATORY on every commit:**
+1. Before committing, bump the version in `app/src/lib/version.ts`:
+   - Update `APP_VERSION` with the new version string
+   - Update `BUILD_DATE` to today's date (`YYYY-MM-DD`)
+2. Include `lib/version.ts` in every commit's staged files
+3. Multiple changes in a single commit? Use the highest-impact bump (feature + bugfix = MINOR)
+4. If unsure between MINOR and PATCH, prefer MINOR for anything user-visible
+
+**Where version is displayed:**
+- Main login page (bottom, grey text)
+- Portal login page (bottom, grey text)
+- Organisation settings page (version + build date banner at top of form)
+
+**Current version:** Check `app/src/lib/version.ts`
 
 ---
 
@@ -337,18 +371,19 @@ Per-user theme preference in `users.theme_preference` (`'light'`, `'dark'`, `'sy
 6. ~~Global Settings~~ ✅ (org settings, brands, API key management, email templates, avatar management)
 7. ~~Quote Builder~~ ✅ (DR tie-in, PDF, customer portal, attribution, versioning, templates, notifications, e-signatures, attachments, AI quote generation from supplier PDFs, manual + AI-powered acceptance)
 7b. ~~Inbound PO Processing~~ ✅ (PDF upload, AI extraction via Claude, quote matching pipeline)
-7c. ~~Helpdesk & Ticketing~~ ✅ (ticket queue, SLA, contracts, canned responses, categories, tags, departments, KB, reports, customer portal, mobile views, Helen AI with triage/drafts/diagnostic assist, scratchpad, AutoGRUMP, ticket presence, contract entitlement badges). **UI label: "Service Desk" — internal code/routes/permissions remain `/helpdesk/` and `helpdesk.*`**. Ticket detail shows support entitlement badges (Remote/Telephone/Onsite) from the linked `support_contracts.contract_type`, or a red "No Contract" badge if none linked.
+7c. ~~Helpdesk & Ticketing~~ ✅ (ticket queue, SLA, contracts, canned responses, categories, tags, departments, KB, reports, customer portal, mobile views, Helen AI with triage/drafts/diagnostic assist/AI nudge, scratchpad, AutoGRUMP, ticket presence, contract entitlement badges). **UI label: "Service Desk" — internal code/routes/permissions remain `/helpdesk/` and `helpdesk.*`**. Ticket detail shows support entitlement badges (Remote/Telephone/Onsite) from `customer_contracts` → `contract_types.includes_remote_support/telephone/onsite`, or a red "No Contract" badge if none linked. Dynamic contract resolution: if ticket has no `customer_contract_id` but has a `customer_id`, `getTicket()` looks up the active contract at render time. SLA resolution: contract direct `sla_plan_id` → `contract_types.default_sla_plan_id` → org default SLA → null. Queries `customer_contracts` (not the deprecated `support_contracts`).
 8. ~~Sales Orders~~ ✅ (SO from accepted quote, line status transitions, receive goods with serial capture, delivery summary). **Service detection:** `isServiceItem()` in `lib/sales-orders.ts` checks `product_type === 'service'` — do NOT use `is_stocked`/`is_serialised` heuristics. All queries feeding SO creation must include `product_type` in the product select.
-8b. ~~Onsite Scheduling~~ ✅ (dispatch calendar, field engineer mobile app, job task templates, e-signatures, PDF reports, GPS logging)
+8b. ~~Onsite Scheduling~~ ✅ (dispatch calendar, field engineer mobile app, job task templates, e-signatures, PDF reports, GPS logging, conflict detection with travel gap checks, Smart Schedule with OSRM travel estimation)
 9. ~~Purchase Orders~~ ✅ (PO from SO, draft-first, receiving goods, price variance, PDF, stock-aware quantities, customer PO gate, auto-allocation on receipt, stocking orders)
 9b. ~~Stock & Fulfilment~~ ✅ (stock locations/levels, allocations, picking, delivery notes, fulfilment view, serial uniqueness, tablet-optimised picking, PO-linked serial pre-selection, stock unallocation with reason)
 10. ~~Invoicing~~ ✅ (full/partial invoicing, stat cards, credit notes, branded PDF, overdue detection, `quantity_invoiced` tracking)
 10b. **Commission** ← Next
-10c. ~~Contracts~~ ✅ (contract types, customer contracts, lines, entitlements, renewal chain, settings, seed data)
-10d. ~~Visit Scheduling~~ ✅ (academic year calendars, 4-week cycle patterns, ProFlex quick-fill, visit generation, bulk confirm, customer visit history)
+10c. ~~Contracts~~ ✅ (contract types with support entitlement booleans, customer contracts as unified table for both service desk SLA and visit scheduling, lines, entitlements, renewal chain, settings, seed data)
+10d. ~~Visit Scheduling~~ ✅ (academic year calendars, multi-calendar support, 4-week cycle patterns, extra weeks, ProFlex quick-fill, visit generation, bulk confirm, customer visit history)
 11. ~~AI Chat Agents~~ ✅ (Jasper/Helen/Lucia with tool-calling, floating chat panel, dedicated pages, persistent sessions, admin chat archive, markdown with auto-linking)
 12. ~~Engineer Stock Collection~~ ✅ (QR magic links, PDF slips, touch-to-confirm mobile UI, GPS capture, partial collection)
 13. ~~Email Integration~~ ✅ (Microsoft 365 Graph API, inbound polling, ticket creation/threading, outbound replies, auto-polling, domain matching, processing log)
+14. ~~Customer Portal~~ ✅ (magic link auth, dashboard, tickets, contracts, visits, quotes, orders, KB, admin impersonation, portal access management)
 
 **Upcoming / Planned:**
 - Xero integration (outbound invoice push, inbound payment polling — Engage is single source of truth)
@@ -356,6 +391,7 @@ Per-user theme preference in `users.theme_preference` (`'light'`, `'dark'`, `'sy
 - HaloPSA integration
 - Quote Templates module
 - Multi-tenancy (org isolation already in schema via `org_id`)
+- Encryption (field-level AES-256-GCM via DAL — see Security & GDPR section)
 
 ---
 
@@ -413,11 +449,68 @@ Per-user theme preference in `users.theme_preference` (`'light'`, `'dark'`, `'sy
 
 ---
 
+## AI Nudge (Follow-Up Prompts)
+Generates context-aware follow-up messages for tickets awaiting customer response, encouraging a reply or ticket closure.
+
+### Manual Nudge
+- **UI:** Fuchsia "AI Nudge" button in reply box (desktop + mobile), alongside AI Suggest (purple) and Canned Response (grey)
+- **API:** `POST /api/helpdesk/nudge` — Claude Haiku generates nudge using Helen persona + general guardrails + nudge-specific guardrails
+- **Output:** Populates reply box for agent review before sending. Agent can edit freely.
+- **Close link:** Appended automatically — `{siteUrl}/t/{portal_token}/close` with suggestion text
+
+### Auto-Nudge
+- **Trigger:** 50% of auto-close period elapsed, measured in **calendar time** (not business hours) — fires even over weekends
+- **Processing:** Runs inside `processAutoClose()` in `lib/helpdesk/auto-close.ts`. Checks `tickets.auto_nudge_sent_at` — only one nudge per waiting period.
+- **Generation:** Claude Haiku with Helen persona + general guardrails + nudge guardrails. Falls back to configurable template if AI fails.
+- **Delivery:** Sent as customer-facing message from "Helen (AI Assistant)". For email-origin tickets, also sends via Graph API with styled HTML close/reply buttons.
+- **Close link:** Every nudge (auto and manual) includes a link to `/t/{portal_token}/close` where the customer can close the ticket themselves.
+- **Email format:** HTML email with green "Close Ticket" button and indigo "View & Reply" button.
+- **Reset:** `auto_nudge_sent_at` resets whenever `waiting_since` resets (customer reply, status change, new agent reply).
+- **Exclusions:** `hold_open` tickets excluded. Requires auto-close to be enabled.
+
+### Customer Self-Close
+- **Page:** `/t/[token]/close` — public, unauthenticated. Confirmation screen with "Yes, Close My Ticket" / "No, I Still Need Help" buttons.
+- **API:** `POST /api/tickets/portal-close` — public route (in `proxy.ts` PUBLIC_ROUTES). Accepts portal token, closes ticket, adds customer message.
+
+### Settings
+- **Toggle:** `org_settings` category `helen`, key `helen_nudge_enabled`
+- **Guardrails:** `helen_nudge_guardrails` — nudge-specific rules injected into AI prompt alongside general Helen guardrails. Always visible in settings (applies to both manual and auto nudge).
+- **Fallback template:** `helen_nudge_template` — used if AI generation fails. Supports `{ticket_number}`, `{subject}`, `{customer_name}`, `{contact_name}` placeholders.
+- **Settings UI:** Fuchsia-themed "Auto-Nudge" card on Helen AI settings page (`/helpdesk/helen`)
+
+### Reply Box Button Colours
+- **Reply** — indigo (active state)
+- **Internal Note** — amber/yellow (always tinted, darker when active)
+- **AI Suggest** — purple
+- **AI Nudge** — fuchsia
+- **Canned Response** — grey
+
+### Migration
+- `20260403000006_auto_nudge.sql` — adds `auto_nudge_sent_at TIMESTAMPTZ` to `tickets`
+
+---
+
 ## Scheduling Module
 - **Job number format:** `JOB-{YEAR}-{NNNN}`
-- **RLS:** Uses `auth_org_id()` and `auth_has_permission()` helpers — NOT raw `user_roles` joins
+- **RLS:** Uses `auth_org_id()` and `auth_has_permission()` helpers — NOT raw `user_roles` joins. `auth_has_permission()` takes TWO arguments: `auth_has_permission('scheduling', 'admin')` — NOT dot-notation.
 - **SO → Job integration:** `requires_install` flag on SO; red icon if no linked job, green if linked
 - **Task response types:** `yes_no`, `text`, `date` — materialised from templates on job creation
+- **Conflict detection:** `POST /api/scheduling/check-conflicts` checks `jobs`, `activities`, AND `user_working_hours` for time overlaps, insufficient travel gaps (gap < `travel_buffer_minutes`), non-working days (hard block), and outside individual working hours (overridable). Conflict types: `time_overlap`, `no_travel_gap`, `annual_leave` (hard block), `training`, `other_non_job`. Annual leave + non-working days = hard block, no override. Job form fires conflict check with 500ms debounce when engineer + date + time are set.
+- **Smart Schedule:** `POST /api/scheduling/smart-schedule` computes suggested start times factoring in travel duration (OSRM) + buffer + individual working hours. Uses each engineer's individual end time (not just org default). Returns `hard_block` for non-working days. Skips non-working engineers in team suggestions. Modal UI with purple branding. Travel estimation: `lib/scheduling/travel.ts` uses Nominatim geocoding (postcode-first strategy for UK) + OSRM driving time — keyless, portable, self-hostable.
+- **Working hours (org-level):** `org_settings` keys `working_day_start`, `working_day_end`, `travel_buffer_minutes` (category: `scheduling`). Config UI at `/scheduling/config/working-hours`. `org_settings` unique constraint is `(org_id, setting_key)` — category is NOT part of the unique constraint.
+- **Working hours (individual):** `user_working_hours` table stores per-user, per-day overrides (day_of_week 1–7 ISO, is_working_day, start_time, end_time). If no row exists for a user+day, org defaults apply. Config UI at `/scheduling/config/individual-hours` (admin only). Calendar display: non-working days show hatched grey overlay (no override, drag disabled); reduced hours show amber hatched blocks before/after custom times (overridable).
+- **Conflict panel layout:** Sticky right sidebar (w-80) on the job form, hidden on mobile (`hidden lg:block`). Form expands from `max-w-3xl` to `max-w-5xl` when conflicts present.
+
+---
+
+## Visit Scheduling Module
+- **Multi-calendar:** Multiple calendars can be active simultaneously (e.g. 36-week and 39-week). `activateCalendar()` does NOT auto-archive others.
+- **Calendar assignment:** Each `customer_contract` has a `calendar_id` FK to `visit_calendars`. Visit generation filters slots to contracts assigned to the selected calendar.
+- **Week types:** Normal weeks participate in the 4-week cycle. Holiday weeks (`is_holiday`) are skipped entirely. Extra weeks (`is_extra`) are scheduled but don't participate in cycle rotation — visits generated for ALL slots regardless of cycle_week_numbers.
+- **Extra weeks:** Used in 39-week calendars for the 3 additional weeks beyond the standard 36. Since 39-week customers are always ProFlex 4 (daily), all slots apply.
+- **Allowed schedule weeks:** `contract_types.allowed_schedule_weeks INTEGER[]` controls which calendar lengths a type supports. ProFlex 1–3 = `{36}`, ProFlex 4 = `{36,39}`. Contract form bidirectionally filters: selecting a calendar filters contract types, selecting a type filters calendars.
+- **Visits per year calculation:** Uses `calendar_schedule_weeks` (from assigned calendar) instead of hardcoded 36. Falls back to 36 if no calendar assigned.
+- **View:** `v_contract_visit_slots` includes `calendar_id` from the parent contract.
 
 ---
 
@@ -455,6 +548,38 @@ Outbound quote emails sent from individual salespeople's M365 mailboxes via per-
 - **Send modal:** `quotes/[id]/send-quote-modal.tsx` — 2-step (choose method → compose). Supports PDF, portal link, or both. Fallback sender if assigned user has no connected mailbox. Zero-sell-price warning: if any non-optional lines have £0 sell price, an amber banner lists them and requires checkbox confirmation before sending.
 - **Portal PDF download:** PDF route supports `?token=` query param for unauthenticated access. `PortalPdfButton` on portal page.
 - **Team page:** "Email Sending" column + Connect/Disconnect mailbox buttons (admin only)
+
+---
+
+## Customer Portal
+Self-service portal for customer contacts. Accessible at `/portal/`. Uses its own auth system (magic link emails), not Supabase Auth.
+
+### Auth
+- **Tables:** `portal_users` (linked to `contacts` via `contact_id`, scoped by `org_id`), `portal_magic_links` (token-based, 15-min expiry)
+- **Flow:** Email → `/api/portal/auth/request` generates magic link → `/portal/auth/[token]` validates and creates session cookie (`portal_session`)
+- **Session:** `lib/portal/session.ts` reads/writes the `portal_session` cookie containing `{ portalUserId, contactId, customerId, orgId }`
+- **Layout:** `/portal/layout.tsx` checks session for all non-public paths. Public paths: `/portal/login`, `/portal/auth/`
+- **Proxy:** `proxy.ts` sets `x-pathname` header so server components can read the current path
+- **Org resolution:** Single-tenant — queries `organisations` table directly (no `NEXT_PUBLIC_ORG_ID` env var)
+- **Contacts scoping:** `contacts` table has NO `org_id` column — scope through `customers!inner(org_id)` join
+
+### Portal Modules
+- **Dashboard** (`/portal/dashboard`) — stat cards (open tickets, pending quotes, upcoming visits, active contracts) + activity feed
+- **Tickets/Helpdesk** (`/portal/helpdesk`) — view/create tickets, SLA resolution via `customer_contracts`
+- **Contracts** (`/portal/contracts`) — list/detail view of `customer_contracts` with visit slot schedules
+- **Visits** (`/portal/visits`) — week grid view (Mon–Fri columns, nav arrows, today highlight) of `visit_instances` via `customer_contracts`. Status-coloured cards (amber=scheduled, green=confirmed, blue=completed). Upcoming weeks summary below grid. Dashboard visit blocks match same colour scheme.
+- **Quotes** (`/portal/quotes`) — view sent quotes, accept/decline
+- **Orders** (`/portal/orders`) — view sales orders
+- **Knowledge Base** (`/portal/knowledge-base`) — public KB articles
+
+### Admin Side
+- **Portal access:** Granted/revoked from customer detail page (`customers/[id]/portal-access-section.tsx`)
+- **Permission:** Uses `customers.edit_all` (not `customers.edit`)
+- **Impersonation:** Purple "Impersonate" button on each active portal user in customer detail page. POSTs to `/api/portal/impersonate` (creates 1-hour impersonation session), then opens `/api/portal/impersonate/start?token=...` in new tab (sets `portal_sid` cookie and redirects to `/portal/dashboard`). Admin-only.
+- **Server actions:** `lib/portal/admin-actions.ts` (grant, revoke, resend magic link)
+
+### Data Access
+All portal data fetched via `createAdminClient()` (service role) since portal users don't have Supabase Auth sessions. All queries scoped by `ctx.customerId` + `ctx.orgId` from the portal session. Action files in `lib/portal/`: `dashboard-actions.ts`, `helpdesk-actions.ts`, `contracts-actions.ts`, `visits-actions.ts`, `quotes-actions.ts`, `orders-actions.ts`, `kb-actions.ts`, `contacts-actions.ts`.
 
 ---
 
