@@ -51,6 +51,8 @@ export default async function PipelinePage() {
         contacts={contacts || []}
         users={users || []}
         currentUser={user}
+        defaultOwner={user.viewPreferences.pipeline_owner}
+        defaultView={user.viewPreferences.pipeline_view}
       />
     </div>
   )

@@ -30,17 +30,19 @@ interface QuoteRow {
 interface QuotesTableProps {
   quotes: QuoteRow[]
   marginThresholds?: { green: number; amber: number }
+  defaultOwner?: string
+  defaultStatus?: string
 }
 
-export function QuotesTable({ quotes, marginThresholds }: QuotesTableProps) {
+export function QuotesTable({ quotes, marginThresholds, defaultOwner, defaultStatus }: QuotesTableProps) {
   const greenT = marginThresholds?.green ?? DEFAULT_MARGIN_GREEN
   const amberT = marginThresholds?.amber ?? DEFAULT_MARGIN_AMBER
   const router = useRouter()
   const { user } = useAuth()
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState(defaultStatus || '')
   const [typeFilter, setTypeFilter] = useState('')
-  const [ownerFilter, setOwnerFilter] = useState<'all' | 'mine'>('all')
+  const [ownerFilter, setOwnerFilter] = useState<'all' | 'mine'>(defaultOwner === 'mine' ? 'mine' : 'all')
   const [showRevised, setShowRevised] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [lostModal, setLostModal] = useState<{ id: string; quoteNumber: string } | null>(null)

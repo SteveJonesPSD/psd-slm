@@ -13,6 +13,7 @@ export interface AuthUser {
   color: string | null
   avatarUrl: string | null
   themePreference: string
+  viewPreferences: Record<string, string>
   mustChangePassword: boolean
   role: {
     id: string
@@ -41,7 +42,7 @@ export const getUser = cache(async (): Promise<AuthUser | null> => {
   const baseFields = 'id, org_id, email, first_name, last_name, initials, color, avatar_url, must_change_password, role_id, roles(id, name, display_name)'
   const { data: d1, error: e1 } = await supabase
     .from('users')
-    .select(`${baseFields}, theme_preference`)
+    .select(`${baseFields}, theme_preference, view_preferences`)
     .eq('auth_id', authUser.id)
     .eq('is_active', true)
     .single()
@@ -83,6 +84,7 @@ export const getUser = cache(async (): Promise<AuthUser | null> => {
     color: (appUser.color as string) ?? null,
     avatarUrl: (appUser.avatar_url as string) ?? null,
     themePreference: (appUser.theme_preference as string) ?? 'system',
+    viewPreferences: (appUser.view_preferences as Record<string, string>) ?? {},
     mustChangePassword: appUser.must_change_password as boolean,
     role: {
       id: role.id,

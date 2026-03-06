@@ -24,11 +24,13 @@ interface PipelineBoardProps {
   contacts: Pick<Contact, 'id' | 'customer_id' | 'first_name' | 'last_name'>[]
   users: UserPick[]
   currentUser: AuthUser
+  defaultOwner?: string
+  defaultView?: string
 }
 
 type ViewMode = 'kanban' | 'list'
 
-export function PipelineBoard({ opportunities, customers, contacts, users, currentUser }: PipelineBoardProps) {
+export function PipelineBoard({ opportunities, customers, contacts, users, currentUser, defaultOwner, defaultView }: PipelineBoardProps) {
   const router = useRouter()
 
   // Lookup maps
@@ -37,11 +39,12 @@ export function PipelineBoard({ opportunities, customers, contacts, users, curre
   const contactMap = useMemo(() => Object.fromEntries(contacts.map((c) => [c.id, `${c.first_name} ${c.last_name}`])), [contacts])
 
   // View state
-  const [view, setView] = useState<ViewMode>('kanban')
+  const [view, setView] = useState<ViewMode>((defaultView as ViewMode) || 'kanban')
 
-  // Filters
+  // Filters — preference > role fallback > all
   const isSalesRole = currentUser.role.name === 'sales'
-  const [assignedTo, setAssignedTo] = useState(isSalesRole ? currentUser.id : '')
+  const initialOwner = defaultOwner === 'mine' ? currentUser.id : (isSalesRole ? currentUser.id : '')
+  const [assignedTo, setAssignedTo] = useState(initialOwner)
   const [companySearch, setCompanySearch] = useState('')
   const [closeDateFrom, setCloseDateFrom] = useState('')
   const [closeDateTo, setCloseDateTo] = useState('')

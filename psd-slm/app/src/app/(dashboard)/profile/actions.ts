@@ -37,6 +37,36 @@ export async function saveThemePreference(
   return { success: true }
 }
 
+export async function getMyViewPreferences(): Promise<Record<string, string>> {
+  const user = await requireAuth()
+  const supabase = await createClient()
+
+  const { data } = await supabase
+    .from('users')
+    .select('view_preferences')
+    .eq('id', user.id)
+    .single()
+
+  return (data?.view_preferences as Record<string, string>) || {}
+}
+
+export async function saveMyViewPreferences(
+  prefs: Record<string, string>
+): Promise<{ success?: boolean; error?: string }> {
+  const user = await requireAuth()
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('users')
+    .update({ view_preferences: prefs, updated_at: new Date().toISOString() })
+    .eq('id', user.id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/profile')
+  return { success: true }
+}
+
 export async function saveMyAiPreferences(
   prefs: Record<string, string>
 ): Promise<{ success?: boolean; error?: string }> {

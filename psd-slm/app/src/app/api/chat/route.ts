@@ -47,6 +47,7 @@ async function getApiUser(supabase: Awaited<ReturnType<typeof createClient>>): P
     color: appUser.color,
     avatarUrl: appUser.avatar_url ?? null,
     themePreference: 'system',
+    viewPreferences: {},
     mustChangePassword: appUser.must_change_password,
     role: {
       id: role.id,

@@ -8,7 +8,7 @@ import { QuotesPageActions } from './quotes-page-actions'
 import { MobileQuoteList } from './mobile-quote-list'
 
 export default async function QuotesPage() {
-  await requirePermission('quotes', 'view')
+  const user = await requirePermission('quotes', 'view')
   const supabase = await createClient()
 
   const { data: quotes } = await supabase
@@ -24,6 +24,7 @@ export default async function QuotesPage() {
 
   const quotesData = quotes || []
   const marginThresholds = await getMarginThresholds()
+  const vp = user.viewPreferences
 
   return (
     <MobileDetector
@@ -35,7 +36,12 @@ export default async function QuotesPage() {
             subtitle={`${quotesData.length} quotes`}
             actions={<QuotesPageActions />}
           />
-          <QuotesTable quotes={quotesData} marginThresholds={marginThresholds} />
+          <QuotesTable
+            quotes={quotesData}
+            marginThresholds={marginThresholds}
+            defaultOwner={vp.quotes_owner}
+            defaultStatus={vp.quotes_status}
+          />
         </div>
       }
     />
