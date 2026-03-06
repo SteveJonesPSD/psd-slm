@@ -351,13 +351,23 @@ export async function POST(request: Request) {
       return fallback
     }
 
+    let extractedSku = str(['sku', 'part_number', 'model_number', 'mpn'])
+    let extractedSupplierSku = str(['supplier_sku', 'supplier_part_number', 'stock_code'])
+
+    // If only one SKU-type value found, use it for both fields
+    if (extractedSku && !extractedSupplierSku) {
+      extractedSupplierSku = extractedSku
+    } else if (!extractedSku && extractedSupplierSku) {
+      extractedSku = extractedSupplierSku
+    }
+
     const productData = {
       name: str(['product_name', 'name', 'title']) || pageData?.ogTitle || pageData?.title || '',
-      sku: str(['sku', 'part_number', 'model_number', 'mpn']),
+      sku: extractedSku,
       description: str(['description', 'short_description', 'summary']),
       manufacturer: str(['manufacturer', 'brand', 'vendor']),
       supplier_name: str(['supplier_name', 'supplier', 'distributor']),
-      supplier_sku: str(['supplier_sku', 'supplier_part_number', 'stock_code']),
+      supplier_sku: extractedSupplierSku,
       category_hint: str(['category_hint', 'category', 'product_category']),
       price: num(['price', 'buy_price', 'cost', 'unit_price']),
       price_is_ex_vat: bool('price_is_ex_vat', true),
@@ -395,6 +405,48 @@ export async function POST(request: Request) {
 
         if (partialMatch) {
           matched_supplier_id = partialMatch.id
+        }
+      }
+    }
+
+    // If no supplier matched by name, guess from similar products in catalogue
+    let supplier_guessed = false
+    if (!matched_supplier_id && (productData.sku || productData.manufacturer)) {
+      // Try to find products with similar SKU prefix or same manufacturer, then use their primary supplier
+      let guessQuery = supabase
+        .from('product_suppliers')
+        .select('supplier_id, products!inner(sku, manufacturer, org_id)')
+        .eq('is_preferred', true)
+        .eq('products.org_id', user.orgId)
+
+      if (productData.manufacturer) {
+        guessQuery = guessQuery.ilike('products.manufacturer', productData.manufacturer)
+      } else if (productData.sku && productData.sku.length >= 3) {
+        // Use first portion of SKU as prefix hint
+        const skuPrefix = productData.sku.substring(0, Math.min(productData.sku.length, 6))
+        guessQuery = guessQuery.ilike('products.sku', `${skuPrefix}%`)
+      }
+
+      const { data: similarProducts } = await guessQuery.limit(10)
+
+      if (similarProducts && similarProducts.length > 0) {
+        // Find the most common supplier_id
+        const supplierCounts = new Map<string, number>()
+        for (const sp of similarProducts) {
+          const count = supplierCounts.get(sp.supplier_id) || 0
+          supplierCounts.set(sp.supplier_id, count + 1)
+        }
+        let bestId = ''
+        let bestCount = 0
+        for (const [id, count] of supplierCounts) {
+          if (count > bestCount) {
+            bestId = id
+            bestCount = count
+          }
+        }
+        if (bestId) {
+          matched_supplier_id = bestId
+          supplier_guessed = true
         }
       }
     }
@@ -441,6 +493,7 @@ export async function POST(request: Request) {
       extracted: productData,
       matched_supplier_id,
       matched_category_id,
+      supplier_guessed,
       categories: categoriesRes.data || [],
       suppliers: suppliersRes.data || [],
       manufacturers,

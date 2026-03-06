@@ -5,6 +5,7 @@ import { requirePermission, requireAuth, hasPermission } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { logActivity } from '@/lib/activity-log'
 import { OPPORTUNITY_STAGE_CONFIG, type OpportunityStage } from '@/lib/opportunities'
+import { recalcOpportunityValue } from '@/lib/opportunity-value'
 
 // --- Create ---
 
@@ -241,6 +242,91 @@ export async function updateNotes(id: string, notes: string) {
   })
 
   revalidatePath(`/opportunities/${id}`)
+  return { success: true }
+}
+
+// --- Link Existing Quote ---
+
+export async function linkQuoteToOpportunity(quoteId: string, opportunityId: string) {
+  const user = await requireAuth()
+  const canEditAll = hasPermission(user, 'pipeline', 'edit_all')
+  const canEditOwn = hasPermission(user, 'pipeline', 'edit_own')
+  if (!canEditAll && !canEditOwn) throw new Error('Permission denied: pipeline.edit')
+  const supabase = await createClient()
+
+  // Verify opportunity exists
+  const { data: opp } = await supabase
+    .from('opportunities')
+    .select('id, title')
+    .eq('id', opportunityId)
+    .single()
+
+  if (!opp) return { error: 'Opportunity not found' }
+
+  // Verify quote exists and is not already linked
+  const { data: quote } = await supabase
+    .from('quotes')
+    .select('id, quote_number, opportunity_id')
+    .eq('id', quoteId)
+    .single()
+
+  if (!quote) return { error: 'Quote not found' }
+  if (quote.opportunity_id === opportunityId) return { error: 'Quote is already linked to this opportunity' }
+
+  const { error } = await supabase
+    .from('quotes')
+    .update({ opportunity_id: opportunityId })
+    .eq('id', quoteId)
+
+  if (error) return { error: error.message }
+
+  logActivity({
+    supabase,
+    user,
+    entityType: 'opportunity',
+    entityId: opportunityId,
+    action: 'updated',
+    details: { field: 'linked_quote', quote_id: quoteId, quote_number: quote.quote_number },
+  })
+
+  // Recalc opportunity estimated_value from linked quotes
+  await recalcOpportunityValue(supabase, opportunityId)
+
+  revalidatePath('/pipeline')
+  revalidatePath(`/opportunities/${opportunityId}`)
+  return { success: true }
+}
+
+// --- Unlink Quote ---
+
+export async function unlinkQuoteFromOpportunity(quoteId: string, opportunityId: string) {
+  const user = await requireAuth()
+  const canEditAll = hasPermission(user, 'pipeline', 'edit_all')
+  const canEditOwn = hasPermission(user, 'pipeline', 'edit_own')
+  if (!canEditAll && !canEditOwn) throw new Error('Permission denied: pipeline.edit')
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('quotes')
+    .update({ opportunity_id: null })
+    .eq('id', quoteId)
+    .eq('opportunity_id', opportunityId)
+
+  if (error) return { error: error.message }
+
+  logActivity({
+    supabase,
+    user,
+    entityType: 'opportunity',
+    entityId: opportunityId,
+    action: 'updated',
+    details: { field: 'unlinked_quote', quote_id: quoteId },
+  })
+
+  await recalcOpportunityValue(supabase, opportunityId)
+
+  revalidatePath('/pipeline')
+  revalidatePath(`/opportunities/${opportunityId}`)
   return { success: true }
 }
 

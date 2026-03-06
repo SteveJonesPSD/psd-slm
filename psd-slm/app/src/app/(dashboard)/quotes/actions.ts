@@ -5,6 +5,7 @@ import { requirePermission, requireAuth, hasPermission } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { logActivity } from '@/lib/activity-log'
 import { addBusinessDays } from '@/lib/utils'
+import { recalcOpportunityValue } from '@/lib/opportunity-value'
 
 // --- Quote validity helper ---
 
@@ -330,8 +331,13 @@ export async function updateQuote(
     details: { customer_id, line_count: lines.length },
   })
 
+  // Recalc opportunity value if linked
+  const opportunityId = (formData.get('opportunity_id') as string) || null
+  await recalcOpportunityValue(supabase, opportunityId)
+
   revalidatePath('/quotes')
   revalidatePath(`/quotes/${id}`)
+  if (opportunityId) revalidatePath(`/opportunities/${opportunityId}`)
   return { success: true }
 }
 
@@ -343,7 +349,7 @@ export async function deleteQuote(id: string) {
 
   const { data: quote } = await supabase
     .from('quotes')
-    .select('quote_number')
+    .select('quote_number, opportunity_id')
     .eq('id', id)
     .single()
 
@@ -362,6 +368,12 @@ export async function deleteQuote(id: string) {
     action: 'deleted',
     details: { quote_number: quote?.quote_number },
   })
+
+  // Recalc opportunity value if was linked
+  if (quote?.opportunity_id) {
+    await recalcOpportunityValue(supabase, quote.opportunity_id)
+    revalidatePath(`/opportunities/${quote.opportunity_id}`)
+  }
 
   revalidatePath('/quotes')
   return { success: true }
@@ -528,7 +540,10 @@ export async function createRevision(id: string, revisionNotes?: string) {
       vat_rate: original.vat_rate,
       customer_notes: original.customer_notes,
       internal_notes: original.internal_notes,
-      revision_notes: revisionNotes?.trim() || null,
+      revised_by: user.id,
+      revision_notes: revisionNotes?.trim()
+        ? `${user.firstName} ${user.lastName}: ${revisionNotes.trim()}`
+        : null,
       portal_token,
     })
     .select()
@@ -536,12 +551,13 @@ export async function createRevision(id: string, revisionNotes?: string) {
 
   if (error) return { error: error.message }
 
-  // Mark original as revised, storing its current status for reactivation
+  // Mark original as revised, clear its opportunity link (now on new version)
   await supabase
     .from('quotes')
     .update({
       status: 'revised',
       status_before_revised: original.status,
+      opportunity_id: null,
     })
     .eq('id', original.id)
 
@@ -619,6 +635,10 @@ export async function createRevision(id: string, revisionNotes?: string) {
     },
   })
 
+  // Recalc opportunity value (new revision now carries the link with potentially different lines)
+  await recalcOpportunityValue(supabase, original.opportunity_id)
+  if (original.opportunity_id) revalidatePath(`/opportunities/${original.opportunity_id}`)
+
   revalidatePath('/quotes')
   revalidatePath(`/quotes/${id}`)
   return { data: newQuote }
@@ -647,30 +667,34 @@ export async function reactivateQuote(id: string) {
   // Find the current active version(s) in the same family (not revised/superseded)
   const { data: activeVersions } = await supabase
     .from('quotes')
-    .select('id, status')
+    .select('id, status, opportunity_id')
     .eq('base_quote_number', target.base_quote_number)
     .not('status', 'in', '("revised","superseded")')
     .neq('id', id)
 
-  // Demote any active versions to revised
+  // Capture the opportunity_id from whichever active version holds it
+  let opportunityId: string | null = null
   if (activeVersions && activeVersions.length > 0) {
     for (const av of activeVersions) {
+      if (av.opportunity_id) opportunityId = av.opportunity_id
       await supabase
         .from('quotes')
         .update({
           status: 'revised',
           status_before_revised: av.status,
+          opportunity_id: null,
         })
         .eq('id', av.id)
     }
   }
 
-  // Promote the target — restore its previous status
+  // Promote the target — restore its previous status and take the opportunity link
   await supabase
     .from('quotes')
     .update({
       status: target.status_before_revised,
       status_before_revised: null,
+      ...(opportunityId ? { opportunity_id: opportunityId } : {}),
     })
     .eq('id', id)
 
@@ -685,6 +709,10 @@ export async function reactivateQuote(id: string) {
       restored_status: target.status_before_revised,
     },
   })
+
+  // Recalc opportunity value (reactivated quote may have different line values)
+  await recalcOpportunityValue(supabase, opportunityId)
+  if (opportunityId) revalidatePath(`/opportunities/${opportunityId}`)
 
   revalidatePath('/quotes')
   revalidatePath(`/quotes/${id}`)
@@ -1164,6 +1192,7 @@ export interface SupplierImportInput {
   assigned_to: string | null
   brand_id: string | null
   quote_type: string | null
+  title: string | null
   supplier_id: string | null
   new_supplier_name: string | null
   group_name: string
@@ -1223,6 +1252,7 @@ export async function createQuoteFromSupplierImport(input: SupplierImportInput) 
       base_quote_number: quote_number,
       status: 'draft',
       version: 1,
+      title: input.title || null,
       quote_type: input.quote_type || null,
       valid_until: await getDefaultValidUntil(supabase, user.orgId),
       vat_rate: 20,

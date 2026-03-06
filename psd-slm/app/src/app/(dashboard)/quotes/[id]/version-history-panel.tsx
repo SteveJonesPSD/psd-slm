@@ -16,7 +16,9 @@ interface VersionRow {
   revision_notes: string | null
   created_at: string
   assigned_to: string | null
+  revised_by: string | null
   users: { first_name: string; last_name: string } | null
+  revised_user: { first_name: string; last_name: string } | null
 }
 
 interface VersionHistoryPanelProps {
@@ -33,6 +35,7 @@ export function VersionHistoryPanel({ versions, currentQuoteId }: VersionHistory
   if (versions.length <= 1) return null
 
   const sorted = [...versions].sort((a, b) => b.version - a.version)
+  const hasRevisedBy = sorted.some((v) => v.revised_by && v.revised_by !== v.assigned_to)
 
   const handleReactivate = async (quoteId: string) => {
     setReactivatingId(quoteId)
@@ -76,6 +79,9 @@ export function VersionHistoryPanel({ versions, currentQuoteId }: VersionHistory
                 <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Status</th>
                 <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Date</th>
                 <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Owner</th>
+                {hasRevisedBy && (
+                  <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Revised By</th>
+                )}
                 <th className="px-5 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500"></th>
               </tr>
             </thead>
@@ -115,6 +121,13 @@ export function VersionHistoryPanel({ versions, currentQuoteId }: VersionHistory
                     <td className="px-5 py-2.5 text-slate-500">
                       {v.users ? `${v.users.first_name} ${v.users.last_name}` : '\u2014'}
                     </td>
+                    {hasRevisedBy && (
+                      <td className="px-5 py-2.5 text-slate-500">
+                        {v.revised_by && v.revised_by !== v.assigned_to && v.revised_user
+                          ? `${v.revised_user.first_name} ${v.revised_user.last_name}`
+                          : '\u2014'}
+                      </td>
+                    )}
                     <td className="px-5 py-2.5 text-right">
                       {isRevised && !isCurrent && (
                         <Button

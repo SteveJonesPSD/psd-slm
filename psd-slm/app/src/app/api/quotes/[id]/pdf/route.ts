@@ -51,6 +51,7 @@ export async function GET(
       customers(name, address_line1, address_line2, city, postcode),
       contacts!quotes_contact_id_fkey(first_name, last_name),
       brands(name, legal_entity, logo_path, logo_width, phone, fax, email, website, footer_text, default_terms, default_payment_terms_text, address_line1, address_line2, city, county, postcode, company_reg_number, vat_number),
+      assigned_user:users!quotes_assigned_to_fkey(first_name, last_name),
       quote_groups(id, name, sort_order),
       quote_lines(id, group_id, sort_order, description, quantity, sell_price, is_optional, requires_contract)
     `)
@@ -70,6 +71,7 @@ export async function GET(
     address_line1: string | null; address_line2: string | null; city: string | null;
     county: string | null; postcode: string | null; company_reg_number: string | null; vat_number: string | null;
   } | null
+  const assignedUser = quote.assigned_user as { first_name: string; last_name: string } | null
   const groups = (quote.quote_groups || []) as { id: string; name: string; sort_order: number }[]
   const lines = (quote.quote_lines || []) as {
     id: string; group_id: string | null; sort_order: number; description: string;
@@ -95,6 +97,7 @@ export async function GET(
       customer,
       contact,
       brand,
+      assignedUser,
       groups,
       lines,
       portalUrl,

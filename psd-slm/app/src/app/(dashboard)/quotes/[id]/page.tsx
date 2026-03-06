@@ -79,7 +79,7 @@ export default async function QuoteDetailPage({ params }: PageProps) {
     // Fetch sibling versions for version history panel
     supabase
       .from('quotes')
-      .select('id, quote_number, version, status, revision_notes, created_at, assigned_to, users!quotes_assigned_to_fkey(first_name, last_name)')
+      .select('id, quote_number, version, status, revision_notes, created_at, assigned_to, revised_by, users!quotes_assigned_to_fkey(first_name, last_name), revised_user:users!quotes_revised_by_fkey(first_name, last_name)')
       .eq('base_quote_number', quote.base_quote_number)
       .order('version', { ascending: false }),
     // Check if a sales order already exists for this quote
@@ -100,9 +100,10 @@ export default async function QuoteDetailPage({ params }: PageProps) {
 
   // Find the active version in the family (for revised banner)
   // Supabase FK joins return arrays — normalize users to single object
-  const siblingVersions = ((versionSiblings || []) as unknown as { id: string; quote_number: string; version: number; status: string; revision_notes: string | null; created_at: string; assigned_to: string | null; users: { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null }[]).map((v) => ({
+  const siblingVersions = ((versionSiblings || []) as unknown as { id: string; quote_number: string; version: number; status: string; revision_notes: string | null; created_at: string; assigned_to: string | null; revised_by: string | null; users: { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null; revised_user: { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null }[]).map((v) => ({
     ...v,
     users: Array.isArray(v.users) ? v.users[0] || null : v.users,
+    revised_user: Array.isArray(v.revised_user) ? v.revised_user[0] || null : v.revised_user,
   }))
   const activeVersion = siblingVersions.find((v) => v.id !== id && !['revised', 'superseded'].includes(v.status))
 
@@ -253,11 +254,6 @@ export default async function QuoteDetailPage({ params }: PageProps) {
                 {assignedUser.first_name} {assignedUser.last_name}
               </span>
             )}
-            {opportunity && (
-              <Link href={`/pipeline/${opportunity.id}`} className="hover:text-slate-700 no-underline text-blue-600">
-                {opportunity.title}
-              </Link>
-            )}
             {brand && (
               <span className="flex items-center gap-1.5">
                 {brand.logo_path && (
@@ -356,6 +352,14 @@ export default async function QuoteDetailPage({ params }: PageProps) {
               </div>
             )}
             <DetailField label="Lines" value={`${allLines.length} (${nonOptionalLines.length} firm)`} />
+            {opportunity && (
+              <div>
+                <div className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-0.5">Opportunity</div>
+                <Link href={`/opportunities/${opportunity.id}`} className="text-blue-600 hover:text-blue-800 no-underline">
+                  {opportunity.title}
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -558,27 +562,31 @@ export default async function QuoteDetailPage({ params }: PageProps) {
       {/* Bottom Edit Button */}
       <QuoteBottomEdit quoteId={quote.id} status={quote.status} version={quote.version} />
 
-      {/* Floating totals bar — sticky within scrollable main area */}
-      <div className="sticky bottom-0 z-40 -mx-6 md:-mx-10 lg:-mx-12 border-t border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
-        <div className="px-6 md:px-10 lg:px-12 py-3 flex items-center justify-between text-sm">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Margin</span>
-            <span className={`font-semibold ${getMarginColor(totalCost, subtotal, marginThresholds.green, marginThresholds.amber)}`}>
-              {formatCurrency(marginAmt)} ({marginPct.toFixed(1)}%)
-            </span>
-          </div>
-          <div className="flex items-center gap-8">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Subtotal</span>
-              <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(subtotal)}</span>
+      {/* Floating totals bar — matches edit mode summary bar style */}
+      <div className="sticky bottom-0 z-40 -mx-6 md:-mx-10 lg:-mx-12 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
+        <div className="px-6 md:px-10 lg:px-12 py-3">
+          <div className="flex items-center gap-6">
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Subtotal</div>
+              <div className="text-lg font-bold text-slate-900 dark:text-white">{formatCurrency(subtotal)}</div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">VAT</span>
-              <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(vatAmount)}</span>
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Cost</div>
+              <div className="text-lg font-bold text-slate-500">{formatCurrency(totalCost)}</div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total</span>
-              <span className="text-base font-bold text-slate-900 dark:text-white">{formatCurrency(grandTotal)}</span>
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Margin</div>
+              <div className={`text-lg font-bold ${getMarginColor(totalCost, subtotal, marginThresholds.green, marginThresholds.amber)}`}>
+                {formatCurrency(marginAmt)} ({marginPct.toFixed(1)}%)
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">VAT ({quote.vat_rate}%)</div>
+              <div className="text-sm font-medium text-slate-500">{formatCurrency(vatAmount)}</div>
+            </div>
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Grand Total</div>
+              <div className="text-lg font-bold text-slate-900 dark:text-white">{formatCurrency(grandTotal)}</div>
             </div>
           </div>
         </div>

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { useAuth } from '@/components/auth-provider'
 import { TemplatePicker } from '@/components/template-picker-modal'
 import { CloneToQuoteModal } from '@/app/(dashboard)/templates/[id]/clone-to-quote-modal'
+import { LinkQuoteModal } from './link-quote-modal'
 
 interface NewQuoteButtonProps {
   opportunityId: string
@@ -17,6 +18,7 @@ export function NewQuoteButton({ opportunityId, customerId }: NewQuoteButtonProp
   const { hasPermission } = useAuth()
   const [showDropdown, setShowDropdown] = useState(false)
   const [showTemplatePicker, setShowTemplatePicker] = useState(false)
+  const [showLinkModal, setShowLinkModal] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState<{ id: string; name: string } | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -47,6 +49,11 @@ export function NewQuoteButton({ opportunityId, customerId }: NewQuoteButtonProp
     setShowTemplatePicker(true)
   }
 
+  const handleLinkExisting = () => {
+    setShowDropdown(false)
+    setShowLinkModal(true)
+  }
+
   const handleTemplateSelected = (templateId: string, templateName: string) => {
     setShowTemplatePicker(false)
     setSelectedTemplate({ id: templateId, name: templateName })
@@ -74,6 +81,9 @@ export function NewQuoteButton({ opportunityId, customerId }: NewQuoteButtonProp
           onClick={() => setShowDropdown(!showDropdown)}
         >
           + New Quote
+          <svg className="ml-1 h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
         </Button>
 
         {showDropdown && (
@@ -87,10 +97,17 @@ export function NewQuoteButton({ opportunityId, customerId }: NewQuoteButtonProp
             </button>
             <button
               type="button"
-              className="w-full px-4 py-2.5 text-left text-sm hover:bg-slate-50 rounded-b-lg border-t border-slate-100"
+              className="w-full px-4 py-2.5 text-left text-sm hover:bg-slate-50 border-t border-slate-100"
               onClick={handleFromTemplate}
             >
               From Template
+            </button>
+            <button
+              type="button"
+              className="w-full px-4 py-2.5 text-left text-sm hover:bg-slate-50 rounded-b-lg border-t border-slate-100"
+              onClick={handleLinkExisting}
+            >
+              Link Existing Quote
             </button>
           </div>
         )}
@@ -112,6 +129,15 @@ export function NewQuoteButton({ opportunityId, customerId }: NewQuoteButtonProp
           onClose={() => setSelectedTemplate(null)}
           preSelectedCustomerId={customerId}
           preSelectedOpportunityId={opportunityId}
+        />
+      )}
+
+      {/* Link Existing Quote Modal */}
+      {showLinkModal && (
+        <LinkQuoteModal
+          opportunityId={opportunityId}
+          customerId={customerId}
+          onClose={() => setShowLinkModal(false)}
         />
       )}
     </>

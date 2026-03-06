@@ -33,14 +33,17 @@ export function ProductsPageActions() {
             <button
               type="button"
               onClick={() => setAiModalMode('screenshot')}
-              className="inline-flex items-center rounded-l-lg bg-purple-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-purple-700 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-l-lg border border-r-0 border-purple-500 bg-purple-500/15 px-3 py-1.5 text-xs font-medium text-purple-700 hover:shadow-[0_0_12px_rgba(168,85,247,0.5)] dark:border-purple-400 dark:bg-purple-400/15 dark:text-purple-300 dark:hover:shadow-[0_0_12px_rgba(192,132,252,0.4)] transition-all cursor-pointer"
             >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
+              </svg>
               Create with AI
             </button>
             <button
               type="button"
               onClick={() => setShowAiDropdown((v) => !v)}
-              className="inline-flex items-center rounded-r-lg bg-purple-600 border-l border-purple-500 px-1.5 py-1.5 text-white hover:bg-purple-700 transition-colors cursor-pointer"
+              className="inline-flex items-center rounded-r-lg border border-purple-500 bg-purple-500/15 px-1.5 py-1.5 text-purple-700 hover:shadow-[0_0_12px_rgba(168,85,247,0.5)] dark:border-purple-400 dark:bg-purple-400/15 dark:text-purple-300 dark:hover:shadow-[0_0_12px_rgba(192,132,252,0.4)] transition-all cursor-pointer"
             >
               <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />

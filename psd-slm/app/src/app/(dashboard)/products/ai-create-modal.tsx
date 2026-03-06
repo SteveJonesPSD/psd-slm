@@ -43,6 +43,7 @@ interface AnalyseResponse {
   extracted: ExtractedProduct
   matched_supplier_id: string | null
   matched_category_id: string | null
+  supplier_guessed: boolean
   categories: Category[]
   suppliers: Supplier[]
   manufacturers: string[]
@@ -102,6 +103,7 @@ export function AiCreateModal({ onClose, initialMode = 'url' }: AiCreateModalPro
   })
 
   const [supplierId, setSupplierId] = useState('')
+  const [supplierGuessed, setSupplierGuessed] = useState(false)
   const [supplierSku, setSupplierSku] = useState('')
   const [supplierCost, setSupplierCost] = useState<number | null>(null)
   const [supplierPreferred, setSupplierPreferred] = useState(true)
@@ -158,6 +160,7 @@ export function AiCreateModal({ onClose, initialMode = 'url' }: AiCreateModalPro
     }
 
     setSupplierId(result.matched_supplier_id || '')
+    setSupplierGuessed(result.supplier_guessed || false)
     setSupplierSku(result.extracted.supplier_sku || '')
     setSupplierCost(result.extracted.price)
     setSupplierPreferred(true)
@@ -882,26 +885,38 @@ export function AiCreateModal({ onClose, initialMode = 'url' }: AiCreateModalPro
             Supplier Link
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="flex items-end gap-1">
-              <div className="flex-1">
-                <Select
-                  label="Supplier"
-                  options={suppliers.map((s) => ({ value: s.id, label: s.name }))}
-                  placeholder="Select supplier..."
-                  value={supplierId}
-                  onChange={(v) => setSupplierId(v)}
+            <div>
+              <div className="flex items-end gap-1">
+                <div className="flex-1">
+                  <Select
+                    label="Supplier"
+                    options={suppliers.map((s) => ({ value: s.id, label: s.name }))}
+                    placeholder="Select supplier..."
+                    value={supplierId}
+                    onChange={(v) => { setSupplierId(v); setSupplierGuessed(false) }}
+                    disabled={state === 'saving'}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setQuickAddName(''); setQuickAddError(''); setShowQuickAdd(true) }}
                   disabled={state === 'saving'}
-                />
+                  className="mb-[1px] flex items-center justify-center h-[38px] w-[38px] rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-800 disabled:opacity-50 shrink-0"
+                  title="Add new supplier"
+                >
+                  +
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => { setQuickAddName(''); setQuickAddError(''); setShowQuickAdd(true) }}
-                disabled={state === 'saving'}
-                className="mb-[1px] flex items-center justify-center h-[38px] w-[38px] rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-800 disabled:opacity-50 shrink-0"
-                title="Add new supplier"
-              >
-                +
-              </button>
+              {supplierGuessed && (
+                <div className="mt-1.5 flex items-center gap-2 rounded-md bg-amber-50 border border-amber-200 px-2.5 py-1.5">
+                  <svg className="h-3.5 w-3.5 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                  </svg>
+                  <p className="text-xs text-amber-700">
+                    Supplier guessed from similar products — please verify.
+                  </p>
+                </div>
+              )}
             </div>
             <Input
               label="Supplier SKU"

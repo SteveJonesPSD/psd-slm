@@ -317,12 +317,13 @@ interface QuotePdfDocumentProps {
     last_name: string
   } | null
   brand?: BrandPdf | null
+  assignedUser?: { first_name: string; last_name: string } | null
   groups: QuotePdfGroup[]
   lines: QuotePdfLine[]
   portalUrl?: string | null
 }
 
-export function QuotePdfDocument({ quote, customer, contact, brand, groups, lines, portalUrl }: QuotePdfDocumentProps) {
+export function QuotePdfDocument({ quote, customer, contact, brand, assignedUser, groups, lines, portalUrl }: QuotePdfDocumentProps) {
   const sortedGroups = [...groups].sort((a, b) => a.sort_order - b.sort_order)
   const nonOptionalLines = lines.filter((l) => !l.is_optional)
   const optionalLines = lines.filter((l) => l.is_optional)
@@ -368,22 +369,10 @@ export function QuotePdfDocument({ quote, customer, contact, brand, groups, line
                 Valid until: {new Date(quote.valid_until).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
               </Text>
             )}
-            <View style={{ marginTop: 8 }} />
-            <Text style={[styles.quoteInfo, { fontFamily: 'Helvetica-Bold', fontSize: 10, color: '#1e293b' }]}>{brand?.name || 'PSD Group'}</Text>
-            {brand?.legal_entity && (
-              <Text style={styles.quoteInfo}>{brand.legal_entity}</Text>
-            )}
-            {brandAddressLines.map((line, i) => (
-              <Text key={i} style={styles.quoteInfo}>{line}</Text>
-            ))}
-            {brand?.phone && <Text style={styles.quoteInfo}>Tel: {brand.phone}</Text>}
-            {brand?.fax && <Text style={styles.quoteInfo}>Fax: {brand.fax}</Text>}
-            {brand?.email && <Text style={styles.quoteInfo}>{brand.email}</Text>}
-            {brand?.website && <Text style={styles.quoteInfo}>{brand.website}</Text>}
           </View>
         </View>
 
-        {/* Customer & Contact */}
+        {/* Customer & Prepared By */}
         <View style={styles.addressRow}>
           <View style={styles.addressBlock}>
             <Text style={styles.addressLabel}>Quotation For</Text>
@@ -404,6 +393,25 @@ export function QuotePdfDocument({ quote, customer, contact, brand, groups, line
                 Attn: {contact.first_name} {contact.last_name}
               </Text>
             )}
+          </View>
+          <View style={styles.addressBlock}>
+            <Text style={styles.addressLabel}>Quotation Prepared By</Text>
+            {assignedUser && (
+              <Text style={styles.addressName}>
+                {assignedUser.first_name} {assignedUser.last_name}
+              </Text>
+            )}
+            <Text style={[styles.addressLine, { fontFamily: 'Helvetica-Bold', color: '#1e293b' }]}>{brand?.name || 'PSD Group'}</Text>
+            {brand?.legal_entity && (
+              <Text style={styles.addressLine}>{brand.legal_entity}</Text>
+            )}
+            {brandAddressLines.map((line, i) => (
+              <Text key={i} style={styles.addressLine}>{line}</Text>
+            ))}
+            {brand?.phone && <Text style={styles.addressLine}>Tel: {brand.phone}</Text>}
+            {brand?.fax && <Text style={styles.addressLine}>Fax: {brand.fax}</Text>}
+            {brand?.email && <Text style={styles.addressLine}>{brand.email}</Text>}
+            {brand?.website && <Text style={styles.addressLine}>{brand.website}</Text>}
           </View>
         </View>
 

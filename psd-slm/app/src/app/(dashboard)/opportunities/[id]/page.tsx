@@ -11,6 +11,7 @@ import { OpportunityActions } from './opportunity-actions'
 import { NotesEditor } from './notes-editor'
 import { ActivityTimeline } from './activity-timeline'
 import { NewQuoteButton } from './new-quote-button'
+import { UnlinkQuoteButton } from './unlink-quote-button'
 import type { User } from '@/types/database'
 
 interface PageProps {
@@ -216,6 +217,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
                   <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-left">
                     Created
                   </th>
+                  <th className="w-8 border-b-2 border-gray-200 bg-slate-50 px-2 py-3"></th>
                 </tr>
               </thead>
               <tbody>
@@ -238,6 +240,9 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
                       </td>
                       <td className="px-5 py-3 text-right whitespace-nowrap">{formatCurrency(total)}</td>
                       <td className="px-5 py-3 whitespace-nowrap">{formatDate(q.created_at)}</td>
+                      <td className="px-2 py-3">
+                        <UnlinkQuoteButton quoteId={q.id} opportunityId={opportunity.id} />
+                      </td>
                     </tr>
                   )
                 })}

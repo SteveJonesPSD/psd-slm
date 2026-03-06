@@ -91,6 +91,7 @@ export function SupplierQuoteModal({ open, onClose, mode = 'create', existingQuo
   const [assignedTo, setAssignedTo] = useState('')
   const [brandId, setBrandId] = useState('')
   const [quoteType, setQuoteType] = useState('')
+  const [quoteTitle, setQuoteTitle] = useState('')
   const [supplierId, setSupplierId] = useState('')
   const [newSupplierName, setNewSupplierName] = useState<string | null>(null)
 
@@ -475,6 +476,7 @@ export function SupplierQuoteModal({ open, onClose, mode = 'create', existingQuo
       assigned_to: assignedTo || null,
       brand_id: brandId || null,
       quote_type: quoteType || null,
+      title: quoteTitle.trim() || null,
       supplier_id: resolvedSupplierId,
       new_supplier_name: !supplierId ? newSupplierName : null,
       group_name: groupName,
@@ -878,6 +880,16 @@ export function SupplierQuoteModal({ open, onClose, mode = 'create', existingQuo
                     placeholder="Search brands..."
                     onChange={(id) => setBrandId(id)}
                   />
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Quote Title</label>
+                    <input
+                      type="text"
+                      value={quoteTitle}
+                      onChange={(e) => setQuoteTitle(e.target.value)}
+                      placeholder="e.g. Network Refresh Phase 2"
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+                    />
+                  </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-500 mb-1">Quote Type</label>
                     <select
