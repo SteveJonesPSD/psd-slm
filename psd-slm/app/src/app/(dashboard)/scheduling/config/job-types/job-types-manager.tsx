@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { SearchableSelect } from '@/components/ui/form-fields'
+import { Button } from '@/components/ui/button'
 import { createJobType, updateJobType, deleteJobType } from '../../actions'
 
 const COLOR_PALETTE = [
@@ -137,12 +138,13 @@ export function JobTypesManager({ initialTypes, templates }: Props) {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-slate-900">Job Types</h3>
-        <button
+        <Button
           onClick={openCreate}
-          className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
+          variant="primary"
+          size="sm"
         >
           + New Job Type
-        </button>
+        </Button>
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-slate-200">
@@ -339,13 +341,13 @@ export function JobTypesManager({ initialTypes, templates }: Props) {
                 >
                   Cancel
                 </button>
-                <button
+                <Button
                   onClick={handleSave}
+                  variant="primary"
                   disabled={saving}
-                  className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                 >
                   {saving ? 'Saving...' : editing ? 'Update' : 'Create'}
-                </button>
+                </Button>
               </div>
             </div>
           </div>

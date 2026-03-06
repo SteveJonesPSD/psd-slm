@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { updateStockTakeCount, completeStockTake, cancelStockTake } from '@/app/(dashboard)/stock/actions'
+import { Button } from '@/components/ui/button'
 
 interface StockTakeLineRow {
   id: string
@@ -178,13 +179,13 @@ export function StockTakeCounter({ stockTakeId, status, lines }: StockTakeCounte
           >
             Cancel Stock Take
           </button>
-          <button
+          <Button
             onClick={handleComplete}
+            variant="primary"
             disabled={!allCounted || completing}
-            className="rounded-lg bg-indigo-600 px-6 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
           >
             {completing ? 'Completing...' : 'Complete Stock Take'}
-          </button>
+          </Button>
         </div>
       )}
     </div>

@@ -1,9 +1,10 @@
 import Link from 'next/link'
 import { PageHeader } from '@/components/ui/page-header'
+import { Button } from '@/components/ui/button'
 import { StatCard } from '@/components/ui/stat-card'
 import { Badge, VISIT_STATUS_CONFIG, TIME_SLOT_CONFIG } from '@/components/ui/badge'
 import { getVisitStats, getEngineerWeekView, getFieldEngineers } from './actions'
-import { DAY_SHORT_NAMES } from '@/lib/visit-scheduling/types'
+import { DAY_SHORT_NAMES, DAY_INDEX_TO_KEY } from '@/lib/visit-scheduling/types'
 
 export default async function VisitSchedulingPage() {
   const [stats, engineers] = await Promise.all([
@@ -19,6 +20,17 @@ export default async function VisitSchedulingPage() {
   monday.setDate(monday.getDate() + mondayOffset)
   const weekStart = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`
 
+  // Generate weekday dates (Mon–Fri) for column headers
+  const weekDayDates = Array.from({ length: 5 }, (_, i) => {
+    const d = new Date(monday)
+    d.setDate(monday.getDate() + i)
+    return {
+      dayIndex: i + 1,
+      date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+      label: d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+    }
+  })
+
   const engineerIds = engineers.map(e => e.id)
   let weekView: Awaited<ReturnType<typeof getEngineerWeekView>> = []
   if (engineerIds.length > 0) {
@@ -31,18 +43,12 @@ export default async function VisitSchedulingPage() {
         title="SchoolCare Visit Calendar"
         subtitle="Recurring visit scheduling for education contracts"
         actions={
-          <div className="flex items-center gap-2 flex-wrap">
-            <Link
-              href="/visit-scheduling/generate"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white no-underline hover:bg-indigo-700 transition-colors"
-            >
-              Generate Visits
+          <div className="flex items-center gap-2">
+            <Link href="/visit-scheduling/generate">
+              <Button size="sm" variant="success">Generate Visits</Button>
             </Link>
-            <Link
-              href="/visit-scheduling/calendars"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 no-underline hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-            >
-              Calendars
+            <Link href="/visit-scheduling/calendars">
+              <Button size="sm">Calendars</Button>
             </Link>
           </div>
         }
@@ -96,12 +102,13 @@ export default async function VisitSchedulingPage() {
                   <th className="whitespace-nowrap border-b-2 border-gray-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 text-left w-36">
                     Engineer
                   </th>
-                  {[1, 2, 3, 4, 5].map(d => (
+                  {weekDayDates.map(d => (
                     <th
-                      key={d}
+                      key={d.dayIndex}
                       className="whitespace-nowrap border-b-2 border-gray-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 text-left"
                     >
-                      {DAY_SHORT_NAMES[d]}
+                      {DAY_SHORT_NAMES[DAY_INDEX_TO_KEY[d.dayIndex]]}{' '}
+                      <span className="font-normal text-slate-400 dark:text-slate-500">{d.label}</span>
                     </th>
                   ))}
                 </tr>

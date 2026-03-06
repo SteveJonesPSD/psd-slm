@@ -12,7 +12,7 @@ export default async function NewTemplatePage() {
     { data: suppliers },
     { data: productSuppliers },
   ] = await Promise.all([
-    supabase.from('products').select('id, sku, name, category_id, default_buy_price, default_sell_price, product_categories(name)').eq('is_active', true).order('name'),
+    supabase.from('products').select('id, sku, name, category_id, default_buy_price, default_sell_price, default_route, product_categories(name)').eq('is_active', true).order('name'),
     supabase.from('product_categories').select('id, name').order('sort_order'),
     supabase.from('suppliers').select('id, name').eq('is_active', true).order('name'),
     supabase.from('product_suppliers').select('product_id, supplier_id, standard_cost, is_preferred'),
@@ -26,6 +26,7 @@ export default async function NewTemplatePage() {
     category_name: (p.product_categories as unknown as { name: string } | null)?.name || null,
     default_buy_price: p.default_buy_price,
     default_sell_price: p.default_sell_price,
+    default_route: p.default_route || 'from_stock',
   }))
 
   return (

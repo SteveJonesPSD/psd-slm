@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Badge, FULFILMENT_ROUTE_CONFIG, DELIVERY_DESTINATION_CONFIG } from '@/components/ui/badge'
 import { formatCurrency } from '@/lib/utils'
-import { getMarginColor } from '@/lib/margin'
+import { getMarginColor, getMarginColorFromPct, DEFAULT_MARGIN_GREEN, DEFAULT_MARGIN_AMBER } from '@/lib/margin'
 import { createSalesOrder } from '../actions'
 import { isServiceItem } from '@/lib/sales-orders'
 import type { Quote } from '@/types/database'
@@ -21,7 +21,7 @@ interface QuoteLine {
   fulfilment_route: string
   is_optional: boolean
   requires_contract: boolean
-  products: { name: string; sku: string; is_stocked: boolean; is_serialised: boolean | null; default_delivery_destination: string } | null
+  products: { name: string; sku: string; product_type?: string; is_stocked: boolean; is_serialised: boolean | null; default_delivery_destination: string } | null
   suppliers: { name: string } | null
 }
 
@@ -31,8 +31,10 @@ interface CreateSoFormProps {
   contact: { id: string; first_name: string; last_name: string; email: string | null } | null
   groups: { id: string; name: string; sort_order: number }[]
   lines: QuoteLine[]
+
   teamMembers: { id: string; first_name: string; last_name: string }[]
   currentUserId: string
+  marginThresholds?: { green: number; amber: number }
 }
 
 interface LineOverride {
@@ -40,7 +42,9 @@ interface LineOverride {
   delivery_destination: string
 }
 
-export function CreateSoForm({ quote, customer, contact, groups, lines, teamMembers, currentUserId }: CreateSoFormProps) {
+export function CreateSoForm({ quote, customer, contact, groups, lines, teamMembers, currentUserId, marginThresholds }: CreateSoFormProps) {
+  const greenT = marginThresholds?.green ?? DEFAULT_MARGIN_GREEN
+  const amberT = marginThresholds?.amber ?? DEFAULT_MARGIN_AMBER
   const router = useRouter()
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -80,14 +84,15 @@ export function CreateSoForm({ quote, customer, contact, groups, lines, teamMemb
     setAddressLocked(true)
   }
 
-  // Line overrides — pre-populate from product default delivery destination
+  // Line overrides — derive from quote line's fulfilment_route
   const nonOptionalLines = lines.filter((l) => !l.is_optional)
   const [lineOverrides, setLineOverrides] = useState<Record<string, LineOverride>>(() => {
     const init: Record<string, LineOverride> = {}
     for (const l of nonOptionalLines) {
-      const dest = l.products?.default_delivery_destination === 'customer_site' ? 'customer_site' : 'psd_office'
+      const route = l.fulfilment_route === 'drop_ship' ? 'drop_ship' : 'from_stock'
+      const dest = route === 'drop_ship' ? 'customer_site' : 'psd_office'
       init[l.id] = {
-        fulfilment_route: dest === 'customer_site' ? 'drop_ship' : 'from_stock',
+        fulfilment_route: route,
         delivery_destination: dest,
       }
     }
@@ -98,30 +103,15 @@ export function CreateSoForm({ quote, customer, contact, groups, lines, teamMemb
   const confirmedDirectShipRef = useRef(false)
   const [showDirectShipWarning, setShowDirectShipWarning] = useState(false)
 
-  const updateLine = (lineId: string, field: keyof LineOverride, value: string) => {
-    if (field === 'delivery_destination') confirmedDirectShipRef.current = false
-    setLineOverrides((prev) => {
-      const updated = { ...prev[lineId], [field]: value }
-      // Warehouse destination forces Ship from Stock
-      if (field === 'delivery_destination' && value === 'psd_office') {
-        updated.fulfilment_route = 'from_stock'
-      }
-      return { ...prev, [lineId]: updated }
-    })
-  }
-
-  const setAllFulfilmentRoute = (route: string) => {
-    setLineOverrides((prev) => {
-      const next = { ...prev }
-      for (const key of Object.keys(next)) {
-        const line = nonOptionalLines.find((l) => l.id === key)
-        if (line && isServiceItem(line.products)) continue
-        // Only change fulfilment route on customer_site lines — warehouse is locked to from_stock
-        if (next[key].delivery_destination === 'psd_office') continue
-        next[key] = { ...next[key], fulfilment_route: route }
-      }
-      return next
-    })
+  const updateLineDestination = (lineId: string, dest: string) => {
+    confirmedDirectShipRef.current = false
+    setLineOverrides((prev) => ({
+      ...prev,
+      [lineId]: {
+        delivery_destination: dest,
+        fulfilment_route: dest === 'customer_site' ? 'drop_ship' : 'from_stock',
+      },
+    }))
   }
 
   const setAllDestination = (dest: string) => {
@@ -132,10 +122,8 @@ export function CreateSoForm({ quote, customer, contact, groups, lines, teamMemb
         const line = nonOptionalLines.find((l) => l.id === key)
         if (line && isServiceItem(line.products)) continue
         next[key] = {
-          ...next[key],
           delivery_destination: dest,
-          // Warehouse forces Ship from Stock
-          ...(dest === 'psd_office' ? { fulfilment_route: 'from_stock' } : {}),
+          fulfilment_route: dest === 'customer_site' ? 'drop_ship' : 'from_stock',
         }
       }
       return next
@@ -172,7 +160,7 @@ export function CreateSoForm({ quote, customer, contact, groups, lines, teamMemb
       (l) => !isServiceItem(l.products) && !lineOverrides[l.id]?.fulfilment_route
     )
     if (missingRoutes.length > 0) {
-      setError(`${missingRoutes.length} line(s) are missing a fulfilment route. Please select "Ship from Stock" or "Ship from Supplier" for all lines.`)
+      setError(`${missingRoutes.length} line(s) are missing a fulfilment route. Please select "From Stock" or "Drop Ship" for all lines.`)
       return
     }
 
@@ -220,7 +208,7 @@ export function CreateSoForm({ quote, customer, contact, groups, lines, teamMemb
     const lineMarginPct = line.sell_price > 0
       ? ((line.sell_price - line.buy_price) / line.sell_price) * 100
       : 0
-    const mColor = getMarginColor(line.buy_price, line.sell_price)
+    const mColor = getMarginColor(line.buy_price, line.sell_price, greenT, amberT)
     const service = isServiceItem(line.products)
 
     return (
@@ -245,17 +233,10 @@ export function CreateSoForm({ quote, customer, contact, groups, lines, teamMemb
         <td className="px-5 py-2.5">
           {service ? (
             <span className="text-xs text-slate-400">N/A</span>
-          ) : override?.delivery_destination === 'psd_office' ? (
-            <span className="text-xs text-slate-500">Ship from Stock</span>
           ) : (
-            <select
-              value={override?.fulfilment_route ?? 'from_stock'}
-              onChange={(e) => updateLine(line.id, 'fulfilment_route', e.target.value)}
-              className="rounded border border-slate-200 px-2 py-1 text-xs outline-none focus:border-slate-400"
-            >
-              <option value="from_stock">Ship from Stock</option>
-              <option value="drop_ship">Ship from Supplier</option>
-            </select>
+            <span className="text-xs text-slate-500">
+              {override?.fulfilment_route === 'drop_ship' ? 'Drop Ship' : 'From Stock'}
+            </span>
           )}
         </td>
         <td className="px-5 py-2.5">
@@ -264,7 +245,7 @@ export function CreateSoForm({ quote, customer, contact, groups, lines, teamMemb
           ) : (
             <select
               value={override?.delivery_destination || 'psd_office'}
-              onChange={(e) => updateLine(line.id, 'delivery_destination', e.target.value)}
+              onChange={(e) => updateLineDestination(line.id, e.target.value)}
               className="rounded border border-slate-200 px-2 py-1 text-xs outline-none focus:border-slate-400"
             >
               <option value="psd_office">Warehouse</option>
@@ -281,6 +262,12 @@ export function CreateSoForm({ quote, customer, contact, groups, lines, teamMemb
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 mb-6">
           {error}
+        </div>
+      )}
+
+      {nonOptionalLines.length === 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 mb-6">
+          No transferable line items found on this quote. All lines may be marked as optional, or the quote data failed to load. Please check the quote and try again.
         </div>
       )}
 
@@ -487,21 +474,6 @@ export function CreateSoForm({ quote, customer, contact, groups, lines, teamMemb
           <div className="flex gap-2 flex-wrap">
             <button
               type="button"
-              onClick={() => setAllFulfilmentRoute('from_stock')}
-              className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
-            >
-              All from Stock
-            </button>
-            <button
-              type="button"
-              onClick={() => setAllFulfilmentRoute('drop_ship')}
-              className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
-            >
-              All from Supplier
-            </button>
-            <span className="border-l border-slate-200" />
-            <button
-              type="button"
               onClick={() => setAllDestination('psd_office')}
               className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
             >
@@ -583,7 +555,7 @@ export function CreateSoForm({ quote, customer, contact, groups, lines, teamMemb
             </div>
             <div>
               <span className="text-slate-400 mr-2">Margin:</span>
-              <span className={`font-semibold ${marginPct >= 30 ? 'text-emerald-600' : marginPct >= 15 ? 'text-amber-600' : 'text-red-600'}`}>
+              <span className={`font-semibold ${getMarginColorFromPct(marginPct, greenT, amberT)}`}>
                 {formatCurrency(marginAmt)} ({marginPct.toFixed(1)}%)
               </span>
             </div>
@@ -601,7 +573,7 @@ export function CreateSoForm({ quote, customer, contact, groups, lines, teamMemb
         >
           Cancel
         </Button>
-        <Button type="submit" variant="primary" disabled={submitting}>
+        <Button type="submit" variant="primary" disabled={submitting || nonOptionalLines.length === 0}>
           {submitting ? 'Creating...' : 'Create Sales Order'}
         </Button>
       </div>
@@ -640,12 +612,37 @@ export function CreateSoForm({ quote, customer, contact, groups, lines, teamMemb
               <Button
                 type="button"
                 variant="primary"
-                onClick={() => {
+                onClick={async () => {
                   confirmedDirectShipRef.current = true
                   setShowDirectShipWarning(false)
-                  // Re-trigger submit via the form
-                  const form = document.querySelector('form')
-                  form?.requestSubmit()
+                  // Re-trigger submit programmatically
+                  setSubmitting(true)
+                  setError(null)
+                  const result = await createSalesOrder({
+                    quoteId: quote.id,
+                    customerPo: customerPo.trim(),
+                    assignedTo: assignedTo || null,
+                    requestedDeliveryDate: requestedDeliveryDate || null,
+                    requiresInstall,
+                    requestedInstallDate: requiresInstall && requestedInstallDate ? requestedInstallDate : null,
+                    installNotes: requiresInstall && installNotes.trim() ? installNotes.trim() : null,
+                    notes: notes.trim() || null,
+                    lineOverrides,
+                    ...(isAddressOverridden ? {
+                      deliveryAddress: {
+                        line1: deliveryAddress.line1 || null,
+                        line2: deliveryAddress.line2 || null,
+                        city: deliveryAddress.city || null,
+                        postcode: deliveryAddress.postcode || null,
+                      },
+                    } : {}),
+                  })
+                  setSubmitting(false)
+                  if ('error' in result && result.error) {
+                    setError(result.error)
+                  } else if ('data' in result && result.data) {
+                    router.push(`/orders/${result.data.id}`)
+                  }
                 }}
               >
                 Continue

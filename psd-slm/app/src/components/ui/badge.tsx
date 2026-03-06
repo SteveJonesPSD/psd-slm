@@ -9,11 +9,24 @@ interface BadgeProps {
   className?: string
 }
 
-export function Badge({ label, color, bg, className }: BadgeProps) {
+function hexToRgb(hex: string): string {
+  const h = hex.replace('#', '')
+  const r = parseInt(h.substring(0, 2), 16)
+  const g = parseInt(h.substring(2, 4), 16)
+  const b = parseInt(h.substring(4, 6), 16)
+  return `${r}, ${g}, ${b}`
+}
+
+export function Badge({ label, color, bg: _bg, className }: BadgeProps) {
+  const rgb = hexToRgb(color)
   return (
     <span
-      className={cn('inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold leading-5', className)}
-      style={{ color, backgroundColor: bg }}
+      className={cn('inline-block whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-semibold leading-5', className)}
+      style={{
+        color,
+        borderColor: color,
+        backgroundColor: `rgba(${rgb}, 0.12)`,
+      }}
     >
       {label}
     </span>
@@ -31,7 +44,7 @@ export const STAGE_CONFIG = {
 } as const
 
 export const QUOTE_STATUS_CONFIG = {
-  draft: { label: 'Draft', color: '#6b7280', bg: '#f3f4f6' },
+  draft: { label: 'Draft', color: '#d97706', bg: '#fffbeb' },
   review: { label: 'Review', color: '#8b5cf6', bg: '#f5f3ff' },
   sent: { label: 'Sent', color: '#2563eb', bg: '#eff6ff' },
   accepted: { label: 'Accepted', color: '#059669', bg: '#ecfdf5' },
@@ -56,8 +69,8 @@ export const CUSTOMER_TYPE_CONFIG = {
 } as const
 
 export const FULFILMENT_ROUTE_CONFIG = {
-  from_stock: { label: 'Ship from Stock', color: '#059669', bg: '#ecfdf5' },
-  drop_ship: { label: 'Ship from Supplier', color: '#7c3aed', bg: '#f5f3ff' },
+  from_stock: { label: 'From Stock', color: '#059669', bg: '#ecfdf5' },
+  drop_ship: { label: 'Drop Ship', color: '#7c3aed', bg: '#f5f3ff' },
 } as const
 
 export const TEMPLATE_CATEGORY_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -126,13 +139,13 @@ export const CONTRACT_TYPE_CONFIG: Record<string, { label: string; color: string
 }
 
 export const KB_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  draft: { label: 'Draft', color: '#6b7280', bg: '#f3f4f6' },
+  draft: { label: 'Draft', color: '#d97706', bg: '#fffbeb' },
   published: { label: 'Published', color: '#059669', bg: '#ecfdf5' },
   archived: { label: 'Archived', color: '#d97706', bg: '#fffbeb' },
 }
 
 export const SO_HEADER_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  pending: { label: 'Pending', color: '#6b7280', bg: '#f3f4f6' },
+  pending: { label: 'Pending', color: '#d97706', bg: '#fffbeb' },
   confirmed: { label: 'Confirmed', color: '#2563eb', bg: '#eff6ff' },
   in_progress: { label: 'In Progress', color: '#6366f1', bg: '#eef2ff' },
   partially_fulfilled: { label: 'Partially Fulfilled', color: '#d97706', bg: '#fffbeb' },
@@ -143,7 +156,7 @@ export const SO_HEADER_STATUS_CONFIG: Record<string, { label: string; color: str
 }
 
 export const SO_LINE_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  pending: { label: 'Pending', color: '#6b7280', bg: '#f3f4f6' },
+  pending: { label: 'Pending', color: '#d97706', bg: '#fffbeb' },
   picked: { label: 'Picked', color: '#2563eb', bg: '#eff6ff' },
   ordered: { label: 'Ordered', color: '#6366f1', bg: '#eef2ff' },
   partial_received: { label: 'Partial Received', color: '#d97706', bg: '#fffbeb' },
@@ -159,7 +172,7 @@ export const DELIVERY_DESTINATION_CONFIG: Record<string, { label: string; color:
 }
 
 export const PO_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  draft: { label: 'Draft', color: '#6b7280', bg: '#f3f4f6' },
+  draft: { label: 'Draft', color: '#d97706', bg: '#fffbeb' },
   sent: { label: 'Sent', color: '#2563eb', bg: '#eff6ff' },
   acknowledged: { label: 'Acknowledged', color: '#6366f1', bg: '#eef2ff' },
   partially_received: { label: 'Partially Received', color: '#d97706', bg: '#fffbeb' },
@@ -172,7 +185,7 @@ export const PURCHASE_TYPE_CONFIG: Record<string, { label: string; color: string
 }
 
 export const PO_LINE_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  pending: { label: 'Pending', color: '#6b7280', bg: '#f3f4f6' },
+  pending: { label: 'Pending', color: '#d97706', bg: '#fffbeb' },
   ordered: { label: 'Ordered', color: '#6366f1', bg: '#eef2ff' },
   partial_received: { label: 'Partial', color: '#d97706', bg: '#fffbeb' },
   received: { label: 'Received', color: '#059669', bg: '#ecfdf5' },
@@ -215,7 +228,7 @@ export const STOCK_MOVEMENT_TYPE_CONFIG: Record<string, { label: string; color: 
 }
 
 export const DN_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  draft: { label: 'Draft', color: '#6b7280', bg: '#f3f4f6' },
+  draft: { label: 'Draft', color: '#d97706', bg: '#fffbeb' },
   confirmed: { label: 'Confirmed', color: '#2563eb', bg: '#eff6ff' },
   dispatched: { label: 'Dispatched', color: '#6366f1', bg: '#eef2ff' },
   delivered: { label: 'Delivered', color: '#059669', bg: '#ecfdf5' },
@@ -235,7 +248,7 @@ export const FULFILMENT_STATUS_CONFIG: Record<string, { label: string; color: st
 }
 
 export const INVOICE_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  draft: { label: 'Draft', color: '#6b7280', bg: '#f3f4f6' },
+  draft: { label: 'Draft', color: '#d97706', bg: '#fffbeb' },
   sent: { label: 'Sent', color: '#2563eb', bg: '#eff6ff' },
   paid: { label: 'Paid', color: '#059669', bg: '#ecfdf5' },
   overdue: { label: 'Overdue', color: '#dc2626', bg: '#fef2f2' },
@@ -250,7 +263,7 @@ export const INVOICE_TYPE_CONFIG: Record<string, { label: string; color: string;
 }
 
 export const CONTRACT_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  draft: { label: 'Draft', color: '#6b7280', bg: '#f3f4f6' },
+  draft: { label: 'Draft', color: '#d97706', bg: '#fffbeb' },
   pending_signature: { label: 'Pending Signature', color: '#d97706', bg: '#fffbeb' },
   active: { label: 'Active', color: '#059669', bg: '#ecfdf5' },
   expired: { label: 'Expired', color: '#9ca3af', bg: '#f9fafb' },
@@ -274,7 +287,7 @@ export const RENEWAL_PERIOD_CONFIG: Record<string, { label: string; color: strin
 }
 
 export const VISIT_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  draft: { label: 'Draft', color: '#6b7280', bg: '#f3f4f6' },
+  draft: { label: 'Draft', color: '#d97706', bg: '#fffbeb' },
   confirmed: { label: 'Confirmed', color: '#059669', bg: '#ecfdf5' },
   completed: { label: 'Completed', color: '#2563eb', bg: '#eff6ff' },
   cancelled: { label: 'Cancelled', color: '#dc2626', bg: '#fef2f2' },
@@ -283,7 +296,7 @@ export const VISIT_STATUS_CONFIG: Record<string, { label: string; color: string;
 }
 
 export const CALENDAR_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  draft: { label: 'Draft', color: '#6b7280', bg: '#f3f4f6' },
+  draft: { label: 'Draft', color: '#d97706', bg: '#fffbeb' },
   active: { label: 'Active', color: '#059669', bg: '#ecfdf5' },
   archived: { label: 'Archived', color: '#9ca3af', bg: '#f9fafb' },
 }

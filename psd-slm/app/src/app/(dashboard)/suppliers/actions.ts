@@ -21,6 +21,11 @@ export async function createSupplier(formData: FormData) {
       email: (formData.get('email') as string) || null,
       phone: (formData.get('phone') as string) || null,
       website: (formData.get('website') as string) || null,
+      address_line1: (formData.get('address_line1') as string) || null,
+      address_line2: (formData.get('address_line2') as string) || null,
+      city: (formData.get('city') as string) || null,
+      county: (formData.get('county') as string) || null,
+      postcode: (formData.get('postcode') as string) || null,
       payment_terms: parseInt(formData.get('payment_terms') as string) || 30,
       notes: (formData.get('notes') as string) || null,
     })
@@ -48,6 +53,11 @@ export async function updateSupplier(id: string, formData: FormData) {
     email: (formData.get('email') as string) || null,
     phone: (formData.get('phone') as string) || null,
     website: (formData.get('website') as string) || null,
+    address_line1: (formData.get('address_line1') as string) || null,
+    address_line2: (formData.get('address_line2') as string) || null,
+    city: (formData.get('city') as string) || null,
+    county: (formData.get('county') as string) || null,
+    postcode: (formData.get('postcode') as string) || null,
     payment_terms: parseInt(formData.get('payment_terms') as string) || 30,
     notes: (formData.get('notes') as string) || null,
   }

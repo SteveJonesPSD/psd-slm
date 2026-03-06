@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { updateContractStatus, renewContract } from '../actions'
+import { Button } from '@/components/ui/button'
 import type { CustomerContractWithDetails } from '@/lib/contracts/types'
 
 interface ContractActionsProps {
@@ -42,13 +43,13 @@ export function ContractActions({ contract }: ContractActionsProps) {
     <>
       <div className="flex items-center gap-2 flex-wrap">
         {contract.status === 'draft' && (
-          <button
+          <Button
             onClick={() => handleStatusChange('active')}
+            variant="success"
             disabled={!!loading}
-            className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 transition-colors disabled:opacity-50"
           >
             {loading === 'active' ? 'Activating...' : 'Activate'}
-          </button>
+          </Button>
         )}
 
         {contract.status === 'draft' && (
@@ -62,13 +63,13 @@ export function ContractActions({ contract }: ContractActionsProps) {
         )}
 
         {contract.status === 'active' && (
-          <button
+          <Button
             onClick={() => setShowRenewal(true)}
+            variant="primary"
             disabled={!!loading}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors disabled:opacity-50"
           >
             Renew Contract
-          </button>
+          </Button>
         )}
 
         {isEditable && (
@@ -97,13 +98,13 @@ export function ContractActions({ contract }: ContractActionsProps) {
               >
                 Keep Active
               </button>
-              <button
+              <Button
                 onClick={() => handleStatusChange('cancelled')}
+                variant="danger"
                 disabled={!!loading}
-                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
               >
                 {loading === 'cancelled' ? 'Cancelling...' : 'Cancel Contract'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -227,13 +228,13 @@ function RenewalModal({
           >
             Cancel
           </button>
-          <button
+          <Button
             onClick={handleSubmit}
+            variant="primary"
             disabled={loading}
-            className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
           >
             {loading ? 'Renewing...' : 'Confirm Renewal'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

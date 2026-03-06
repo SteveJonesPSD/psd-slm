@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@/components/ui/button'
 import { createSlaPlan, updateSlaPlan, deleteSlaPlan } from '../actions'
 import { Badge } from '@/components/ui/badge'
 
@@ -306,13 +307,13 @@ export function SlaPlansManager({ initialData }: { initialData: SlaPlanRow[] }) 
           >
             Cancel
           </button>
-          <button
+          <Button
+            variant="primary"
             onClick={handleSave}
             disabled={saving || !form.name.trim()}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
           >
             {saving ? 'Saving...' : editing ? 'Update Plan' : 'Create Plan'}
-          </button>
+          </Button>
         </div>
       </div>
     )
@@ -321,12 +322,9 @@ export function SlaPlansManager({ initialData }: { initialData: SlaPlanRow[] }) 
   return (
     <div>
       <div className="mb-8 flex justify-end">
-        <button
-          onClick={openCreate}
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-        >
+        <Button variant="primary" onClick={openCreate}>
           Add SLA Plan
-        </button>
+        </Button>
       </div>
 
       <div className="space-y-4">

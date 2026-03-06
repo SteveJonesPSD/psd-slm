@@ -1,3 +1,5 @@
+'use client'
+
 import Link from 'next/link'
 import { Badge, PO_STATUS_CONFIG, DELIVERY_DESTINATION_CONFIG } from '@/components/ui/badge'
 import { formatCurrency } from '@/lib/utils'
@@ -40,6 +42,10 @@ export function SoPoSection({ purchaseOrders }: SoPoSectionProps) {
               const destCfg = DELIVERY_DESTINATION_CONFIG[po.delivery_destination]
               const goodsTotal = po.purchase_order_lines.reduce((sum, l) => sum + l.quantity * l.unit_cost, 0)
               const total = goodsTotal + (po.delivery_cost || 0)
+              // Handle suppliers that may come back as array from Supabase join
+              const supplierName = Array.isArray(po.suppliers)
+                ? (po.suppliers[0] as { name: string } | undefined)?.name
+                : po.suppliers?.name
               return (
                 <tr key={po.id} className="border-t border-slate-100">
                   <td className="px-5 py-2.5">
@@ -47,12 +53,20 @@ export function SoPoSection({ purchaseOrders }: SoPoSectionProps) {
                       {po.po_number}
                     </Link>
                   </td>
-                  <td className="px-5 py-2.5 text-slate-600">{po.suppliers?.name || '\u2014'}</td>
+                  <td className="px-5 py-2.5 text-slate-600">{supplierName || '\u2014'}</td>
                   <td className="px-5 py-2.5">
-                    {destCfg && <Badge label={destCfg.label} color={destCfg.color} bg={destCfg.bg} />}
+                    {destCfg ? (
+                      <Badge label={destCfg.label} color={destCfg.color} bg={destCfg.bg} />
+                    ) : (
+                      <Badge label={po.delivery_destination || 'Unknown'} color="#6b7280" bg="#f3f4f6" />
+                    )}
                   </td>
                   <td className="px-5 py-2.5">
-                    {statusCfg && <Badge label={statusCfg.label} color={statusCfg.color} bg={statusCfg.bg} />}
+                    {statusCfg ? (
+                      <Badge label={statusCfg.label} color={statusCfg.color} bg={statusCfg.bg} />
+                    ) : (
+                      <Badge label={po.status || 'Unknown'} color="#6b7280" bg="#f3f4f6" />
+                    )}
                   </td>
                   <td className="px-5 py-2.5 text-center">{po.purchase_order_lines.length}</td>
                   <td className="px-5 py-2.5 text-right font-medium">{formatCurrency(total)}</td>

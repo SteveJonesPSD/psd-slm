@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { requirePermission, hasPermission } from '@/lib/auth'
 import { PageHeader } from '@/components/ui/page-header'
+import { Button } from '@/components/ui/button'
 import { StatCard } from '@/components/ui/stat-card'
 import { formatCurrency } from '@/lib/utils'
 import { getPurchaseOrders } from './actions'
@@ -33,11 +34,8 @@ export default async function PurchaseOrdersPage() {
         title="Purchase Orders"
         subtitle={`${orders.length} purchase order${orders.length !== 1 ? 's' : ''}`}
         actions={canCreate ? (
-          <Link
-            href="/purchase-orders/new"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 no-underline"
-          >
-            + New Stock Order
+          <Link href="/purchase-orders/new">
+            <Button size="sm" variant="primary">+ New Stock Order</Button>
           </Link>
         ) : undefined}
       />

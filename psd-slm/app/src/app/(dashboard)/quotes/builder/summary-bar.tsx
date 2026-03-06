@@ -1,16 +1,18 @@
 'use client'
 
 import { formatCurrency } from '@/lib/utils'
-import { getMarginColor } from '@/lib/margin'
+import { getMarginColor, DEFAULT_MARGIN_GREEN, DEFAULT_MARGIN_AMBER } from '@/lib/margin'
 import { Button } from '@/components/ui/button'
 import type { QuoteFormState } from './quote-builder-types'
 
 interface SummaryBarProps {
   state: QuoteFormState
   onSave: () => void
+  onApply: () => void
+  marginThresholds?: { green: number; amber: number }
 }
 
-export function SummaryBar({ state, onSave }: SummaryBarProps) {
+export function SummaryBar({ state, onSave, onApply, marginThresholds }: SummaryBarProps) {
   const nonOptionalLines = state.lines.filter((l) => !l.is_optional)
 
   const subtotal = nonOptionalLines.reduce((sum, l) => sum + l.quantity * l.sell_price, 0)
@@ -23,7 +25,7 @@ export function SummaryBar({ state, onSave }: SummaryBarProps) {
   // Use average buy/sell for color
   const avgBuy = nonOptionalLines.length > 0 ? totalCost / nonOptionalLines.reduce((s, l) => s + l.quantity, 0) : 0
   const avgSell = nonOptionalLines.length > 0 ? subtotal / nonOptionalLines.reduce((s, l) => s + l.quantity, 0) : 0
-  const marginColor = getMarginColor(avgBuy, avgSell)
+  const marginColor = getMarginColor(avgBuy, avgSell, marginThresholds?.green ?? DEFAULT_MARGIN_GREEN, marginThresholds?.amber ?? DEFAULT_MARGIN_AMBER)
 
   return (
     <div className="sticky bottom-0 z-20 bg-white border-t border-gray-200 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
@@ -59,7 +61,15 @@ export function SummaryBar({ state, onSave }: SummaryBarProps) {
               <span className="text-sm text-red-600 mr-2">{state.error}</span>
             )}
             <Button
-              size="md"
+              size="sm"
+              variant="default"
+              onClick={onApply}
+              disabled={state.saving}
+            >
+              {state.saving ? 'Saving...' : 'Apply'}
+            </Button>
+            <Button
+              size="sm"
               variant="primary"
               onClick={onSave}
               disabled={state.saving}

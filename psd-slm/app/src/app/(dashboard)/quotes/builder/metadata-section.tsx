@@ -41,16 +41,12 @@ export function MetadataSection({ state, dispatch, customers, contacts, users, b
 
       // Filter brands for this customer type
       const matching = brands.filter((b) => !b.customer_type || b.customer_type === customer.customer_type)
-      // If current brand is not in the filtered list, auto-select best match
+      // Only auto-change if current brand is not in the filtered list
       if (!matching.some((b) => b.id === state.brand_id)) {
         const preferred = matching.find((b) => b.is_default) || matching[0]
         if (preferred) {
           dispatch({ type: 'SET_FIELD', field: 'brand_id', value: preferred.id })
         }
-      }
-      // If exactly one matching brand, auto-select it
-      if (matching.length === 1) {
-        dispatch({ type: 'SET_FIELD', field: 'brand_id', value: matching[0].id })
       }
     }
   }
@@ -68,6 +64,18 @@ export function MetadataSection({ state, dispatch, customers, contacts, users, b
 
       {!collapsed && (
         <div className="border-t border-gray-100 px-5 py-4">
+          {/* Title — full width */}
+          <div className="mb-4">
+            <label className="mb-1 block text-xs font-medium text-slate-500">Title / Description</label>
+            <input
+              type="text"
+              value={state.title}
+              onChange={(e) => dispatch({ type: 'SET_FIELD', field: 'title', value: e.target.value })}
+              placeholder="e.g. Network Refresh, Wireless Upgrade..."
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+            />
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* Customer */}
             <SearchableSelect
@@ -151,7 +159,7 @@ export function MetadataSection({ state, dispatch, customers, contacts, users, b
           </div>
 
           {/* Notes */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+          <div className={`grid grid-cols-1 ${state.revision_notes ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-4 mt-4`}>
             <div>
               <label className="mb-1 block text-xs font-medium text-slate-500">Customer Notes</label>
               <textarea
@@ -172,6 +180,18 @@ export function MetadataSection({ state, dispatch, customers, contacts, users, b
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400 resize-none"
               />
             </div>
+            {state.revision_notes && (
+              <div>
+                <label className="mb-1 block text-xs font-medium text-amber-600">Revision Notes</label>
+                <textarea
+                  value={state.revision_notes}
+                  onChange={(e) => dispatch({ type: 'SET_FIELD', field: 'revision_notes', value: e.target.value })}
+                  rows={3}
+                  placeholder="Why this revision was created..."
+                  className="w-full rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm outline-none focus:border-amber-400 resize-none"
+                />
+              </div>
+            )}
           </div>
         </div>
       )}

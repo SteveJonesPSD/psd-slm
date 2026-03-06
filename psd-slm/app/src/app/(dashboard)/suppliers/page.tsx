@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { PageHeader } from '@/components/ui/page-header'
 import { SuppliersTable } from './suppliers-table'
+import { SuppliersPageActions } from './suppliers-page-actions'
 
 export default async function SuppliersPage() {
   const supabase = await createClient()
@@ -20,6 +21,7 @@ export default async function SuppliersPage() {
       <PageHeader
         title="Suppliers"
         subtitle={`${mapped.length} supplier${mapped.length === 1 ? '' : 's'}`}
+        actions={<SuppliersPageActions />}
       />
       <SuppliersTable suppliers={mapped} />
     </div>

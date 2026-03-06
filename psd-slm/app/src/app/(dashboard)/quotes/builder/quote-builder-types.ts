@@ -42,11 +42,13 @@ export interface QuoteFormState {
   opportunity_id: string
   assigned_to: string
   brand_id: string
+  title: string
   quote_type: string
   valid_until: string
   vat_rate: number
   customer_notes: string
   internal_notes: string
+  revision_notes: string
   // Children
   groups: FormGroup[]
   lines: FormLine[]
@@ -80,6 +82,7 @@ export interface ProductLookup {
   category_name: string | null
   default_buy_price: number | null
   default_sell_price: number | null
+  default_route: 'from_stock' | 'drop_ship'
 }
 
 export interface SupplierLookup {
@@ -250,11 +253,13 @@ export function createInitialState(
     opportunity_id: opportunityId || '',
     assigned_to: currentUserId,
     brand_id: '',
+    title: '',
     quote_type: '',
     valid_until: '',
     vat_rate: 20,
     customer_notes: '',
     internal_notes: '',
+    revision_notes: '',
     groups: [{ tempId: defaultGroupId, name: 'General', sort_order: 0 }],
     lines: [],
     attributions: [
@@ -336,11 +341,13 @@ export function loadExistingQuote(
     opportunity_id: (quote.opportunity_id as string) || '',
     assigned_to: (quote.assigned_to as string) || '',
     brand_id: (quote.brand_id as string) || '',
+    title: (quote.title as string) || '',
     quote_type: (quote.quote_type as string) || '',
     valid_until: (quote.valid_until as string) || '',
     vat_rate: (quote.vat_rate as number) ?? 20,
     customer_notes: (quote.customer_notes as string) || '',
     internal_notes: (quote.internal_notes as string) || '',
+    revision_notes: (quote.revision_notes as string) || '',
     groups: formGroups,
     lines: formLines,
     attributions: formAttrs,

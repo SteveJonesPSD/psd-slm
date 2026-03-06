@@ -35,11 +35,13 @@ interface ExistingQuote {
   opportunity_id: string | null
   assigned_to: string | null
   brand_id: string | null
+  title: string | null
   quote_type: string | null
   valid_until: string | null
   vat_rate: number
   customer_notes: string | null
   internal_notes: string | null
+  revision_notes: string | null
   quote_groups: { id: string; name: string; sort_order: number }[]
   quote_lines: {
     id: string; group_id: string | null; product_id: string | null; supplier_id: string | null;
@@ -64,6 +66,8 @@ interface QuoteBuilderProps {
   existingQuote?: ExistingQuote
   opportunityId?: string | null
   opportunityCustomerId?: string | null
+  defaultValidUntil?: string
+  marginThresholds?: { green: number; amber: number }
 }
 
 export function QuoteBuilder({
@@ -80,6 +84,8 @@ export function QuoteBuilder({
   existingQuote,
   opportunityId,
   opportunityCustomerId,
+  defaultValidUntil,
+  marginThresholds,
 }: QuoteBuilderProps) {
   const router = useRouter()
   const dirtyRef = useRef(false)
@@ -100,7 +106,7 @@ export function QuoteBuilder({
         saving: false,
         error: null,
       }
-    : { ...createInitialState(currentUserId, opportunityCustomerId, opportunityId), brand_id: defaultBrandId }
+    : { ...createInitialState(currentUserId, opportunityCustomerId, opportunityId), brand_id: defaultBrandId, valid_until: defaultValidUntil || '' }
 
   const [state, dispatch] = useReducer(quoteFormReducer, initialState)
   const [liveProducts, setLiveProducts] = useState(products)
@@ -127,6 +133,9 @@ export function QuoteBuilder({
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [])
+
+  // Track whether current save is apply-mode (stay in editor)
+  const applyModeRef = useRef(false)
 
   const handleSave = useCallback(async () => {
     dispatch({ type: 'SET_ERROR', error: null })
@@ -155,6 +164,14 @@ export function QuoteBuilder({
       return
     }
 
+    // Warn about zero sell price lines
+    const zeroSellLines = nonEmptyLines.filter((l) => l.sell_price === 0 && !l.is_optional)
+    if (zeroSellLines.length > 0 && !zeroSellConfirmedRef.current) {
+      setShowZeroSellWarning(true)
+      return
+    }
+    zeroSellConfirmedRef.current = false
+
     dispatch({ type: 'SET_SAVING', saving: true })
 
     // Build FormData
@@ -164,11 +181,13 @@ export function QuoteBuilder({
     formData.set('opportunity_id', state.opportunity_id)
     formData.set('assigned_to', state.assigned_to)
     formData.set('brand_id', state.brand_id)
+    formData.set('title', state.title)
     formData.set('quote_type', state.quote_type)
     formData.set('valid_until', state.valid_until)
     formData.set('vat_rate', String(state.vat_rate))
     formData.set('customer_notes', state.customer_notes)
     formData.set('internal_notes', state.internal_notes)
+    formData.set('revision_notes', state.revision_notes)
 
     // Build typed arrays
     const groups: GroupInput[] = state.groups.map((g) => ({
@@ -215,6 +234,18 @@ export function QuoteBuilder({
 
     dirtyRef.current = false
 
+    const isApply = applyModeRef.current
+    applyModeRef.current = false
+
+    if (isApply) {
+      const quoteId = existingQuote?.id || ('data' in result ? result.data?.id : null)
+      if (!existingQuote && quoteId) {
+        // New quote just created — redirect to edit mode so subsequent applies update instead of creating duplicates
+        router.replace(`/quotes/${quoteId}/edit`)
+      }
+      return
+    }
+
     const quoteId = existingQuote?.id || ('data' in result ? result.data?.id : null)
     if (quoteId) {
       router.push(`/quotes/${quoteId}`)
@@ -223,7 +254,16 @@ export function QuoteBuilder({
     }
   }, [state, existingQuote, router])
 
+  const handleApply = useCallback(() => {
+    applyModeRef.current = true
+    handleSave()
+  }, [handleSave])
+
   const isEdit = !!existingQuote
+
+  // Zero sell price warning
+  const [showZeroSellWarning, setShowZeroSellWarning] = useState(false)
+  const zeroSellConfirmedRef = useRef(false)
 
   // AI Quote merge modal state
   const [showSupplierImport, setShowSupplierImport] = useState(false)
@@ -263,7 +303,7 @@ export function QuoteBuilder({
           quantity: line.quantity,
           buy_price: line.buy_price,
           sell_price: line.sell_price,
-          fulfilment_route: 'drop_ship',
+          fulfilment_route: (line.product_id && liveProducts.find(p => p.id === line.product_id)?.default_route) || 'from_stock',
           is_optional: false,
           requires_contract: false,
           notes: null,
@@ -278,7 +318,7 @@ export function QuoteBuilder({
     }
 
     setShowSupplierImport(false)
-  }, [state.lines.length, existingQuote])
+  }, [state.lines.length, existingQuote, liveProducts])
 
   return (
     <div className="pb-24">
@@ -338,9 +378,63 @@ export function QuoteBuilder({
         productSuppliers={liveProductSuppliers}
         dealPricing={dealPricing}
         onRefreshProducts={handleRefreshProducts}
+        marginThresholds={marginThresholds}
       />
 
-      <SummaryBar state={state} onSave={handleSave} />
+      <SummaryBar state={state} onSave={handleSave} onApply={handleApply} marginThresholds={marginThresholds} />
+
+      {/* Zero Sell Price Warning */}
+      {showZeroSellWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-amber-200 dark:border-amber-700 shadow-xl max-w-md w-full mx-4 p-6">
+            <div className="flex items-center gap-2 mb-3">
+              <svg className="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+              <h3 className="text-base font-semibold text-slate-900 dark:text-white">Zero Sell Price Warning</h3>
+            </div>
+            <p className="text-sm text-slate-600 dark:text-slate-300 mb-3">
+              The following line{state.lines.filter((l) => l.description.trim() && l.sell_price === 0 && !l.is_optional).length > 1 ? 's have' : ' has'} a sell price of £0.00:
+            </p>
+            <div className="rounded-lg border border-amber-100 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/20 p-3 mb-4 max-h-40 overflow-y-auto">
+              <ul className="space-y-1">
+                {state.lines
+                  .filter((l) => l.description.trim() && l.sell_price === 0 && !l.is_optional)
+                  .map((l, i) => (
+                    <li key={i} className="text-xs text-slate-700 dark:text-slate-300">
+                      <span className="font-medium">{l.description}</span>
+                      {l.buy_price > 0 && (
+                        <span className="ml-1 text-red-600 dark:text-red-400">(buy: £{l.buy_price.toFixed(2)} — 100% margin loss)</span>
+                      )}
+                    </li>
+                  ))}
+              </ul>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+              Are you sure you want to save this quote with zero-value line items?
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                onClick={() => setShowZeroSellWarning(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() => {
+                  zeroSellConfirmedRef.current = true
+                  setShowZeroSellWarning(false)
+                  handleSave()
+                }}
+              >
+                Save Anyway
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

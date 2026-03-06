@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { Badge, CALENDAR_STATUS_CONFIG } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { generateVisits } from '../actions'
 import type { VisitCalendar, GenerationResult } from '@/lib/visit-scheduling/types'
 import { SearchableSelect } from '@/components/ui/form-fields'
@@ -135,13 +136,13 @@ export function GenerateForm({ calendars, engineers }: GenerateFormProps) {
           <div className="text-xs text-slate-400">
             {isPending ? 'Generating visits...' : 'Ready to generate'}
           </div>
-          <button
+          <Button
             onClick={handleGenerate}
+            variant="primary"
             disabled={isPending || !calendarId}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors disabled:opacity-50"
           >
             {isPending ? 'Generating...' : 'Generate Visits'}
-          </button>
+          </Button>
         </div>
       </div>
 

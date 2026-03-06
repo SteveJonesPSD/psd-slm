@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import { Button } from '@/components/ui/button'
 import { useRouter } from 'next/navigation'
 import { Badge, JOB_STATUS_CONFIG, JOB_PRIORITY_CONFIG } from '@/components/ui/badge'
 import { changeJobStatus, addJobNote, getJobPhotoUrl, getJobSignatureUrl, validateJob, toggleJobTask, getJobGpsLog } from '../../actions'
@@ -130,7 +131,7 @@ export function JobDetail({ job, canEdit }: { job: any; canEdit: boolean }) {
             {job.status === 'unscheduled' && (
               <Link
                 href={`/scheduling/jobs/${job.id}/edit`}
-                className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 no-underline"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-blue-500 bg-blue-500/15 text-blue-700 hover:shadow-[0_0_12px_rgba(59,130,246,0.5)] dark:border-blue-400 dark:bg-blue-400/15 dark:text-blue-300 dark:hover:shadow-[0_0_12px_rgba(96,165,250,0.4)] px-3 py-1.5 text-xs font-medium transition-all no-underline"
               >
                 Assign & Schedule
               </Link>
@@ -148,19 +149,20 @@ export function JobDetail({ job, canEdit }: { job: any; canEdit: boolean }) {
               </button>
             )}
             {job.status === 'completed' && !job.validated_at && (
-              <button
+              <Button
                 onClick={() => setShowValidateModal(true)}
-                className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
+                variant="success"
+                size="sm"
               >
                 Validate
-              </button>
+              </Button>
             )}
             {job.status === 'completed' && job.validated_at && (
               <a
                 href={`/api/jobs/${job.id}/report`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 no-underline"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-blue-500 bg-blue-500/15 text-blue-700 hover:shadow-[0_0_12px_rgba(59,130,246,0.5)] dark:border-blue-400 dark:bg-blue-400/15 dark:text-blue-300 dark:hover:shadow-[0_0_12px_rgba(96,165,250,0.4)] px-3 py-1.5 text-xs font-medium transition-all no-underline"
               >
                 Download Report
               </a>
@@ -264,10 +266,16 @@ export function JobDetail({ job, canEdit }: { job: any; canEdit: boolean }) {
           </div>
         </div>
 
-        {/* Source */}
+        {/* Source & Charging */}
         <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <h4 className="mb-2 text-xs font-semibold uppercase text-slate-500">Source</h4>
-          <p className="text-sm text-slate-600">Manual</p>
+          <h4 className="mb-2 text-xs font-semibold uppercase text-slate-500">Source & Charging</h4>
+          <div className="space-y-1 text-sm">
+            <p className="text-slate-600">{job.source_type === 'manual' ? 'Manual' : job.source_type?.replace('_', ' ') || 'Manual'}</p>
+            <p className="text-slate-600">
+              <span className="text-slate-400">Chargeable:</span>{' '}
+              {{ as_per_so: 'As per SO', no: 'No', contract: 'Contract', hourly: 'Hourly' }[job.chargeable_type as string] || 'As per SO'}
+            </p>
+          </div>
         </div>
       </div>
 
@@ -459,13 +467,15 @@ export function JobDetail({ job, canEdit }: { job: any; canEdit: boolean }) {
                   rows={3}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 />
-                <button
+                <Button
                   onClick={handleAddNote}
+                  variant="primary"
+                  size="sm"
                   disabled={savingNote || !note.trim()}
-                  className="mt-2 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                  className="mt-2"
                 >
                   {savingNote ? 'Adding...' : 'Add Note'}
-                </button>
+                </Button>
               </div>
             )}
 
@@ -557,12 +567,13 @@ export function JobDetail({ job, canEdit }: { job: any; canEdit: boolean }) {
               >
                 Keep Job
               </button>
-              <button
+              <Button
                 onClick={handleCancel}
-                className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
+                variant="danger"
+                size="sm"
               >
                 Cancel Job
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -590,13 +601,14 @@ export function JobDetail({ job, canEdit }: { job: any; canEdit: boolean }) {
               >
                 Cancel
               </button>
-              <button
+              <Button
                 onClick={handleValidate}
+                variant="success"
+                size="sm"
                 disabled={validating}
-                className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
               >
                 {validating ? 'Validating...' : 'Validate Job'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

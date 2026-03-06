@@ -79,7 +79,7 @@ export function InboundPODetail({ data: initialData }: InboundPODetailProps) {
         <div>
           <div className="flex items-center gap-3 mb-1">
             <h2 className="text-2xl font-bold text-slate-900">
-              {data.customer_po_number || 'Inbound PO'}
+              {data.customer_po_number || 'Customer PO'}
             </h2>
             {statusConfig && <Badge {...statusConfig} />}
             {matchConfig && <Badge {...matchConfig} />}

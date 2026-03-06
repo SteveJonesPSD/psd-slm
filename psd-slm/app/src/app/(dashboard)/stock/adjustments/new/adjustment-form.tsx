@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { Button } from '@/components/ui/button'
 import { adjustStock } from '@/app/(dashboard)/stock/actions'
 import { createClient } from '@/lib/supabase/client'
 import { SearchableSelect } from '@/components/ui/form-fields'
@@ -237,13 +238,13 @@ export function AdjustmentForm({ locations }: AdjustmentFormProps) {
         >
           Cancel
         </Link>
-        <button
+        <Button
           type="submit"
+          variant="primary"
           disabled={loading || !selectedProduct}
-          className="rounded-lg bg-indigo-600 px-6 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
         >
           {loading ? 'Processing...' : 'Submit Adjustment'}
-        </button>
+        </Button>
       </div>
     </form>
   )

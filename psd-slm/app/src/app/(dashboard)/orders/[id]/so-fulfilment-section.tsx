@@ -75,6 +75,7 @@ export function SoFulfilmentSection({
 }: SoFulfilmentSectionProps) {
   const router = useRouter()
   const [allocateModal, setAllocateModal] = useState<FulfilmentLine | null>(null)
+  const [allocatePickMode, setAllocatePickMode] = useState(false)
   // raisePoLines: when set, opens the Raise PO modal with these lines pre-selected
   const [raisePoLines, setRaisePoLines] = useState<PoLineCandidate[] | null>(null)
   const [createDnOpen, setCreateDnOpen] = useState(false)
@@ -89,6 +90,7 @@ export function SoFulfilmentSection({
   const [unallocateReason, setUnallocateReason] = useState('')
   const [unallocateLoading, setUnallocateLoading] = useState(false)
   const [unallocateError, setUnallocateError] = useState<string | null>(null)
+  const [selectedLines, setSelectedLines] = useState<Set<string>>(new Set())
   const [serialPickAlloc, setSerialPickAlloc] = useState<{
     allocationId: string
     productId: string
@@ -170,6 +172,30 @@ export function SoFulfilmentSection({
     setRaisePoLines(linesNeedingPo.length > 0 ? linesNeedingPo : allPoEligible)
   }
 
+  const openRaisePoSelected = () => {
+    const selected = allPoEligible.filter(c => selectedLines.has(c.soLineId))
+    if (selected.length > 0) setRaisePoLines(selected)
+  }
+
+  const showSelectionCheckboxes = allPoEligible.length > 1
+
+  const toggleFulfilmentSelection = (soLineId: string) => {
+    setSelectedLines(prev => {
+      const next = new Set(prev)
+      if (next.has(soLineId)) next.delete(soLineId)
+      else next.add(soLineId)
+      return next
+    })
+  }
+
+  const toggleAllFulfilment = () => {
+    if (selectedLines.size === allPoEligible.length) {
+      setSelectedLines(new Set())
+    } else {
+      setSelectedLines(new Set(allPoEligible.map(c => c.soLineId)))
+    }
+  }
+
   // Split pickable allocations into serialised vs non-serialised
   const nonSerialisedPickable = pickableAllocations.filter(a => {
     const soLine = soLines.find(sl => sl.id === a.sales_order_line_id)
@@ -202,9 +228,16 @@ export function SoFulfilmentSection({
           <h3 className="text-[15px] font-semibold">Fulfilment</h3>
           <div className="flex items-center gap-2 flex-wrap">
             {allPoEligible.length > 0 && (
-              <Button size="sm" variant="default" onClick={openRaisePoAll}>
-                Raise PO ({linesNeedingPo.length || allPoEligible.length})
-              </Button>
+              <>
+                {selectedLines.size > 0 && (
+                  <Button size="sm" variant="blue" onClick={openRaisePoSelected}>
+                    Generate PO for Selected ({selectedLines.size})
+                  </Button>
+                )}
+                <Button size="sm" variant="primary" onClick={openRaisePoAll}>
+                  Generate All POs ({allPoEligible.length})
+                </Button>
+              </>
             )}
             {nonSerialisedPickable.length > 0 && (
               <Button size="sm" variant="blue" onClick={handleMarkAllPicked} disabled={pickingAll}>
@@ -218,7 +251,7 @@ export function SoFulfilmentSection({
             )}
             {dispatchableLines.length > 0 && (
               <Button size="sm" variant="default" onClick={() => setPrepareCollectionOpen(true)}>
-                Prepare Collection ({dispatchableLines.length})
+                Prepare for Collection ({dispatchableLines.length})
               </Button>
             )}
             {dispatchableLines.length > 0 && (
@@ -264,6 +297,16 @@ export function SoFulfilmentSection({
         <table className="w-full text-sm min-w-[900px]">
           <thead>
             <tr className="text-xs font-medium uppercase text-slate-400 border-b border-gray-100">
+              {showSelectionCheckboxes && (
+                <th className="pl-3 py-3 w-8">
+                  <input
+                    type="checkbox"
+                    checked={selectedLines.size === allPoEligible.length && allPoEligible.length > 0}
+                    onChange={toggleAllFulfilment}
+                    className="rounded border-slate-300"
+                  />
+                </th>
+              )}
               <th className="px-5 py-3 text-left">Product</th>
               <th className="px-5 py-3 text-left">Route</th>
               <th className="px-5 py-3 text-right">Required</th>
@@ -288,8 +331,22 @@ export function SoFulfilmentSection({
               const isSerialized = isLineSerialized(soLine)
               const canRaisePo = soLine?.status === 'pending' && !soLine.is_service
 
+              const isPoEligible = allPoEligible.some(c => c.soLineId === line.so_line_id)
+
               return (
                 <tr key={line.so_line_id} className="hover:bg-slate-50/50">
+                  {showSelectionCheckboxes && (
+                    <td className="pl-3 py-2.5 w-8">
+                      {isPoEligible && (
+                        <input
+                          type="checkbox"
+                          checked={selectedLines.has(line.so_line_id)}
+                          onChange={() => toggleFulfilmentSelection(line.so_line_id)}
+                          className="rounded border-slate-300"
+                        />
+                      )}
+                    </td>
+                  )}
                   <td className="px-5 py-2.5">
                     <div className="font-medium">{line.description}</div>
                     {line.product_id && (
@@ -341,10 +398,10 @@ export function SoFulfilmentSection({
                     <div className="flex gap-1 flex-wrap">
                       {available > 0 && line.qty_allocated < line.required_qty && (
                         <button
-                          onClick={() => setAllocateModal(line)}
+                          onClick={() => { setAllocatePickMode(true); setAllocateModal(line) }}
                           className="rounded px-2 py-0.5 text-[11px] font-medium text-emerald-600 hover:bg-emerald-50 border border-emerald-200 transition-colors whitespace-nowrap"
                         >
-                          Allocate from Stock ({available})
+                          Pick from Free Stock ({available})
                         </button>
                       )}
                       {canRaisePo && (
@@ -426,8 +483,9 @@ export function SoFulfilmentSection({
           alreadyOnPo={allocateModal.qty_on_po}
           available={allocateModal.product_id ? (stockAvailability[allocateModal.product_id] || 0) : 0}
           isSerialized={isLineSerialized(soLines.find(sl => sl.id === allocateModal.so_line_id))}
-          onClose={() => setAllocateModal(null)}
-          onSuccess={() => { setAllocateModal(null); router.refresh() }}
+          pickMode={allocatePickMode}
+          onClose={() => { setAllocateModal(null); setAllocatePickMode(false) }}
+          onSuccess={() => { setAllocateModal(null); setAllocatePickMode(false); router.refresh() }}
         />
       )}
 
@@ -548,7 +606,7 @@ export function SoFulfilmentSection({
         />
       )}
 
-      {/* Prepare Collection Modal */}
+      {/* Prepare for Collection Modal */}
       {prepareCollectionOpen && (
         <PrepareCollectionModal
           soId={soId}

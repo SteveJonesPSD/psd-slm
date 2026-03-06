@@ -1446,14 +1446,26 @@ export async function getContactsForCustomer(customerId: string) {
   const user = await requirePermission('helpdesk', 'view')
   const supabase = await createClient()
 
-  const { data } = await supabase
+  // Direct contacts
+  const { data: direct } = await supabase
     .from('contacts')
     .select('id, first_name, last_name, email, phone')
     .eq('customer_id', customerId)
     .eq('is_active', true)
     .order('first_name')
 
-  return data || []
+  // Linked contacts (from other companies)
+  const { data: links } = await supabase
+    .from('contact_customer_links')
+    .select('contacts(id, first_name, last_name, email, phone, is_active)')
+    .eq('customer_id', customerId)
+
+  const linked = (links || [])
+    .map((l) => l.contacts as unknown as { id: string; first_name: string; last_name: string; email: string | null; phone: string | null; is_active: boolean } | null)
+    .filter((c): c is NonNullable<typeof c> => c != null && c.is_active)
+    .filter((c) => !(direct || []).some((d) => d.id === c.id))
+
+  return [...(direct || []), ...linked.map(({ is_active: _, ...c }) => c)]
 }
 
 export async function getBrandsForSelect() {

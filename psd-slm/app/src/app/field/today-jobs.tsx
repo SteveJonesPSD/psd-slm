@@ -66,7 +66,13 @@ export function TodayJobs({ jobs }: { jobs: any[] }) {
             <Link
               key={job.id}
               href={`/field/job/${job.id}`}
-              className="block rounded-xl border border-gray-200 bg-white p-4 no-underline transition-shadow hover:shadow-md active:shadow-sm"
+              className={`block rounded-xl border border-gray-200 bg-white p-4 no-underline transition-shadow hover:shadow-md active:shadow-sm ${
+                job._collectionStatus === 'pending'
+                  ? 'ring-2 ring-red-500'
+                  : job._collectionStatus === 'collected'
+                    ? 'ring-2 ring-green-500'
+                    : ''
+              }`}
               style={{ borderLeftWidth: 4, borderLeftColor: PRIORITY_BAR_COLORS[job.priority] || '#6b7280' }}
             >
               {/* Top row: time + priority */}
@@ -87,6 +93,24 @@ export function TodayJobs({ jobs }: { jobs: any[] }) {
                 {jt && <Badge label={jt.name} color={jt.color} bg={jt.background} />}
                 <Badge {...statusCfg} />
               </div>
+
+              {/* Stock collection indicator */}
+              {job._collectionStatus === 'pending' && (
+                <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-red-600">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                    <path d="M.41 4.44A1.5 1.5 0 0 1 1.5 3h17a1.5 1.5 0 0 1 1.09.44l.01.01A1.5 1.5 0 0 1 20 4.5V6a1 1 0 0 1-1 1H1a1 1 0 0 1-1-1V4.5c0-.38.14-.74.41-1.01v-.05ZM1 8.5h18v7a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 1 15.5v-7Zm7 2a.75.75 0 0 0 0 1.5h4a.75.75 0 0 0 0-1.5H8Z" />
+                  </svg>
+                  Stock requires collection
+                </div>
+              )}
+              {job._collectionStatus === 'collected' && (
+                <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-green-600">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                    <path d="M.41 4.44A1.5 1.5 0 0 1 1.5 3h17a1.5 1.5 0 0 1 1.09.44l.01.01A1.5 1.5 0 0 1 20 4.5V6a1 1 0 0 1-1 1H1a1 1 0 0 1-1-1V4.5c0-.38.14-.74.41-1.01v-.05ZM1 8.5h18v7a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 1 15.5v-7Zm7 2a.75.75 0 0 0 0 1.5h4a.75.75 0 0 0 0-1.5H8Z" />
+                  </svg>
+                  Stock collected
+                </div>
+              )}
 
               {/* Contact info */}
               {contact && (

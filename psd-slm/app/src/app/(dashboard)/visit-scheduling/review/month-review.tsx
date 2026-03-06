@@ -3,6 +3,7 @@
 import { useState, useEffect, useTransition, useMemo } from 'react'
 import { getEngineerMonthView, confirmEngineerMonthVisits, getHolidaysForRange } from '../actions'
 import { Badge, VISIT_STATUS_CONFIG, TIME_SLOT_CONFIG } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import type { VisitInstanceWithDetails, EngineerMonthView } from '@/lib/visit-scheduling/types'
 
 interface MonthReviewProps {
@@ -179,13 +180,14 @@ export function MonthReview({ engineers, selectedEngineers, year, month }: Month
                   </span>
                 </div>
                 {draftCount > 0 && (
-                  <button
+                  <Button
                     onClick={() => handleConfirmAll(eng.engineer_id)}
+                    variant="success"
+                    size="sm"
                     disabled={isPending}
-                    className="inline-flex items-center gap-1 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 transition-colors disabled:opacity-50"
                   >
                     Confirm All ({draftCount})
-                  </button>
+                  </Button>
                 )}
               </div>
 

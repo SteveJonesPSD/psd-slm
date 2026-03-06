@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import type { VisitCalendarWeek, BankHoliday } from '@/lib/visit-scheduling/types'
+import { Button } from '@/components/ui/button'
 import { formatVisitDate } from '@/lib/visit-scheduling/types'
 import {
   updateCalendarWeek,
@@ -93,13 +94,13 @@ export function CalendarGrid({ calendarId, calendarStatus, weeks, bankHolidays }
       {/* Action bar */}
       <div className="flex items-center gap-2 flex-wrap mb-6">
         {calendarStatus === 'draft' && (
-          <button
+          <Button
             onClick={handleActivate}
+            variant="success"
             disabled={isPending}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 transition-colors disabled:opacity-50"
           >
             Activate Calendar
-          </button>
+          </Button>
         )}
         {calendarStatus === 'active' && (
           <button

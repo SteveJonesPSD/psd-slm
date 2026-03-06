@@ -1,5 +1,6 @@
 import { requirePermission } from '@/lib/auth'
 import { PageHeader } from '@/components/ui/page-header'
+import { Button } from '@/components/ui/button'
 import { getJobs, getJobTypes, getEngineers } from '../actions'
 import { JobsList } from './jobs-list'
 import Link from 'next/link'
@@ -20,19 +21,13 @@ export default async function JobsListPage() {
         title="All Jobs"
         subtitle="Full list of scheduled and unscheduled jobs"
         actions={
-          <div className="flex gap-2">
-            <Link
-              href="/scheduling"
-              className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-gray-50 no-underline"
-            >
-              Calendar
+          <div className="flex items-center gap-2">
+            <Link href="/scheduling">
+              <Button size="sm">Calendar</Button>
             </Link>
             {canCreate && (
-              <Link
-                href="/scheduling/jobs/new"
-                className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 no-underline"
-              >
-                + New Job
+              <Link href="/scheduling/jobs/new">
+                <Button size="sm" variant="primary">+ New Job</Button>
               </Link>
             )}
           </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@/components/ui/button'
 import { createCannedResponse, updateCannedResponse, deleteCannedResponse } from '../actions'
 
 interface CannedResponseRow {
@@ -77,12 +78,9 @@ export function CannedResponsesManager({ initialData }: { initialData: CannedRes
   return (
     <div>
       <div className="mb-8 flex justify-end">
-        <button
-          onClick={openCreate}
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-        >
+        <Button variant="primary" onClick={openCreate}>
           Add Response
-        </button>
+        </Button>
       </div>
 
       <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
@@ -181,13 +179,13 @@ export function CannedResponsesManager({ initialData }: { initialData: CannedRes
               >
                 Cancel
               </button>
-              <button
+              <Button
+                variant="primary"
                 onClick={handleSave}
                 disabled={saving || !form.title.trim() || !form.body.trim()}
-                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
               >
                 {saving ? 'Saving...' : editing ? 'Update' : 'Create'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

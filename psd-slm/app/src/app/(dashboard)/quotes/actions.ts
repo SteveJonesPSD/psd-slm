@@ -4,6 +4,21 @@ import { createClient } from '@/lib/supabase/server'
 import { requirePermission, requireAuth, hasPermission } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { logActivity } from '@/lib/activity-log'
+import { addBusinessDays } from '@/lib/utils'
+
+// --- Quote validity helper ---
+
+async function getDefaultValidUntil(supabase: Awaited<ReturnType<typeof createClient>>, orgId: string): Promise<string> {
+  const { data } = await supabase
+    .from('org_settings')
+    .select('setting_value')
+    .eq('org_id', orgId)
+    .eq('category', 'general')
+    .eq('setting_key', 'quote_validity_days')
+    .single()
+  const days = parseInt(data?.setting_value ?? '14', 10) || 14
+  return addBusinessDays(new Date(), days)
+}
 
 // --- Types for structured data passed from the form ---
 
@@ -98,11 +113,13 @@ export async function createQuote(
       base_quote_number: quote_number,
       status: 'draft',
       version: 1,
+      title: (formData.get('title') as string) || null,
       quote_type: (formData.get('quote_type') as string) || null,
-      valid_until: (formData.get('valid_until') as string) || null,
+      valid_until: (formData.get('valid_until') as string) || await getDefaultValidUntil(supabase, user.orgId),
       vat_rate: parseFloat(formData.get('vat_rate') as string) || 20,
       customer_notes: (formData.get('customer_notes') as string) || null,
       internal_notes: (formData.get('internal_notes') as string) || null,
+      revision_notes: (formData.get('revision_notes') as string) || null,
       portal_token,
     })
     .select()
@@ -230,11 +247,13 @@ export async function updateQuote(
       opportunity_id: (formData.get('opportunity_id') as string) || null,
       assigned_to: (formData.get('assigned_to') as string) || null,
       brand_id: (formData.get('brand_id') as string) || null,
+      title: (formData.get('title') as string) || null,
       quote_type: (formData.get('quote_type') as string) || null,
       valid_until: (formData.get('valid_until') as string) || null,
       vat_rate: parseFloat(formData.get('vat_rate') as string) || 20,
       customer_notes: (formData.get('customer_notes') as string) || null,
       internal_notes: (formData.get('internal_notes') as string) || null,
+      revision_notes: (formData.get('revision_notes') as string) || null,
     })
     .eq('id', id)
 
@@ -381,7 +400,7 @@ export async function duplicateQuote(id: string) {
       status: 'draft',
       version: 1,
       quote_type: original.quote_type,
-      valid_until: null,
+      valid_until: await getDefaultValidUntil(supabase, user.orgId),
       vat_rate: original.vat_rate,
       customer_notes: null,
       internal_notes: null,
@@ -466,7 +485,7 @@ export async function duplicateQuote(id: string) {
 
 // --- Create Revision ---
 
-export async function createRevision(id: string) {
+export async function createRevision(id: string, revisionNotes?: string) {
   const user = await requirePermission('quotes', 'create')
   const supabase = await createClient()
 
@@ -502,12 +521,14 @@ export async function createRevision(id: string) {
       status: 'draft',
       version: newVersion,
       parent_quote_id: original.id,
+      title: original.title,
       quote_type: original.quote_type,
       brand_id: original.brand_id,
-      valid_until: null,
+      valid_until: await getDefaultValidUntil(supabase, user.orgId),
       vat_rate: original.vat_rate,
       customer_notes: original.customer_notes,
       internal_notes: original.internal_notes,
+      revision_notes: revisionNotes?.trim() || null,
       portal_token,
     })
     .select()
@@ -1203,7 +1224,7 @@ export async function createQuoteFromSupplierImport(input: SupplierImportInput) 
       status: 'draft',
       version: 1,
       quote_type: input.quote_type || null,
-      valid_until: null,
+      valid_until: await getDefaultValidUntil(supabase, user.orgId),
       vat_rate: 20,
       portal_token,
     })
@@ -1217,7 +1238,7 @@ export async function createQuoteFromSupplierImport(input: SupplierImportInput) 
     .from('quote_groups')
     .insert({
       quote_id: quote.id,
-      name: input.group_name || 'Imported Lines',
+      name: input.group_name || '',
       sort_order: 0,
     })
     .select()
@@ -1292,6 +1313,19 @@ export async function createQuoteFromSupplierImport(input: SupplierImportInput) 
     })
   }
 
+  // Look up default routes for matched products
+  const matchedProductIds = input.lines.map(l => l.product_id).filter(Boolean) as string[]
+  const productRouteMap: Record<string, string> = {}
+  if (matchedProductIds.length > 0) {
+    const { data: prods } = await supabase
+      .from('products')
+      .select('id, default_route')
+      .in('id', matchedProductIds)
+    for (const p of prods || []) {
+      if (p.default_route) productRouteMap[p.id] = p.default_route
+    }
+  }
+
   // Insert lines
   const lineRows = input.lines.map((l, i) => ({
     quote_id: quote.id,
@@ -1304,7 +1338,7 @@ export async function createQuoteFromSupplierImport(input: SupplierImportInput) 
     quantity: l.quantity,
     buy_price: l.buy_price,
     sell_price: l.sell_price,
-    fulfilment_route: 'drop_ship' as const,
+    fulfilment_route: (l.product_id && productRouteMap[l.product_id]) || 'from_stock' as const,
     is_optional: false,
     requires_contract: false,
     notes: null,
@@ -1563,6 +1597,19 @@ export async function addSupplierLinesToQuote(input: MergeLinesToQuoteInput) {
     })
   }
 
+  // Look up default routes for matched products
+  const mergeProductIds = input.lines.map(l => l.product_id).filter(Boolean) as string[]
+  const mergeRouteMap: Record<string, string> = {}
+  if (mergeProductIds.length > 0) {
+    const { data: prods } = await supabase
+      .from('products')
+      .select('id, default_route')
+      .in('id', mergeProductIds)
+    for (const p of prods || []) {
+      if (p.default_route) mergeRouteMap[p.id] = p.default_route
+    }
+  }
+
   // Insert lines
   const lineRows = input.lines.map((l, i) => ({
     quote_id: input.quoteId,
@@ -1575,7 +1622,7 @@ export async function addSupplierLinesToQuote(input: MergeLinesToQuoteInput) {
     quantity: l.quantity,
     buy_price: l.buy_price,
     sell_price: l.sell_price,
-    fulfilment_route: 'drop_ship' as const,
+    fulfilment_route: (l.product_id && mergeRouteMap[l.product_id]) || 'from_stock' as const,
     is_optional: false,
     requires_contract: false,
     notes: null,
@@ -1673,7 +1720,7 @@ export async function refreshQuoteBuilderProducts() {
     { data: rawProducts },
     { data: productSuppliers },
   ] = await Promise.all([
-    supabase.from('products').select('id, sku, name, category_id, default_buy_price, default_sell_price, product_categories(name)').eq('is_active', true).order('name'),
+    supabase.from('products').select('id, sku, name, category_id, default_buy_price, default_sell_price, default_route, product_categories(name)').eq('is_active', true).order('name'),
     supabase.from('product_suppliers').select('product_id, supplier_id, standard_cost, is_preferred'),
   ])
 
@@ -1685,6 +1732,7 @@ export async function refreshQuoteBuilderProducts() {
     category_name: (p.product_categories as unknown as { name: string } | null)?.name || null,
     default_buy_price: p.default_buy_price,
     default_sell_price: p.default_sell_price,
+    default_route: p.default_route || 'from_stock',
   }))
 
   return { products, productSuppliers: productSuppliers || [] }

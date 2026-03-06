@@ -1,4 +1,5 @@
 import { PageHeader } from '@/components/ui/page-header'
+import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { getContracts } from '../actions'
 import { ContractsTable } from './contracts-table'
@@ -13,11 +14,8 @@ export default async function ContractsPage() {
         title="Support Contracts"
         subtitle={`${contracts.length} contracts`}
         actions={
-          <Link
-            href="/helpdesk/contracts/new"
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 no-underline"
-          >
-            New Contract
+          <Link href="/helpdesk/contracts/new">
+            <Button size="sm" variant="primary">New Contract</Button>
           </Link>
         }
       />

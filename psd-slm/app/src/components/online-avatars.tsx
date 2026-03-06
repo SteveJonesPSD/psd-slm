@@ -93,13 +93,29 @@ function Avatar({ user, size }: { user: OnlineUser; size: number }) {
         )}
       </div>
       {!isIdle && (
-        <span
-          className="absolute bottom-0 right-0 block rounded-full bg-emerald-500 ring-2 ring-slate-900"
-          style={{
-            width: size * 0.32,
-            height: size * 0.32,
-          }}
-        />
+        user.isMobile ? (
+          <span
+            className="absolute -bottom-0.5 -right-0.5 flex items-center justify-center rounded-full bg-slate-900 ring-1 ring-slate-900"
+            style={{ width: size * 0.42, height: size * 0.42 }}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              className="text-emerald-400"
+              style={{ width: size * 0.28, height: size * 0.28 }}
+            >
+              <path d="M7 2a2 2 0 00-2 2v16a2 2 0 002 2h10a2 2 0 002-2V4a2 2 0 00-2-2H7zm5 18a1 1 0 110-2 1 1 0 010 2zm4-4H8V5h8v11z" />
+            </svg>
+          </span>
+        ) : (
+          <span
+            className="absolute bottom-0 right-0 block rounded-full bg-emerald-500 ring-2 ring-slate-900"
+            style={{
+              width: size * 0.32,
+              height: size * 0.32,
+            }}
+          />
+        )
       )}
     </div>
   )

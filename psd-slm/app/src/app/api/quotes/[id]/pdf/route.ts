@@ -85,6 +85,7 @@ export async function GET(
     const element = React.createElement(QuotePdfDocument, {
       quote: {
         quote_number: quote.quote_number,
+        title: quote.title,
         version: quote.version,
         vat_rate: quote.vat_rate,
         valid_until: quote.valid_until,

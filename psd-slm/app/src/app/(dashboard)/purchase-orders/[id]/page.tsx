@@ -76,7 +76,7 @@ export default async function PurchaseOrderDetailPage({ params }: PageProps) {
           </div>
         </div>
 
-        <PoDetailActions poId={po.id} status={po.status} poNumber={po.po_number} supplierName={po.supplier?.name || 'Unknown Supplier'} />
+        <PoDetailActions poId={po.id} status={po.status} poNumber={po.po_number} supplierName={po.supplier?.name || 'Unknown Supplier'} supplierEmail={po.supplier?.email || null} purchaseType={po.purchase_type} />
       </div>
 
       {/* Context panel */}

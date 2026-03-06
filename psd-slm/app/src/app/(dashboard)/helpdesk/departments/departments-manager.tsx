@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
 import {
   createDepartment,
   updateDepartment,
@@ -195,12 +196,9 @@ export function DepartmentsManager({ initialData, teamMembers }: DepartmentsMana
   return (
     <div>
       <div className="mb-8 flex justify-end">
-        <button
-          onClick={openCreate}
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-        >
+        <Button variant="primary" onClick={openCreate}>
           Add Department
-        </button>
+        </Button>
       </div>
 
       {departments.length === 0 ? (
@@ -438,13 +436,13 @@ export function DepartmentsManager({ initialData, teamMembers }: DepartmentsMana
               >
                 Cancel
               </button>
-              <button
+              <Button
+                variant="primary"
                 onClick={handleSave}
                 disabled={saving || !form.name.trim()}
-                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
               >
                 {saving ? 'Saving...' : editing ? 'Update' : 'Create'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

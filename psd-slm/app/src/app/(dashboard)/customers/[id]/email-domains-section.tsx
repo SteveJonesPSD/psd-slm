@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/form-fields'
 import { addCustomerDomain, removeCustomerDomain } from '../domain-actions'
+import { CollapsibleCard } from './collapsible-card'
 import type { CustomerEmailDomain } from '@/types/database'
 
 interface Props {
@@ -54,23 +55,15 @@ export function EmailDomainsSection({ domains, customerId }: Props) {
   }
 
   return (
-    <div className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 mb-8">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <h3 className="text-[15px] font-semibold text-slate-800 dark:text-white">
-            Approved Email Domains
-          </h3>
-          {domains.length > 0 && (
-            <span className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-slate-100 dark:bg-slate-700 text-xs font-medium text-slate-600 dark:text-slate-300">
-              {domains.length}
-            </span>
-          )}
-        </div>
+    <CollapsibleCard
+      title="Approved Email Domains"
+      count={domains.length}
+      actions={
         <Button size="sm" onClick={() => { setShowAdd(true); setError('') }}>
           Add Domain
         </Button>
-      </div>
-
+      }
+    >
       {/* Add form */}
       {showAdd && (
         <div className="mb-4 flex items-start gap-2">
@@ -149,6 +142,6 @@ export function EmailDomainsSection({ domains, customerId }: Props) {
           ))}
         </div>
       )}
-    </div>
+    </CollapsibleCard>
   )
 }

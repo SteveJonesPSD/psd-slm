@@ -42,7 +42,7 @@ export function PDFViewer({ pdfUrl, filename }: PDFViewerProps) {
           <a
             href={pdfUrl}
             download
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-500 bg-blue-500/15 text-blue-700 hover:shadow-[0_0_12px_rgba(59,130,246,0.5)] dark:border-blue-400 dark:bg-blue-400/15 dark:text-blue-300 dark:hover:shadow-[0_0_12px_rgba(96,165,250,0.4)] px-4 py-2 text-sm font-medium transition-all no-underline"
           >
             Download PDF
           </a>

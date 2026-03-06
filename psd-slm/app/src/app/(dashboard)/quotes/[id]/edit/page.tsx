@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, hasPermission } from '@/lib/auth'
+import { getMarginThresholds } from '@/lib/margin-settings'
 import { QuoteBuilder } from '../../builder/quote-builder'
 
 interface PageProps {
@@ -33,7 +34,8 @@ export default async function EditQuotePage({ params }: PageProps) {
   // Fetch all lookups in parallel
   const [
     { data: customers },
-    { data: contacts },
+    { data: directContacts },
+    { data: contactLinks },
     { data: rawProducts },
     { data: categories },
     { data: suppliers },
@@ -44,7 +46,8 @@ export default async function EditQuotePage({ params }: PageProps) {
   ] = await Promise.all([
     supabase.from('customers').select('id, name, customer_type').eq('is_active', true).order('name'),
     supabase.from('contacts').select('id, customer_id, first_name, last_name, email').eq('is_active', true),
-    supabase.from('products').select('id, sku, name, category_id, default_buy_price, default_sell_price, product_categories(name)').eq('is_active', true).order('name'),
+    supabase.from('contact_customer_links').select('contact_id, customer_id'),
+    supabase.from('products').select('id, sku, name, category_id, default_buy_price, default_sell_price, default_route, product_categories(name)').eq('is_active', true).order('name'),
     supabase.from('product_categories').select('id, name').order('sort_order'),
     supabase.from('suppliers').select('id, name').eq('is_active', true).order('name'),
     supabase.from('users').select('id, first_name, last_name, initials, color').eq('is_active', true).order('first_name'),
@@ -52,6 +55,16 @@ export default async function EditQuotePage({ params }: PageProps) {
     supabase.from('v_active_deal_pricing').select('*'),
     supabase.from('product_suppliers').select('product_id, supplier_id, standard_cost, is_preferred'),
   ])
+
+  // Build contacts list: direct contacts + linked contacts (with linked customer_id)
+  const contactsById = new Map((directContacts || []).map((c) => [c.id, c]))
+  const allContacts = (directContacts || []).map((c) => ({ ...c, email: c.email || null }))
+  for (const link of contactLinks || []) {
+    const contact = contactsById.get(link.contact_id)
+    if (contact && link.customer_id !== contact.customer_id) {
+      allContacts.push({ ...contact, customer_id: link.customer_id, email: contact.email || null })
+    }
+  }
 
   const products = (rawProducts || []).map((p) => ({
     id: p.id,
@@ -61,6 +74,7 @@ export default async function EditQuotePage({ params }: PageProps) {
     category_name: (p.product_categories as unknown as { name: string } | null)?.name || null,
     default_buy_price: p.default_buy_price,
     default_sell_price: p.default_sell_price,
+    default_route: p.default_route || 'from_stock',
   }))
 
   // Sort groups and lines by sort_order
@@ -70,10 +84,12 @@ export default async function EditQuotePage({ params }: PageProps) {
   const sortedLines = (quote.quote_lines as { id: string; group_id: string | null; sort_order: number; [key: string]: unknown }[])
     .sort((a, b) => a.sort_order - b.sort_order)
 
+  const marginThresholds = await getMarginThresholds()
+
   return (
     <QuoteBuilder
       customers={customers || []}
-      contacts={(contacts || []).map((c) => ({ ...c, email: c.email || null }))}
+      contacts={allContacts}
       products={products}
       categories={categories || []}
       suppliers={suppliers || []}
@@ -90,15 +106,18 @@ export default async function EditQuotePage({ params }: PageProps) {
         opportunity_id: quote.opportunity_id,
         assigned_to: quote.assigned_to,
         brand_id: quote.brand_id,
+        title: quote.title,
         quote_type: quote.quote_type,
         valid_until: quote.valid_until,
         vat_rate: quote.vat_rate,
         customer_notes: quote.customer_notes,
         internal_notes: quote.internal_notes,
+        revision_notes: quote.revision_notes,
         quote_groups: sortedGroups,
         quote_lines: sortedLines as typeof quote.quote_lines,
         quote_attributions: quote.quote_attributions as { id: string; user_id: string; attribution_type: string; split_pct: number }[],
       }}
+      marginThresholds={marginThresholds}
     />
   )
 }

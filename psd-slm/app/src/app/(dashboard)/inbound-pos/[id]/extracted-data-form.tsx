@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { updateInboundPO } from '../actions'
+import { Button } from '@/components/ui/button'
 import type { Json } from '@/types/database'
 
 interface ExtractedFields {
@@ -121,13 +122,14 @@ export function ExtractedDataForm({
           )}
         </div>
         {editedFields.size > 0 && (
-          <button
+          <Button
             onClick={handleSave}
+            variant="primary"
+            size="sm"
             disabled={saving}
-            className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
           >
             {saving ? 'Saving...' : 'Save Changes'}
-          </button>
+          </Button>
         )}
       </div>
 

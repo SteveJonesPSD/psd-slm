@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { PageHeader } from '@/components/ui/page-header'
+import { Button } from '@/components/ui/button'
 import { StatCard } from '@/components/ui/stat-card'
 import { formatCurrency } from '@/lib/utils'
 import { getCustomerContracts, getContractStats } from './actions'
@@ -18,17 +19,11 @@ export default async function ContractsPage() {
         subtitle={`${contracts.length} total`}
         actions={
           <div className="flex items-center gap-2">
-            <Link
-              href="/contracts/engineer-grid"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-slate-700 no-underline hover:bg-slate-50 transition-colors"
-            >
-              Engineer Grid
+            <Link href="/contracts/engineer-grid">
+              <Button size="sm">Engineer Grid</Button>
             </Link>
-            <Link
-              href="/contracts/new"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white no-underline hover:bg-indigo-700 transition-colors"
-            >
-              + New Contract
+            <Link href="/contracts/new">
+              <Button size="sm" variant="primary">+ New Contract</Button>
             </Link>
           </div>
         }

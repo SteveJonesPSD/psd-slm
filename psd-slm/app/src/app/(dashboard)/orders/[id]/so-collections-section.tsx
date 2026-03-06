@@ -54,19 +54,18 @@ export function SoCollectionsSection({ collections }: { collections: CollectionR
           return (
             <div key={col.id} className="px-5 py-3 hover:bg-slate-50/50">
               <div className="flex items-center justify-between mb-1.5">
-                <Link href={`/collections/${col.id}`} className="text-sm font-semibold text-indigo-600 hover:underline">
-                  {col.slip_number}
-                </Link>
                 <div className="flex items-center gap-2">
+                  <Link href={`/collections/${col.id}`} className="text-sm font-semibold text-indigo-600 hover:underline">
+                    {col.slip_number}
+                  </Link>
                   <Badge label={badge.label} color={badge.color} bg={badge.bg} />
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => window.open(`/api/collections/${col.id}/slip`, '_blank')}
-                  >
-                    Print
-                  </Button>
                 </div>
+                <button
+                  onClick={() => window.open(`/api/collections/${col.id}/slip`, '_blank')}
+                  className="rounded px-2 py-0.5 text-[11px] font-medium text-blue-600 hover:bg-blue-50 border border-blue-200 transition-colors"
+                >
+                  Print
+                </button>
               </div>
 
               <div className="flex items-center gap-4 text-xs text-slate-500">

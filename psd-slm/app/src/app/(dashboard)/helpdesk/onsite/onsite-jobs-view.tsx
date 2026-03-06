@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
 import { Badge, TICKET_STATUS_CONFIG, TICKET_PRIORITY_CONFIG } from '@/components/ui/badge'
 import { changeTicketStatus, addMessage, logTime } from '../actions'
 import { ACTIVE_STATUSES } from '@/lib/helpdesk'
@@ -257,13 +258,13 @@ export function OnsiteJobsView({ initialJobs, customers }: { initialJobs: Job[];
               <button onClick={() => setNoteJobId(null)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-gray-50">
                 Cancel
               </button>
-              <button
+              <Button
+                variant="primary"
                 onClick={handleAddNote}
                 disabled={!noteText.trim()}
-                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
               >
                 Add Note
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -302,13 +303,13 @@ export function OnsiteJobsView({ initialJobs, customers }: { initialJobs: Job[];
               <button onClick={() => setTimeJobId(null)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-gray-50">
                 Cancel
               </button>
-              <button
+              <Button
+                variant="primary"
                 onClick={handleLogTime}
                 disabled={!timeMinutes}
-                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
               >
                 Log Time
-              </button>
+              </Button>
             </div>
           </div>
         </div>

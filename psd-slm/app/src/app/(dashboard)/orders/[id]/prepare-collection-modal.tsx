@@ -83,7 +83,7 @@ export function PrepareCollectionModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[80vh] flex flex-col">
         <div className="p-5 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-slate-900">Prepare Collection Slip</h3>
+          <h3 className="text-lg font-semibold text-slate-900">Prepare for Collection</h3>
           <p className="text-sm text-slate-500 mt-1">
             Select picked items for the engineer to collect from the warehouse
           </p>

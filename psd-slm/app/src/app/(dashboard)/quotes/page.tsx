@@ -1,8 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { requirePermission } from '@/lib/auth'
+import { getMarginThresholds } from '@/lib/margin-settings'
 import { PageHeader } from '@/components/ui/page-header'
+import { MobileDetector } from '@/components/ui/mobile-detector'
 import { QuotesTable } from './quotes-table'
 import { QuotesPageActions } from './quotes-page-actions'
+import { MobileQuoteList } from './mobile-quote-list'
 
 export default async function QuotesPage() {
   await requirePermission('quotes', 'view')
@@ -19,14 +22,22 @@ export default async function QuotesPage() {
     `)
     .order('created_at', { ascending: false })
 
+  const quotesData = quotes || []
+  const marginThresholds = await getMarginThresholds()
+
   return (
-    <div>
-      <PageHeader
-        title="All Quotes"
-        subtitle={`${quotes?.length || 0} quotes`}
-        actions={<QuotesPageActions />}
-      />
-      <QuotesTable quotes={quotes || []} />
-    </div>
+    <MobileDetector
+      mobile={<MobileQuoteList quotes={quotesData} marginThresholds={marginThresholds} />}
+      desktop={
+        <div>
+          <PageHeader
+            title="All Quotes"
+            subtitle={`${quotesData.length} quotes`}
+            actions={<QuotesPageActions />}
+          />
+          <QuotesTable quotes={quotesData} marginThresholds={marginThresholds} />
+        </div>
+      }
+    />
   )
 }

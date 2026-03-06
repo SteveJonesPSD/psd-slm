@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
 import { logTime } from '../../actions'
 
 interface TimeEntry {
@@ -105,13 +106,14 @@ export function TimeEntries({ ticketId, entries }: { ticketId: string; entries: 
               />
               Billable
             </label>
-            <button
+            <Button
+              variant="primary"
+              size="sm"
               onClick={handleLog}
               disabled={saving}
-              className="rounded bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
             >
               {saving ? 'Saving...' : 'Log Time'}
-            </button>
+            </Button>
           </div>
         </div>
       )}

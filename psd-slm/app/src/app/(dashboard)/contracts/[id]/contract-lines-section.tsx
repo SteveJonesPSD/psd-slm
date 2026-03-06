@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { DataTable, type Column } from '@/components/ui/data-table'
+import { Button } from '@/components/ui/button'
 import { formatCurrency } from '@/lib/utils'
 import { addContractLine, updateContractLine, deleteContractLine } from '../actions'
 import type { ContractLine } from '@/lib/contracts/types'
@@ -90,12 +91,13 @@ export function ContractLinesSection({ contractId, lines, editable }: ContractLi
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-[15px] font-semibold">Contract Lines ({lines.length})</h3>
         {editable && (
-          <button
+          <Button
             onClick={() => setShowAdd(true)}
-            className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 transition-colors"
+            variant="primary"
+            size="sm"
           >
             + Add Line
-          </button>
+          </Button>
         )}
       </div>
 
@@ -212,9 +214,9 @@ function LineModal({
 
         <div className="flex justify-end gap-2 mt-4">
           <button onClick={onClose} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Cancel</button>
-          <button onClick={handleSave} disabled={saving} className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+          <Button onClick={handleSave} variant="primary" disabled={saving}>
             {saving ? 'Saving...' : 'Save'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

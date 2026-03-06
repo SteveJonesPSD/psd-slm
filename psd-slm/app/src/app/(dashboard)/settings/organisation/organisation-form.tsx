@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Input, Select } from '@/components/ui/form-fields'
+import { Button } from '@/components/ui/button'
 import { saveSettings } from '../actions'
 
 interface OrganisationFormProps {
@@ -43,6 +44,9 @@ export function OrganisationForm({ initialSettings }: OrganisationFormProps) {
     financial_year_start: initialSettings.financial_year_start || 'April',
     default_vat_rate: initialSettings.default_vat_rate || '20',
     default_payment_terms: initialSettings.default_payment_terms || '30',
+    quote_validity_days: initialSettings.quote_validity_days || '14',
+    margin_threshold_green: initialSettings.margin_threshold_green || '30',
+    margin_threshold_amber: initialSettings.margin_threshold_amber || '15',
   })
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -131,6 +135,46 @@ export function OrganisationForm({ initialSettings }: OrganisationFormProps) {
             step="1"
           />
         </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Input
+            label="Quote Validity (business days)"
+            type="number"
+            value={settings.quote_validity_days}
+            onChange={(v) => update('quote_validity_days', v)}
+            min="1"
+            step="1"
+          />
+        </div>
+
+        <div className="border-t border-gray-100 pt-6 mt-2">
+          <h3 className="text-sm font-semibold text-slate-700 mb-1">Margin Colour Thresholds</h3>
+          <p className="text-xs text-slate-500 mb-4">
+            Margins at or above <span className="text-emerald-600 font-medium">green</span> show green,
+            at or above <span className="text-amber-600 font-medium">amber</span> show amber,
+            below amber show <span className="text-red-600 font-medium">red</span>.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Green Threshold (%)"
+              type="number"
+              value={settings.margin_threshold_green}
+              onChange={(v) => update('margin_threshold_green', v)}
+              min="0"
+              max="100"
+              step="1"
+            />
+            <Input
+              label="Amber Threshold (%)"
+              type="number"
+              value={settings.margin_threshold_amber}
+              onChange={(v) => update('margin_threshold_amber', v)}
+              min="0"
+              max="100"
+              step="1"
+            />
+          </div>
+        </div>
       </div>
 
       <div className="flex items-center justify-between border-t border-gray-100 px-6 py-4">
@@ -141,13 +185,13 @@ export function OrganisationForm({ initialSettings }: OrganisationFormProps) {
             </p>
           )}
         </div>
-        <button
+        <Button
+          variant="primary"
           onClick={handleSave}
           disabled={saving}
-          className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
         >
           {saving ? 'Saving...' : 'Save Changes'}
-        </button>
+        </Button>
       </div>
     </div>
   )

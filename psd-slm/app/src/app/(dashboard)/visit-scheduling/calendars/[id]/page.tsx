@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { PageHeader } from '@/components/ui/page-header'
+import { Button } from '@/components/ui/button'
 import { Badge, CALENDAR_STATUS_CONFIG } from '@/components/ui/badge'
 import { getCalendar, getCalendarWeeks, getBankHolidays } from '../../actions'
 import { getDateYear } from '@/lib/visit-scheduling/types'
@@ -27,13 +28,10 @@ export default async function CalendarDetailPage({ params }: { params: Promise<{
         title={calendar.name}
         subtitle={`${academicYearLabel} · ${weeks.length} weeks · ${calendar.schedule_weeks}-week schedule`}
         actions={
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
             {statusCfg && <Badge label={statusCfg.label} color={statusCfg.color} bg={statusCfg.bg} />}
-            <Link
-              href="/visit-scheduling/calendars"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 no-underline hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-            >
-              ← Back
+            <Link href="/visit-scheduling/calendars">
+              <Button size="sm">← Back</Button>
             </Link>
           </div>
         }

@@ -25,7 +25,7 @@ export async function GET(
     .from('job_collections')
     .select(`
       *,
-      jobs(id, job_number, title, assigned_to,
+      jobs(id, job_number, title, scheduled_date, assigned_to,
         assigned_user:users!jobs_assigned_to_fkey(first_name, last_name)
       ),
       sales_orders(id, so_number, customer_id, customers(id, name))
@@ -53,10 +53,14 @@ export async function GET(
     .eq('is_active', true)
     .maybeSingle()
 
-  const job = collection.jobs as unknown as { job_number: string; assigned_user: { first_name: string; last_name: string } | null } | null
-  const so = collection.sales_orders as unknown as { customers: { name: string } | null } | null
+  const job = collection.jobs as unknown as { job_number: string; scheduled_date: string | null; assigned_user: { first_name: string; last_name: string } | null } | null
+  const so = collection.sales_orders as unknown as { so_number: string; customers: { name: string } | null } | null
   const customerName = so?.customers?.name || 'Unknown Customer'
+  const soNumber = so?.so_number || null
   const jobNumber = job?.job_number || 'N/A'
+  const visitDate = job?.scheduled_date
+    ? new Date(job.scheduled_date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+    : null
   const engineerName = job?.assigned_user
     ? `${job.assigned_user.first_name} ${job.assigned_user.last_name}`
     : 'Unassigned'
@@ -89,9 +93,11 @@ export async function GET(
     const element = React.createElement(CollectionSlipPdf, {
       slipNumber: collection.slip_number,
       customerName,
+      soNumber,
       jobNumber,
       engineerName,
       date: formattedDate,
+      visitDate,
       itemCount: pdfLines.length,
       notes: collection.notes,
       lines: pdfLines,

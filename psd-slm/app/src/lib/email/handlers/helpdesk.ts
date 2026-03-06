@@ -9,7 +9,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ProcessedEmail, MailChannel, HandlerResult, EmailAttachmentMeta } from '../types'
 import { sanitiseHtml, htmlToPlainText, extractNewContent, getHeader, parseReferences } from '../email-utils'
 import { sendTicketAcknowledgement } from '../email-sender'
-import { resolveCustomerByDomain } from '@/app/(dashboard)/customers/domain-actions'
+import { resolveContactAndCustomer, parseDisplayName } from '../contact-resolution'
 
 const TICKET_NUMBER_REGEX = /\[TKT-\d{4}-\d{4,}\]/
 
@@ -263,7 +263,7 @@ async function threadToTicket(
 }
 
 // -----------------------------------------------------------------------------
-// Create a new ticket from an email (domain-first matching)
+// Create a new ticket from an email (enhanced contact/customer resolution)
 // -----------------------------------------------------------------------------
 
 async function createNewTicket(
@@ -281,7 +281,7 @@ async function createNewTicket(
 ): Promise<HandlerResult> {
   const msg = email.graphMessage
 
-  // Step 1: Extract sender domain
+  // Validate email
   const senderDomain = fromAddress.split('@')[1]
   if (!senderDomain) {
     return {
@@ -292,93 +292,68 @@ async function createNewTicket(
     }
   }
 
-  // Step 2: Domain lookup
-  const domainMatch = await resolveCustomerByDomain(orgId, senderDomain)
-  if (!domainMatch) {
+  // Check if org wants to reject unknown domains (backward compat setting)
+  const { data: rejectSetting } = await supabase
+    .from('org_settings')
+    .select('setting_value')
+    .eq('org_id', orgId)
+    .eq('category', 'email')
+    .eq('setting_key', 'email_reject_unknown_domains')
+    .maybeSingle()
+
+  // Resolve contact and customer via the enhanced resolution flow
+  const resolution = await resolveContactAndCustomer(fromAddress, fromName, orgId, supabase)
+
+  // If strict domain rejection is enabled and we have no customer match, reject
+  if (rejectSetting?.setting_value === 'true' && !resolution.customer && !resolution.contact) {
     return {
       action: 'rejected',
-      notes: `No matching domain for ${senderDomain} (sender: ${fromAddress})`,
+      notes: `No matching domain for ${senderDomain} (sender: ${fromAddress}) — strict domain mode`,
       sender: fromAddress,
       senderName: fromName !== fromAddress ? fromName : undefined,
     }
   }
 
-  const { customerId, customerName } = domainMatch
+  const customerId = resolution.customer?.id || null
+  const customerName = resolution.customer?.name || null
+  const contactId = resolution.contact?.id || null
+  const contactAutoCreated = resolution.contactAutoCreated
 
-  // Step 3: Contact lookup
-  const { data: existingContact } = await supabase
-    .from('contacts')
-    .select('id')
-    .eq('customer_id', customerId)
-    .ilike('email', fromAddress)
-    .limit(1)
-    .maybeSingle()
-
-  let contactId: string | null = existingContact?.id || null
-  let contactAutoCreated = false
-
-  // Step 4: Auto-create contact if not found
-  if (!contactId) {
-    const { firstName, lastName } = parseDisplayName(fromName, fromAddress)
-
-    const { data: newContact } = await supabase
-      .from('contacts')
-      .insert({
-        org_id: orgId,
-        customer_id: customerId,
-        first_name: firstName,
-        last_name: lastName,
-        email: fromAddress,
-        is_primary: false,
-        is_billing: false,
-        is_active: true,
-        is_auto_created: true,
-      })
-      .select('id')
-      .single()
-
-    if (newContact) {
-      contactId = newContact.id
-      contactAutoCreated = true
-
-      // Log contact creation
-      await supabase.from('activity_log').insert({
-        org_id: orgId,
-        entity_type: 'contact',
-        entity_id: newContact.id,
-        action: 'auto_created',
-        details: { source: 'email_ingestion', email: fromAddress, customer: customerName },
-        created_at: new Date().toISOString(),
-      })
-    }
-  }
-
-  // Step 5: Generate ticket number
+  // Generate ticket number
   const ticketNumber = await generateTicketNumber(supabase, orgId)
   const portalToken = crypto.randomUUID()
 
-  // Resolve SLA
+  // Resolve SLA (only if we have a customer)
   const sla = await resolveSla(supabase, orgId, customerId)
+
+  // Build ticket insert
+  const ticketInsert: Record<string, unknown> = {
+    org_id: orgId,
+    ticket_number: ticketNumber,
+    customer_id: customerId,
+    contact_id: contactId,
+    subject,
+    description: bodyText.substring(0, 500),
+    ticket_type: 'helpdesk',
+    status: 'new',
+    priority: 'medium',
+    source: 'email',
+    portal_token: portalToken,
+    sla_plan_id: sla.slaPlanId,
+    contract_id: sla.contractId,
+    sla_response_due_at: sla.responseDueAt,
+    sla_resolution_due_at: sla.resolutionDueAt,
+    needs_customer_assignment: resolution.needsAssignment,
+  }
+
+  // Store assignment options if multi-customer contact or unknown sender
+  if (resolution.needsAssignment && resolution.assignmentOptions.length > 0) {
+    ticketInsert.customer_assignment_options = resolution.assignmentOptions
+  }
 
   const { data: ticket, error } = await supabase
     .from('tickets')
-    .insert({
-      org_id: orgId,
-      ticket_number: ticketNumber,
-      customer_id: customerId,
-      contact_id: contactId,
-      subject,
-      description: bodyText.substring(0, 500),
-      ticket_type: 'helpdesk',
-      status: 'new',
-      priority: 'medium',
-      source: 'email',
-      portal_token: portalToken,
-      sla_plan_id: sla.slaPlanId,
-      contract_id: sla.contractId,
-      sla_response_due_at: sla.responseDueAt,
-      sla_resolution_due_at: sla.resolutionDueAt,
-    })
+    .insert(ticketInsert)
     .select('id, ticket_number')
     .single()
 
@@ -402,14 +377,33 @@ async function createNewTicket(
     is_internal: false,
   })
 
-  // Add internal note if contact was auto-created
-  if (contactAutoCreated) {
+  // Add internal note for resolution status
+  if (contactAutoCreated && customerName) {
     await supabase.from('ticket_messages').insert({
       ticket_id: ticket.id,
       sender_type: 'system',
       sender_id: null,
       sender_name: 'System',
       body: `Contact auto-created from inbound email. Please verify name and details.\nSender: ${fromAddress} (matched to ${customerName} via domain ${senderDomain})`,
+      is_internal: true,
+    })
+  } else if (resolution.needsAssignment && resolution.assignmentOptions.length > 0) {
+    const optionNames = resolution.assignmentOptions.map(o => o.customer_name).join(', ')
+    await supabase.from('ticket_messages').insert({
+      ticket_id: ticket.id,
+      sender_type: 'system',
+      sender_id: null,
+      sender_name: 'System',
+      body: `This contact is linked to multiple customers: ${optionNames}. Please assign this ticket to the correct customer.`,
+      is_internal: true,
+    })
+  } else if (resolution.needsAssignment && !resolution.contact) {
+    await supabase.from('ticket_messages').insert({
+      ticket_id: ticket.id,
+      sender_type: 'system',
+      sender_id: null,
+      sender_name: 'System',
+      body: `Ticket created from unknown sender: ${fromAddress}. No matching domain or contact found. Please assign to a customer.`,
       is_internal: true,
     })
   }
@@ -434,7 +428,9 @@ async function createNewTicket(
     has_attachments: attachmentMeta.length > 0,
     attachments: attachmentMeta,
     sent_at: msg.receivedDateTime,
-    processing_notes: `New ticket created: ${ticketNumber}`,
+    processing_notes: resolution.needsAssignment
+      ? `New ticket created: ${ticketNumber} (needs customer assignment)`
+      : `New ticket created: ${ticketNumber}`,
   })
 
   // Log activity
@@ -450,11 +446,12 @@ async function createNewTicket(
       ticket_number: ticket.ticket_number,
       customer_name: customerName,
       contact_auto_created: contactAutoCreated,
+      needs_customer_assignment: resolution.needsAssignment,
     },
     created_at: new Date().toISOString(),
   })
 
-  // Fire-and-forget: send acknowledgement email to the customer
+  // Fire-and-forget: send acknowledgement email
   const { firstName: ackFirstName } = parseDisplayName(fromName, fromAddress)
   const mailboxAddress = channel.mailbox_address || ''
   sendTicketAcknowledgement(supabase, {
@@ -472,57 +469,18 @@ async function createNewTicket(
     console.error('[email] Ack send failed (non-blocking):', err instanceof Error ? err.message : err)
   })
 
+  const notes = resolution.needsAssignment
+    ? `New ticket created: ${ticketNumber} (needs customer assignment)`
+    : `New ticket created: ${ticketNumber}${contactAutoCreated ? ' (contact auto-created)' : ''}`
+
   return {
     action: 'created_ticket',
     ticketId: ticket.id,
     ticketNumber: ticket.ticket_number,
-    notes: `New ticket created: ${ticketNumber}${contactAutoCreated ? ' (contact auto-created)' : ''}`,
+    notes,
     sender: fromAddress,
     senderName: fromName !== fromAddress ? fromName : undefined,
   }
-}
-
-// -----------------------------------------------------------------------------
-// Parse display name from email sender
-// -----------------------------------------------------------------------------
-
-function parseDisplayName(
-  displayName: string,
-  email: string
-): { firstName: string; lastName: string } {
-  const trimmed = displayName.trim()
-
-  if (trimmed && trimmed !== email) {
-    // Has a proper display name
-    if (trimmed.includes(' ')) {
-      // "Steve Jones" → first=Steve, last=Jones
-      // "Mary Jane Watson" → first=Mary Jane, last=Watson
-      const lastSpace = trimmed.lastIndexOf(' ')
-      return {
-        firstName: trimmed.substring(0, lastSpace),
-        lastName: trimmed.substring(lastSpace + 1),
-      }
-    }
-    // Single word like "Steve"
-    return { firstName: trimmed, lastName: '(Unknown)' }
-  }
-
-  // No display name — parse from email local part
-  const localPart = email.split('@')[0] || 'unknown'
-
-  // Try splitting on . or _
-  const parts = localPart.split(/[._]/).filter(Boolean)
-  if (parts.length >= 2) {
-    const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()
-    return {
-      firstName: titleCase(parts[0]),
-      lastName: titleCase(parts[parts.length - 1]),
-    }
-  }
-
-  // Can't parse — use local part as first name
-  const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()
-  return { firstName: titleCase(localPart), lastName: '(Unknown)' }
 }
 
 // -----------------------------------------------------------------------------

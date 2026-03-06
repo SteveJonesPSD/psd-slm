@@ -13,8 +13,10 @@ import type { UserMailCredential } from '@/lib/email/types'
 // =============================================================================
 
 export interface SendQuotePayload {
-  sendMethod: 'pdf' | 'portal' | 'both'
+  sendMethod: 'pdf' | 'portal'
   toAddresses: string[]
+  ccAddresses?: string[]
+  bccAddresses?: string[]
   subject: string
   messageBody: string
   senderUserId: string
@@ -176,7 +178,7 @@ export async function sendQuoteEmail(
 
   // Build attachments if PDF send
   const attachments: { name: string; contentType: string; contentBytes: string }[] = []
-  if (payload.sendMethod === 'pdf' || payload.sendMethod === 'both') {
+  if (payload.sendMethod === 'pdf') {
     try {
       const pdfBase64 = await generateQuotePdfBase64(supabase, quoteId, quote.quote_number, portalUrl)
       if (pdfBase64) {
@@ -208,6 +210,12 @@ export async function sendQuoteEmail(
         const trimmed = addr.trim()
         return { address: trimmed, name: trimmed }
       }),
+      cc: payload.ccAddresses && payload.ccAddresses.length > 0
+        ? payload.ccAddresses.map(addr => ({ address: addr.trim(), name: addr.trim() }))
+        : undefined,
+      bcc: payload.bccAddresses && payload.bccAddresses.length > 0
+        ? payload.bccAddresses.map(addr => ({ address: addr.trim(), name: addr.trim() }))
+        : undefined,
       subject: payload.subject,
       bodyHtml,
       attachments: attachments.length > 0 ? attachments : undefined,
@@ -229,6 +237,8 @@ export async function sendQuoteEmail(
     sender_user_id: payload.senderUserId,
     sender_email: senderCred.email_address,
     recipient_addresses: payload.toAddresses,
+    cc_addresses: payload.ccAddresses || [],
+    bcc_addresses: payload.bccAddresses || [],
     subject: payload.subject,
     sent_at: new Date().toISOString(),
   })
@@ -256,6 +266,8 @@ export async function sendQuoteEmail(
       quote_number: quote.quote_number,
       send_method: payload.sendMethod,
       recipient_addresses: payload.toAddresses,
+      cc_addresses: payload.ccAddresses || [],
+      bcc_addresses: payload.bccAddresses || [],
       sender_email: senderCred.email_address,
       sender_name: senderDisplayName,
     },
@@ -310,6 +322,7 @@ async function generateQuotePdfBase64(
   const element = React.createElement(QuotePdfDocument, {
     quote: {
       quote_number: fullQuote.quote_number,
+      title: fullQuote.title,
       version: fullQuote.version,
       vat_rate: fullQuote.vat_rate,
       valid_until: fullQuote.valid_until,
@@ -339,7 +352,7 @@ function buildQuoteEmailHtml(params: {
   messageBody: string
   quoteNumber: string
   validUntil: string | null
-  sendMethod: 'pdf' | 'portal' | 'both'
+  sendMethod: 'pdf' | 'portal'
   portalUrl: string
   senderDisplayName: string
   brandName: string
@@ -359,8 +372,8 @@ function buildQuoteEmailHtml(params: {
     ? new Date(validUntil).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
     : null
 
-  // Portal link button (for portal or both modes)
-  const portalButton = (sendMethod === 'portal' || sendMethod === 'both') ? `
+  // Portal link button (always included)
+  const portalButton = `
     <div style="margin: 24px 0; text-align: center;">
       <a href="${portalUrl}" style="display: inline-block; background-color: #4f46e5; color: #ffffff; font-weight: 600; font-size: 15px; padding: 12px 32px; border-radius: 8px; text-decoration: none;">
         View Quote ${quoteNumber} Online
@@ -369,7 +382,7 @@ function buildQuoteEmailHtml(params: {
     <p style="margin: 0 0 12px 0; font-size: 13px; color: #64748b;">
       The online portal allows you to view the full quotation, download a PDF copy, and accept the quote with your purchase order number.
     </p>
-  ` : ''
+  `
 
   // Contact details
   const contactLines = [brandPhone, brandEmail].filter(Boolean)

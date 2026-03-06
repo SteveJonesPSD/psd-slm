@@ -21,6 +21,13 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function GET(request: Request) {
   try {
+    if (!process.env.NEXT_PUBLIC_SITE_URL) {
+      return NextResponse.json(
+        { error: 'NEXT_PUBLIC_SITE_URL environment variable is not set' },
+        { status: 500 }
+      )
+    }
+
     const user = await requireAuth()
     const supabase = await createClient()
 
@@ -68,11 +75,10 @@ export async function GET(request: Request) {
         createdAt: new Date().toISOString(),
       }),
     }, {
-      onConflict: 'org_id,category,setting_key',
+      onConflict: 'org_id,setting_key',
     })
 
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || ''
-    const redirectUri = `${baseUrl}/api/auth/mail-callback`
+    const redirectUri = `${process.env.NEXT_PUBLIC_SITE_URL}/api/auth/mail-callback`
 
     const authorizeUrl = new URL(`https://login.microsoftonline.com/${connection.tenant_id}/oauth2/v2.0/authorize`)
     authorizeUrl.searchParams.set('client_id', connection.client_id)
@@ -85,9 +91,12 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ authorizeUrl: authorizeUrl.toString() })
   } catch (err) {
-    console.error('[mail-connect]', err)
+    console.error('[mail-connect] Failed to build authorize URL:', err)
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Failed to initiate mail connection' },
+      {
+        error: 'Failed to initiate mail connection',
+        detail: err instanceof Error ? err.message : String(err),
+      },
       { status: 500 }
     )
   }

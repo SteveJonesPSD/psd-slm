@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { PageHeader } from '@/components/ui/page-header'
+import { Button } from '@/components/ui/button'
 import { getCalendars, getFieldEngineers } from '../actions'
 import { GenerateForm } from './generate-form'
 
@@ -18,11 +19,8 @@ export default async function GeneratePage() {
         title="Generate Visits"
         subtitle="Create visit diary entries from contract visit slots"
         actions={
-          <Link
-            href="/visit-scheduling"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 no-underline hover:bg-slate-50 transition-colors"
-          >
-            ← Back
+          <Link href="/visit-scheduling">
+            <Button size="sm">← Back</Button>
           </Link>
         }
       />

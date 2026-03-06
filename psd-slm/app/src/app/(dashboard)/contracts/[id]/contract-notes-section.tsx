@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { updateCustomerContract } from '../actions'
+import { Button } from '@/components/ui/button'
 
 interface ContractNotesSectionProps {
   contractId: string
@@ -55,13 +56,14 @@ export function ContractNotesSection({ contractId, notes, editable }: ContractNo
             >
               Cancel
             </button>
-            <button
+            <Button
               onClick={handleSave}
+              variant="primary"
+              size="sm"
               disabled={saving}
-              className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
             >
               {saving ? 'Saving...' : 'Save'}
-            </button>
+            </Button>
           </div>
         </div>
       ) : (

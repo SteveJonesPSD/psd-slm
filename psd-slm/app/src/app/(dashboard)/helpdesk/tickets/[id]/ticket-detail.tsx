@@ -23,6 +23,7 @@ import { MergeTicketModal } from './merge-ticket-modal'
 import { useTicketPresence } from './use-ticket-presence'
 import { PresenceBanner } from './presence-banner'
 import { AutogrumpBanner } from '@/components/helpdesk/autogrump-badge'
+import { CustomerAssignmentBanner } from './customer-assignment-banner'
 import { EmailThreadSection } from './email-thread-section'
 import type { TicketEmail } from '@/lib/email/types'
 import type { HelenDraftType } from '@/types/database'
@@ -63,6 +64,7 @@ export function TicketDetail({ ticket, teamMembers, categories, tags, cannedResp
   const contact = t.contacts as Record<string, unknown> | null
   const assignee = t.assignee as Record<string, unknown> | null
   const category = t.ticket_categories as Record<string, unknown> | null
+  const supportContract = t.support_contracts as Record<string, unknown> | null
   const msgs = (t.messages as Record<string, unknown>[]) || []
 
   // Resolve department name from id
@@ -145,13 +147,34 @@ export function TicketDetail({ ticket, teamMembers, categories, tags, cannedResp
           )}
           <h3 className="mt-1 text-lg text-slate-700">{t.subject as string}</h3>
           <div className="mt-1 flex items-center gap-4 text-xs text-slate-400">
-            <span>{(t.customers as Record<string, unknown>)?.name as string || <span className="text-red-500 font-medium">Unmatched sender — assign customer</span>}</span>
+            <span>{(t.customers as Record<string, unknown>)?.name as string || <span className="text-amber-600 font-medium">Needs customer assignment</span>}</span>
             {t.contacts ? (
               <span>
                 Contact: {(t.contacts as Record<string, unknown>).first_name as string} {(t.contacts as Record<string, unknown>).last_name as string}
               </span>
             ) : null}
             <span>Created {new Date(t.created_at as string).toLocaleString('en-GB')}</span>
+          </div>
+          <div className="mt-2 flex items-center gap-1.5">
+            {supportContract ? (
+              <>
+                <span className="text-xs text-slate-400 mr-1">{supportContract.name as string}:</span>
+                {((supportContract.contract_type as string) === 'helpdesk' || (supportContract.contract_type as string) === 'both') && (
+                  <>
+                    <Badge label="Remote Support" color="#059669" bg="#ecfdf5" />
+                    <Badge label="Telephone Support" color="#059669" bg="#ecfdf5" />
+                  </>
+                )}
+                {((supportContract.contract_type as string) === 'onsite' || (supportContract.contract_type as string) === 'both') && (
+                  <Badge label="Onsite Support" color="#059669" bg="#ecfdf5" />
+                )}
+                {supportContract.monthly_hours && (
+                  <Badge label={`${supportContract.monthly_hours}h/month`} color="#6366f1" bg="#eef2ff" />
+                )}
+              </>
+            ) : (
+              <Badge label="No Contract" color="#dc2626" bg="#fef2f2" />
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -189,6 +212,15 @@ export function TicketDetail({ ticket, teamMembers, categories, tags, cannedResp
           mergeId={mergeRecordId}
         />
       ) : null}
+
+      {Boolean(t.needs_customer_assignment) && (
+        <CustomerAssignmentBanner
+          ticketId={t.id as string}
+          contactName={contact ? `${contact.first_name} ${contact.last_name}` : null}
+          senderEmail={ticketEmails?.[0]?.from_address ?? null}
+          assignmentOptions={(t.customer_assignment_options as { customer_id: string; customer_name: string; is_primary: boolean }[]) || []}
+        />
+      )}
 
       {/* Main content: 70% / 30% split */}
       <div className="flex flex-col lg:flex-row gap-6">

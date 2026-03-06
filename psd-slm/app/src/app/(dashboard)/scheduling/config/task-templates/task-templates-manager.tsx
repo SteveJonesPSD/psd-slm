@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createTaskTemplate, updateTaskTemplate, deleteTaskTemplate, getTaskTemplate } from '../../actions'
+import { Button } from '@/components/ui/button'
 
 type ResponseType = 'yes_no' | 'text' | 'date'
 
@@ -164,12 +165,13 @@ export function TaskTemplatesManager({ initialTemplates }: { initialTemplates: T
     <div>
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-slate-900">Task Templates</h3>
-        <button
+        <Button
           onClick={openCreate}
-          className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
+          variant="primary"
+          size="sm"
         >
           + New Template
-        </button>
+        </Button>
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-slate-200">
@@ -376,13 +378,13 @@ export function TaskTemplatesManager({ initialTemplates }: { initialTemplates: T
                 >
                   Cancel
                 </button>
-                <button
+                <Button
                   onClick={handleSave}
+                  variant="primary"
                   disabled={saving}
-                  className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                 >
                   {saving ? 'Saving...' : editingId ? 'Update' : 'Create'}
-                </button>
+                </Button>
               </div>
             </div>
           </div>

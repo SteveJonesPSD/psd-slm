@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge, JOB_STATUS_CONFIG } from '@/components/ui/badge'
-import { toggleRequiresInstall } from '../actions'
+import { toggleRequiresInstall, linkSoToNextJob, unlinkSoFromJob } from '../actions'
 import { formatDate } from '@/lib/utils'
 
 interface LinkedJob {
@@ -45,6 +45,9 @@ export function SoInstallCard({
 }: SoInstallCardProps) {
   const router = useRouter()
   const [toggling, setToggling] = useState(false)
+  const [linkingJob, setLinkingJob] = useState(false)
+  const [linkError, setLinkError] = useState('')
+  const [unlinkingJobId, setUnlinkingJobId] = useState<string | null>(null)
 
   const handleAddInstall = async () => {
     setToggling(true)
@@ -69,6 +72,25 @@ export function SoInstallCard({
       ...(installNotes ? { notes: installNotes } : {}),
     })
     router.push(`/scheduling/jobs/new?${params.toString()}`)
+  }
+
+  const handleLinkToNextJob = async () => {
+    setLinkingJob(true)
+    setLinkError('')
+    const result = await linkSoToNextJob(soId)
+    setLinkingJob(false)
+    if (!result.success) {
+      setLinkError(result.error || 'Failed to link to job')
+    } else {
+      router.refresh()
+    }
+  }
+
+  const handleUnlinkJob = async (jobId: string) => {
+    setUnlinkingJobId(jobId)
+    await unlinkSoFromJob(soId, jobId)
+    setUnlinkingJobId(null)
+    router.refresh()
   }
 
   return (
@@ -132,28 +154,40 @@ export function SoInstallCard({
                         </span>
                       )}
                     </div>
-                    {(() => {
-                      const cfg = JOB_STATUS_CONFIG[job.status]
-                      return cfg ? <Badge label={cfg.label} color={cfg.color} bg={cfg.bg} /> : null
-                    })()}
+                    <div className="flex items-center gap-2">
+                      {(() => {
+                        const cfg = JOB_STATUS_CONFIG[job.status]
+                        return cfg ? <Badge label={cfg.label} color={cfg.color} bg={cfg.bg} /> : null
+                      })()}
+                      <button
+                        type="button"
+                        onClick={() => handleUnlinkJob(job.id)}
+                        disabled={unlinkingJobId === job.id}
+                        className="text-xs text-red-500 hover:text-red-700"
+                      >
+                        {unlinkingJobId === job.id ? '...' : '✕'}
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="flex items-center justify-between">
-                <div className="text-xs text-amber-600 font-medium">No job booked</div>
-                <Button variant="primary" size="sm" onClick={handleBookJob}>
-                  Book Job
+              <div className="text-xs text-amber-600 font-medium">No job booked</div>
+            )}
+
+            {linkedJobs.length === 0 && (
+              <div className="mt-2 flex items-center gap-2 flex-wrap">
+                <Button variant="default" size="sm" onClick={handleBookJob}>
+                  Create New Job
+                </Button>
+                <Button variant="default" size="sm" onClick={handleLinkToNextJob} disabled={linkingJob}>
+                  {linkingJob ? 'Finding...' : 'Add to Next Job'}
                 </Button>
               </div>
             )}
-
-            {/* Always show Book Job when jobs exist but user may want another */}
-            {linkedJobs.length > 0 && (
-              <div className="mt-2">
-                <Button variant="default" size="sm" onClick={handleBookJob}>
-                  Book Another Job
-                </Button>
+            {linkError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/30 p-2.5 mt-2">
+                <p className="text-xs text-red-700 dark:text-red-300">{linkError}</p>
               </div>
             )}
           </div>

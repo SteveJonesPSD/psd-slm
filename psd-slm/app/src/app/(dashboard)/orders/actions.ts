@@ -37,6 +37,29 @@ export async function getActiveSuppliers() {
   return data || []
 }
 
+export async function getProductSuppliersForSo(soId: string) {
+  const user = await requirePermission('sales_orders', 'view')
+  const supabase = await createClient()
+
+  // Get product IDs from the SO lines
+  const { data: soLines } = await supabase
+    .from('sales_order_lines')
+    .select('product_id')
+    .eq('sales_order_id', soId)
+    .not('product_id', 'is', null)
+
+  const productIds = [...new Set((soLines || []).map(l => l.product_id).filter(Boolean))]
+  if (productIds.length === 0) return []
+
+  const { data } = await supabase
+    .from('product_suppliers')
+    .select('product_id, supplier_id, is_preferred')
+    .eq('org_id', user.orgId)
+    .in('product_id', productIds as string[])
+
+  return data || []
+}
+
 // --- List ---
 
 export async function getSalesOrders() {
@@ -121,7 +144,7 @@ export async function getSalesOrder(id: string) {
     { data: customer },
     { data: contact },
     { data: assignedUser },
-    { data: lines },
+    { data: lines, error: linesErr },
     { data: activities },
   ] = await Promise.all([
     supabase.from('customers').select('id, name, address_line1, address_line2, city, county, postcode').eq('id', so.customer_id).single(),
@@ -145,6 +168,10 @@ export async function getSalesOrder(id: string) {
       .order('created_at', { ascending: false })
       .limit(50),
   ])
+
+  if (linesErr) {
+    console.error('[getSalesOrder] Failed to fetch SO lines:', linesErr.message, linesErr.details, linesErr.hint)
+  }
 
   return {
     ...so,
@@ -203,10 +230,19 @@ export async function createSalesOrder(input: CreateSalesOrderInput) {
   }
 
   // Fetch quote groups and lines (with product data for service detection)
-  const [{ data: groups }, { data: quoteLines }] = await Promise.all([
+  const [{ data: groups, error: groupsErr }, { data: quoteLines, error: quoteLinesErr }] = await Promise.all([
     supabase.from('quote_groups').select('*').eq('quote_id', input.quoteId).order('sort_order'),
-    supabase.from('quote_lines').select('*, products(id, is_stocked, is_serialised)').eq('quote_id', input.quoteId).order('sort_order'),
+    supabase.from('quote_lines').select('*, products(id, product_type, is_stocked, is_serialised)').eq('quote_id', input.quoteId).order('sort_order'),
   ])
+
+  if (quoteLinesErr) {
+    console.error('[createSalesOrder] Failed to fetch quote lines:', quoteLinesErr.message)
+    return { error: `Failed to fetch quote lines: ${quoteLinesErr.message}` }
+  }
+
+  if (groupsErr) {
+    console.error('[createSalesOrder] Failed to fetch quote groups:', groupsErr.message)
+  }
 
   if (!quoteLines || quoteLines.length === 0) {
     return { error: 'Quote has no line items.' }
@@ -284,7 +320,7 @@ export async function createSalesOrder(input: CreateSalesOrderInput) {
         fulfilment_route: override.fulfilment_route || ql.fulfilment_route,
         requires_contract: ql.requires_contract || false,
         status: 'pending',
-        delivery_destination: service ? null : (override.delivery_destination || 'psd_office'),
+        delivery_destination: service ? null : (override.delivery_destination || ((override.fulfilment_route || ql.fulfilment_route) === 'drop_ship' ? 'customer_site' : 'psd_office')),
         group_name: group?.name || null,
         group_sort: group?.sort_order ?? 0,
         is_service: service,
@@ -299,11 +335,19 @@ export async function createSalesOrder(input: CreateSalesOrderInput) {
       .insert(soLines)
 
     if (linesErr) {
-      console.error('[createSalesOrder] lines', linesErr.message)
+      console.error('[createSalesOrder] lines insert failed:', linesErr.message, linesErr.details, linesErr.hint)
       // Clean up the SO if lines fail
-      await supabase.from('sales_orders').delete().eq('id', newSo.id)
-      return { error: 'Failed to create sales order lines.' }
+      const { error: cleanupErr } = await supabase.from('sales_orders').delete().eq('id', newSo.id)
+      if (cleanupErr) {
+        console.error('[createSalesOrder] cleanup delete also failed:', cleanupErr.message)
+      }
+      return { error: `Failed to create sales order lines: ${linesErr.message}` }
     }
+  } else {
+    console.error('[createSalesOrder] No non-optional lines found. Quote lines:', quoteLines.length, 'Optional:', quoteLines.filter(ql => ql.is_optional).length)
+    // Clean up the SO — no lines to insert
+    await supabase.from('sales_orders').delete().eq('id', newSo.id)
+    return { error: 'All quote lines are optional — no lines to transfer to sales order.' }
   }
 
   // Update quote status to accepted (belt & braces)
@@ -763,6 +807,108 @@ export async function getLinkedJobsForSo(soId: string) {
   return jobs
 }
 
+// --- Link to next site visit ---
+
+export async function linkSoToNextJob(soId: string): Promise<{ success: boolean; error?: string; job?: { id: string; job_number: string; status: string; scheduled_date: string | null } }> {
+  const user = await requireSoOperationPermission()
+  const supabase = await createClient()
+
+  // Get the SO to find the customer
+  const { data: so } = await supabase
+    .from('sales_orders')
+    .select('id, customer_id, so_number')
+    .eq('id', soId)
+    .single()
+
+  if (!so) return { success: false, error: 'Sales order not found' }
+
+  // Find the next scheduled job for this customer (today or future)
+  const today = new Date().toISOString().split('T')[0]
+  const { data: nextJob } = await supabase
+    .from('jobs')
+    .select('id, job_number, status, scheduled_date, company_id')
+    .eq('company_id', so.customer_id)
+    .eq('org_id', user.orgId)
+    .in('status', ['unscheduled', 'scheduled'])
+    .or(`scheduled_date.gte.${today},scheduled_date.is.null`)
+    .order('scheduled_date', { ascending: true, nullsFirst: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (!nextJob) {
+    return { success: false, error: 'No upcoming jobs found for this customer. Please book a job first.' }
+  }
+
+  // Check if already linked
+  const { data: existing } = await supabase
+    .from('job_sales_orders')
+    .select('id')
+    .eq('job_id', nextJob.id)
+    .eq('sales_order_id', soId)
+    .maybeSingle()
+
+  if (existing) {
+    return { success: false, error: `This SO is already linked to ${nextJob.job_number}.` }
+  }
+
+  // Link via junction table
+  const { error } = await supabase
+    .from('job_sales_orders')
+    .insert({ job_id: nextJob.id, sales_order_id: soId, org_id: user.orgId })
+
+  if (error) return { success: false, error: error.message }
+
+  logActivity({
+    supabase,
+    user,
+    entityType: 'sales_order',
+    entityId: soId,
+    action: 'linked_to_job',
+    details: {
+      job_id: nextJob.id,
+      job_number: nextJob.job_number,
+      so_number: so.so_number,
+    },
+  })
+
+  revalidatePath(`/orders/${soId}`)
+
+  return {
+    success: true,
+    job: {
+      id: nextJob.id,
+      job_number: nextJob.job_number,
+      status: nextJob.status,
+      scheduled_date: nextJob.scheduled_date,
+    },
+  }
+}
+
+export async function unlinkSoFromJob(soId: string, jobId: string): Promise<{ success: boolean; error?: string }> {
+  const user = await requireSoOperationPermission()
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('job_sales_orders')
+    .delete()
+    .eq('job_id', jobId)
+    .eq('sales_order_id', soId)
+
+  if (error) return { success: false, error: error.message }
+
+  logActivity({
+    supabase,
+    user,
+    entityType: 'sales_order',
+    entityId: soId,
+    action: 'unlinked_from_job',
+    details: { job_id: jobId },
+  })
+
+  revalidatePath(`/orders/${soId}`)
+  return { success: true }
+}
+
 // --- Seed data ---
 
 export async function seedSalesOrders() {
@@ -823,7 +969,7 @@ export async function seedSalesOrders() {
   // Fetch quote lines and groups (with product data for service detection)
   const [{ data: groups }, { data: quoteLines }] = await Promise.all([
     supabase.from('quote_groups').select('*').eq('quote_id', quote.id).order('sort_order'),
-    supabase.from('quote_lines').select('*, products(id, is_stocked, is_serialised)').eq('quote_id', quote.id).order('sort_order'),
+    supabase.from('quote_lines').select('*, products(id, product_type, is_stocked, is_serialised)').eq('quote_id', quote.id).order('sort_order'),
   ])
 
   if (!quoteLines || quoteLines.length === 0) {

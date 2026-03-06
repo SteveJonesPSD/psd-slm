@@ -20,10 +20,11 @@ interface QuoteDetailActionsProps {
   customer: { name: string } | null
   brand: { name: string } | null
   assignedUser: { id: string; first_name: string; last_name: string } | null
-  totalIncVat: number
+  subtotal: number
+  zeroSellLines?: string[]
 }
 
-export function QuoteDetailActions({ quote, portalUrl, existingSoId, contact, customer, brand, assignedUser, totalIncVat }: QuoteDetailActionsProps) {
+export function QuoteDetailActions({ quote, portalUrl, existingSoId, contact, customer, brand, assignedUser, subtotal, zeroSellLines = [] }: QuoteDetailActionsProps) {
   const router = useRouter()
   const { hasPermission } = useAuth()
   const [showSendModal, setShowSendModal] = useState(false)
@@ -35,6 +36,7 @@ export function QuoteDetailActions({ quote, portalUrl, existingSoId, contact, cu
   const [showAcceptModal, setShowAcceptModal] = useState(false)
   const [showAiAcceptModal, setShowAiAcceptModal] = useState(false)
   const [acceptPo, setAcceptPo] = useState('')
+  const [revisionNotes, setRevisionNotes] = useState('')
   const [accepting, setAccepting] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [acting, setActing] = useState(false)
@@ -77,12 +79,13 @@ export function QuoteDetailActions({ quote, portalUrl, existingSoId, contact, cu
 
   const handleConfirmRevision = async () => {
     setActing(true)
-    const result = await createRevision(quote.id)
+    const result = await createRevision(quote.id, revisionNotes)
     setActing(false)
     if ('error' in result && result.error) {
       alert(result.error)
     } else if ('data' in result && result.data) {
       setShowRevisionModal(false)
+      setRevisionNotes('')
       router.push(`/quotes/${result.data.id}/edit`)
     }
   }
@@ -137,18 +140,6 @@ export function QuoteDetailActions({ quote, portalUrl, existingSoId, contact, cu
   return (
     <>
       <div className="flex items-center gap-2">
-        {/* Edit — for draft/review (direct) and sent/declined (creates revision) */}
-        {showEditButton && (
-          <Button
-            size="sm"
-            variant="primary"
-            onClick={handleEdit}
-            disabled={acting}
-          >
-            Edit
-          </Button>
-        )}
-
         {/* AI Quote — add supplier lines, only for draft/review */}
         {canEdit && ['draft', 'review'].includes(quote.status) && (
           <Button
@@ -167,7 +158,7 @@ export function QuoteDetailActions({ quote, portalUrl, existingSoId, contact, cu
         {canEdit && ['draft', 'review'].includes(quote.status) && (
           <Button
             size="sm"
-            variant="blue"
+            variant="success"
             onClick={() => setShowSendModal(true)}
           >
             Send to Customer
@@ -281,7 +272,8 @@ export function QuoteDetailActions({ quote, portalUrl, existingSoId, contact, cu
           brand={brand}
           assignedUser={assignedUser}
           portalUrl={portalUrl}
-          totalIncVat={totalIncVat}
+          subtotal={subtotal}
+          zeroSellLines={zeroSellLines}
           onClose={() => setShowSendModal(false)}
         />
       )}
@@ -295,7 +287,8 @@ export function QuoteDetailActions({ quote, portalUrl, existingSoId, contact, cu
           brand={brand}
           assignedUser={assignedUser}
           portalUrl={portalUrl}
-          totalIncVat={totalIncVat}
+          subtotal={subtotal}
+          zeroSellLines={zeroSellLines}
           isResend
           onClose={() => setShowResendModal(false)}
         />
@@ -303,13 +296,25 @@ export function QuoteDetailActions({ quote, portalUrl, existingSoId, contact, cu
 
       {/* Revision Confirmation Modal */}
       {showRevisionModal && (
-        <Modal title="Create New Revision" onClose={() => setShowRevisionModal(false)}>
+        <Modal title="Create New Revision" onClose={() => { setShowRevisionModal(false); setRevisionNotes('') }}>
           <p className="text-sm text-slate-600 mb-4">
             This quote is currently <strong>{quote.status}</strong>. Editing will create a new revision
             (v{quote.version + 1}) and mark this version as revised. Continue?
           </p>
+          <div className="mb-4">
+            <label className="block text-xs font-medium text-slate-500 mb-1">
+              Revision Notes <span className="text-xs text-slate-400">(optional)</span>
+            </label>
+            <textarea
+              value={revisionNotes}
+              onChange={(e) => setRevisionNotes(e.target.value)}
+              placeholder="Why is this revision being created?"
+              rows={2}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400 resize-none"
+            />
+          </div>
           <div className="flex justify-end gap-2">
-            <Button size="sm" variant="default" onClick={() => setShowRevisionModal(false)}>
+            <Button size="sm" variant="default" onClick={() => { setShowRevisionModal(false); setRevisionNotes('') }}>
               Cancel
             </Button>
             <Button size="sm" variant="primary" onClick={handleConfirmRevision} disabled={acting}>
@@ -392,6 +397,90 @@ export function QuoteDetailActions({ quote, portalUrl, existingSoId, contact, cu
         existingQuoteId={quote.id}
         onMergeLines={handleMergeSupplierLines}
       />
+    </>
+  )
+}
+
+// --- Bottom Edit Button (rendered at foot of quote page) ---
+
+interface QuoteBottomEditProps {
+  quoteId: string
+  status: string
+  version: number
+}
+
+export function QuoteBottomEdit({ quoteId, status, version }: QuoteBottomEditProps) {
+  const router = useRouter()
+  const { hasPermission } = useAuth()
+  const [showRevision, setShowRevision] = useState(false)
+  const [revisionNotes, setRevisionNotes] = useState('')
+  const [acting, setActing] = useState(false)
+
+  const canEdit = hasPermission('quotes', 'edit_all') || hasPermission('quotes', 'edit_own')
+  const canCreate = hasPermission('quotes', 'create')
+  const showEdit = canEdit && ['draft', 'review', 'sent', 'declined'].includes(status)
+
+  if (!showEdit) return null
+
+  const handleEdit = () => {
+    if (['draft', 'review'].includes(status)) {
+      router.push(`/quotes/${quoteId}/edit`)
+    } else if (['sent', 'declined'].includes(status) && canCreate) {
+      setShowRevision(true)
+    }
+  }
+
+  const handleConfirmRevision = async () => {
+    setActing(true)
+    const result = await createRevision(quoteId, revisionNotes)
+    setActing(false)
+    if ('error' in result && result.error) {
+      alert(result.error)
+    } else if ('data' in result && result.data) {
+      setShowRevision(false)
+      setRevisionNotes('')
+      router.push(`/quotes/${result.data.id}/edit`)
+    }
+  }
+
+  const label = ['sent', 'declined'].includes(status) ? 'Create Revision & Edit' : 'Edit Quote'
+
+  return (
+    <>
+      <div className="mt-8 flex justify-end">
+        <Button size="sm" variant="primary" onClick={handleEdit} disabled={acting}>
+          {label}
+        </Button>
+      </div>
+
+      {showRevision && (
+        <Modal title="Create New Revision" onClose={() => { setShowRevision(false); setRevisionNotes('') }}>
+          <p className="text-sm text-slate-600 mb-4">
+            This quote is currently <strong>{status}</strong>. Editing will create a new revision
+            (v{version + 1}) and mark this version as revised. Continue?
+          </p>
+          <div className="mb-4">
+            <label className="block text-xs font-medium text-slate-500 mb-1">
+              Revision Notes <span className="text-xs text-slate-400">(optional)</span>
+            </label>
+            <textarea
+              value={revisionNotes}
+              onChange={(e) => setRevisionNotes(e.target.value)}
+              placeholder="Why is this revision being created?"
+              rows={2}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400 resize-none"
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="default" onClick={() => { setShowRevision(false); setRevisionNotes('') }}>
+              Cancel
+            </Button>
+            <Button size="sm" variant="primary" onClick={handleConfirmRevision} disabled={acting}>
+              {acting ? 'Creating...' : 'Create Revision & Edit'}
+            </Button>
+          </div>
+        </Modal>
+      )}
     </>
   )
 }

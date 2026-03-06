@@ -24,7 +24,7 @@ export default async function EditTemplatePage({ params }: PageProps) {
       .select('*, quote_template_groups(*), quote_template_lines(*)')
       .eq('id', id)
       .single(),
-    supabase.from('products').select('id, sku, name, category_id, default_buy_price, default_sell_price, product_categories(name)').eq('is_active', true).order('name'),
+    supabase.from('products').select('id, sku, name, category_id, default_buy_price, default_sell_price, default_route, product_categories(name)').eq('is_active', true).order('name'),
     supabase.from('product_categories').select('id, name').order('sort_order'),
     supabase.from('suppliers').select('id, name').eq('is_active', true).order('name'),
     supabase.from('product_suppliers').select('product_id, supplier_id, standard_cost, is_preferred'),
@@ -40,6 +40,7 @@ export default async function EditTemplatePage({ params }: PageProps) {
     category_name: (p.product_categories as unknown as { name: string } | null)?.name || null,
     default_buy_price: p.default_buy_price,
     default_sell_price: p.default_sell_price,
+    default_route: p.default_route || 'from_stock',
   }))
 
   return (

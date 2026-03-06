@@ -25,8 +25,9 @@ const SLOTS_COUNT = (HOURS_END - HOURS_START) * 2
 const ENGINEER_ROW_HEIGHT = 56
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function DispatchCalendar({ allJobs, jobTypes, engineers, initialDate, canEdit }: {
+export function DispatchCalendar({ allJobs, allActivities, jobTypes, engineers, initialDate, canEdit }: {
   allJobs: any[]
+  allActivities?: any[]
   jobTypes: any[]
   engineers: any[]
   initialDate: string
@@ -159,6 +160,7 @@ export function DispatchCalendar({ allJobs, jobTypes, engineers, initialDate, ca
                 key={eng.id}
                 engineer={eng}
                 jobs={dayJobs.filter(j => j.assigned_to === eng.id)}
+                activities={(allActivities || []).filter((a: { scheduled_date: string; engineer_id: string }) => a.scheduled_date === currentDate && a.engineer_id === eng.id)}
                 canEdit={canEdit}
               />
             )) : (
@@ -260,7 +262,7 @@ function PoolJobCard({ job, canEdit }: { job: any; canEdit: boolean }) {
 // ============================================================================
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function EngineerRow({ engineer, jobs, canEdit }: { engineer: any; jobs: any[]; canEdit: boolean }) {
+function EngineerRow({ engineer, jobs, activities, canEdit }: { engineer: any; jobs: any[]; activities: any[]; canEdit: boolean }) {
   return (
     <div className="flex border-b border-gray-100" style={{ minHeight: ENGINEER_ROW_HEIGHT }}>
       {/* Engineer label */}
@@ -282,6 +284,11 @@ function EngineerRow({ engineer, jobs, canEdit }: { engineer: any; jobs: any[]; 
       <div className="relative flex flex-1">
         {Array.from({ length: SLOTS_COUNT }, (_, i) => (
           <TimeSlot key={i} slotIndex={i} engineerId={engineer.id} canEdit={canEdit} />
+        ))}
+
+        {/* Activity blocks */}
+        {activities.map((act: { id: string; scheduled_time: string | null; duration_minutes: number; all_day: boolean; title: string; activity_type: { color: string; background: string } | null }) => (
+          <ActivityBlock key={act.id} activity={act} />
         ))}
 
         {/* Job blocks */}
@@ -328,6 +335,22 @@ function getJobBlockStyles(status: string, jtColor: string) {
   }
 }
 
+function StockIcon({ collectionStatus, soNumbers }: { collectionStatus: 'none' | 'pending' | 'collected'; soNumbers: string[] }) {
+  const collected = collectionStatus === 'collected'
+  const color = collected ? '#4ade80' : '#fca5a5'
+  const soLabel = soNumbers.length > 0 ? soNumbers.join(', ') : ''
+  const tooltip = collected
+    ? `Stock collected${soLabel ? ` — ${soLabel}` : ''}`
+    : `Stock not yet collected${soLabel ? ` — ${soLabel}` : ''}`
+  return (
+    <span title={tooltip} className={`shrink-0${collected ? '' : ' animate-pulse'}`}>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill={color} className="w-3 h-3 drop-shadow-sm">
+        <path d="M.41 4.44A1.5 1.5 0 0 1 1.5 3h17a1.5 1.5 0 0 1 1.09.44l.01.01A1.5 1.5 0 0 1 20 4.5V6a1 1 0 0 1-1 1H1a1 1 0 0 1-1-1V4.5c0-.38.14-.74.41-1.01v-.05ZM1 8.5h18v7a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 1 15.5v-7Zm7 2a.75.75 0 0 0 0 1.5h4a.75.75 0 0 0 0-1.5H8Z" />
+      </svg>
+    </span>
+  )
+}
+
 function JobBlockStatusIcon({ status }: { status: string }) {
   if (status === 'travelling' || status === 'on_site') {
     return <span className="shrink-0 text-[9px]" aria-label="In progress">&#9654;</span>
@@ -340,6 +363,7 @@ function JobBlockStatusIcon({ status }: { status: string }) {
   }
   return null
 }
+
 
 function formatActualTime(iso: string | null): string | null {
   if (!iso) return null
@@ -374,6 +398,8 @@ function JobBlock({ job, canEdit }: { job: any; canEdit: boolean }) {
 
   const jt = job.job_type
   const blockStatus = getJobBlockStatus(job)
+  const collectionStatus: 'none' | 'pending' | 'collected' = job._collectionStatus ?? 'none'
+  const soNumbers: string[] = job._soNumbers ?? []
   const statusStyles = getJobBlockStyles(blockStatus, jt?.color || '#6b7280')
 
   // Actual times
@@ -414,6 +440,7 @@ function JobBlock({ job, canEdit }: { job: any; canEdit: boolean }) {
             {job.company?.name}
             {(job.priority === 'high' || job.priority === 'urgent') && ' !!!'}
           </span>
+          {job._hasSo && <StockIcon collectionStatus={collectionStatus} soNumbers={soNumbers} />}
         </div>
         {(actualStart || actualEnd) && (
           <span className="text-[9px] opacity-70">
@@ -426,6 +453,82 @@ function JobBlock({ job, canEdit }: { job: any; canEdit: boolean }) {
         )}
       </div>
     </Link>
+  )
+}
+
+// ============================================================================
+// ACTIVITY BLOCK (on day timeline)
+// ============================================================================
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function ActivityBlock({ activity }: { activity: any }) {
+  const at = activity.activity_type
+  const color = at?.color || '#6b7280'
+  const bg = at?.background || '#f3f4f6'
+
+  if (activity.all_day) {
+    // All-day activity spans the entire timeline
+    return (
+      <div
+        className="absolute rounded-md px-2 flex items-center gap-1 text-[11px] font-medium border-2 border-dashed z-[1]"
+        style={{
+          left: 2,
+          top: 4,
+          width: SLOTS_COUNT * SLOT_WIDTH - 4,
+          height: ENGINEER_ROW_HEIGHT - 12,
+          color,
+          backgroundColor: bg,
+          borderColor: color,
+          opacity: 0.85,
+        }}
+        title={activity.title}
+      >
+        <span className="text-[9px]">&#9632;</span>
+        <span className="truncate">{activity.title}</span>
+        <span className="text-[10px] opacity-70 ml-1">All day</span>
+      </div>
+    )
+  }
+
+  if (!activity.scheduled_time) return null
+
+  const [hours, minutes] = activity.scheduled_time.split(':').map(Number)
+  const startSlot = (hours - HOURS_START) * 2 + (minutes >= 30 ? 1 : 0)
+  const durationSlots = Math.max(1, Math.ceil(activity.duration_minutes / 30))
+  const left = startSlot * SLOT_WIDTH
+  const width = durationSlots * SLOT_WIDTH - 4
+
+  if (startSlot < 0) return null
+
+  const startMin = hours * 60 + minutes
+  const endMin = startMin + (activity.duration_minutes || 60)
+  const endH = Math.floor(endMin / 60)
+  const endM = endMin % 60
+  const startLabel = activity.scheduled_time.substring(0, 5)
+  const endLabel = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`
+
+  return (
+    <div
+      className="absolute rounded-md px-2 flex items-center gap-1 text-[11px] font-medium border-2 border-dashed z-[1]"
+      style={{
+        left: left + 2,
+        top: 4,
+        width,
+        height: ENGINEER_ROW_HEIGHT - 12,
+        color,
+        backgroundColor: bg,
+        borderColor: color,
+      }}
+      title={`${activity.title} (${startLabel}–${endLabel})`}
+    >
+      <span className="text-[9px]">&#9632;</span>
+      <div className="flex flex-col min-w-0 flex-1">
+        <div className="flex items-center gap-1">
+          <span className="shrink-0 text-[10px] opacity-80">{startLabel}–{endLabel}</span>
+          <span className="truncate">{activity.title}</span>
+        </div>
+      </div>
+    </div>
   )
 }
 

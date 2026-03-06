@@ -14,6 +14,8 @@ type CustomerWithContacts = Customer & { contacts: Pick<Contact, 'id'>[] }
 
 interface CustomersTableProps {
   customers: CustomerWithContacts[]
+  showForm?: boolean
+  onShowFormChange?: (show: boolean) => void
 }
 
 const CUSTOMER_TYPE_OPTIONS = [
@@ -46,12 +48,21 @@ const EMPTY_FORM = {
   payment_terms: '30',
   vat_number: '',
   notes: '',
+  // Primary contact fields
+  contact_first_name: '',
+  contact_last_name: '',
+  contact_job_title: '',
+  contact_email: '',
+  contact_phone: '',
+  contact_mobile: '',
 }
 
-export function CustomersTable({ customers }: CustomersTableProps) {
+export function CustomersTable({ customers, showForm: showFormProp, onShowFormChange }: CustomersTableProps) {
   const router = useRouter()
   const [search, setSearch] = useState('')
-  const [showForm, setShowForm] = useState(false)
+  const [showFormLocal, setShowFormLocal] = useState(false)
+  const showForm = showFormProp ?? showFormLocal
+  const setShowForm = (v: boolean) => { onShowFormChange ? onShowFormChange(v) : setShowFormLocal(v) }
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -196,18 +207,14 @@ export function CustomersTable({ customers }: CustomersTableProps) {
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-8">
+      <div className="flex items-center gap-3 mb-8">
         <input
           type="text"
           placeholder="Search customers..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full sm:max-w-xs rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+          className="max-w-xs w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
         />
-        <div className="hidden sm:block flex-1" />
-        <Button variant="primary" onClick={() => setShowForm(true)} className="w-full sm:w-auto">
-          + New Customer
-        </Button>
       </div>
 
       <DataTable
@@ -334,18 +341,58 @@ export function CustomersTable({ customers }: CustomersTableProps) {
               className="col-span-2"
             />
           </div>
+
+          {/* Primary Contact */}
+          <div className="mt-6 border-t border-slate-200 pt-5">
+            <h4 className="text-sm font-semibold text-slate-700 mb-3">Primary Contact</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Input
+                label="First Name *"
+                value={form.contact_first_name}
+                onChange={upd('contact_first_name')}
+              />
+              <Input
+                label="Last Name *"
+                value={form.contact_last_name}
+                onChange={upd('contact_last_name')}
+              />
+              <Input
+                label="Job Title"
+                value={form.contact_job_title}
+                onChange={upd('contact_job_title')}
+                className="col-span-2"
+              />
+              <Input
+                label="Email"
+                value={form.contact_email}
+                onChange={upd('contact_email')}
+              />
+              <Input
+                label="Phone"
+                value={form.contact_phone}
+                onChange={upd('contact_phone')}
+              />
+              <Input
+                label="Mobile"
+                value={form.contact_mobile}
+                onChange={upd('contact_mobile')}
+              />
+            </div>
+          </div>
+
           <div className="mt-5 flex justify-end gap-2">
             <Button onClick={() => setShowForm(false)}>Cancel</Button>
             <Button
               variant="primary"
               onClick={handleSave}
-              disabled={!form.name.trim() || !form.customer_type || saving}
+              disabled={!form.name.trim() || !form.customer_type || !form.contact_first_name.trim() || !form.contact_last_name.trim() || saving}
             >
               {saving ? 'Saving...' : 'Save Customer'}
             </Button>
           </div>
         </Modal>
       )}
+
     </div>
   )
 }

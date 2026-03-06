@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
 import { SearchableSelect } from '@/components/ui/form-fields'
 import { escalateTicket } from '../../actions'
 
@@ -122,13 +123,14 @@ export function EscalationSection({ ticketId, escalationLevel, currentDepartment
             >
               Cancel
             </button>
-            <button
+            <Button
+              variant="danger"
+              size="sm"
               onClick={handleEscalate}
               disabled={saving || !form.reason.trim()}
-              className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
             >
               {getButtonText()}
-            </button>
+            </Button>
           </div>
         </div>
       )}

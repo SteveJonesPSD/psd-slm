@@ -5,8 +5,10 @@ import { StatCard } from '@/components/ui/stat-card'
 import { Badge, SO_HEADER_STATUS_CONFIG, FULFILMENT_ROUTE_CONFIG } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { getMarginAccent } from '@/lib/margin'
+import { getMarginThresholds } from '@/lib/margin-settings'
 import { deriveSoStatus, deriveSoDisplayStatus } from '@/lib/sales-orders'
-import { getSalesOrder, getActiveSuppliers } from '../actions'
+import { getSalesOrder, getActiveSuppliers, getProductSuppliersForSo } from '../actions'
 import { getPurchaseOrdersForSo } from '../../purchase-orders/actions'
 import { getSoFulfilmentData } from '../../stock/actions'
 import { getDeliveryNotesForSo } from '../../delivery-notes/actions'
@@ -32,9 +34,10 @@ export default async function SalesOrderDetailPage({ params }: PageProps) {
   const getCollectionsForSo = import('@/lib/collections/actions').then(m => m.getCollectionsForSo)
   const getLinkedJobsImport = import('../actions').then(m => m.getLinkedJobsForSo)
 
-  const [so, suppliers, purchaseOrders, fulfilmentData, deliveryNotes, invoices, collections, linkedJobs] = await Promise.all([
+  const [so, suppliers, productSuppliers, purchaseOrders, fulfilmentData, deliveryNotes, invoices, collections, linkedJobs] = await Promise.all([
     getSalesOrder(id),
     getActiveSuppliers(),
+    getProductSuppliersForSo(id),
     getPurchaseOrdersForSo(id),
     getSoFulfilmentData(id).catch(() => ({ fulfilmentLines: [], allocations: [], stockAvailability: {} })),
     getDeliveryNotesForSo(id).catch(() => []),
@@ -44,6 +47,7 @@ export default async function SalesOrderDetailPage({ params }: PageProps) {
   ])
   if (!so) notFound()
 
+  const marginThresholds = await getMarginThresholds()
   const derivedStatus = deriveSoStatus(so.lines)
   const displayStatus = deriveSoDisplayStatus(so.lines)
   const statusCfg = SO_HEADER_STATUS_CONFIG[displayStatus]
@@ -104,14 +108,14 @@ export default async function SalesOrderDetailPage({ params }: PageProps) {
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
-        <StatCard label="Subtotal" value={formatCurrency(subtotal)} accent="#1e293b" />
+        <StatCard label="Subtotal" value={formatCurrency(subtotal)} />
         <StatCard label="VAT" value={formatCurrency(vatAmount)} sub={`${so.vat_rate}%`} accent="#6b7280" />
         <StatCard label="Grand Total" value={formatCurrency(grandTotal)} accent="#6366f1" />
         <StatCard
           label="Margin"
           value={formatCurrency(marginAmt)}
           sub={`${marginPct.toFixed(1)}%`}
-          accent={marginPct >= 30 ? '#059669' : marginPct >= 15 ? '#d97706' : '#dc2626'}
+          accent={getMarginAccent(marginPct, marginThresholds.green, marginThresholds.amber)}
         />
       </div>
 
@@ -219,7 +223,7 @@ export default async function SalesOrderDetailPage({ params }: PageProps) {
 
       {/* Lines table */}
       {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-      <SoLinesTable lines={lines} soId={so.id} suppliers={suppliers} purchaseOrders={purchaseOrders as any} customerPo={so.customer_po} />
+      <SoLinesTable lines={lines} soId={so.id} suppliers={suppliers} productSuppliers={productSuppliers} purchaseOrders={purchaseOrders as any} marginThresholds={marginThresholds} />
 
       {/* Purchase Orders section */}
       {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}

@@ -1,4 +1,5 @@
 import { PageHeader } from '@/components/ui/page-header'
+import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getContract } from '../../actions'
@@ -24,11 +25,8 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
         title={contract.name}
         subtitle={contract.customers?.name}
         actions={
-          <Link
-            href="/helpdesk/contracts"
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-gray-50 no-underline"
-          >
-            Back to Contracts
+          <Link href="/helpdesk/contracts">
+            <Button size="sm">Back to Contracts</Button>
           </Link>
         }
       />

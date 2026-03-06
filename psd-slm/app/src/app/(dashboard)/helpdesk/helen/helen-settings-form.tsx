@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Textarea } from '@/components/ui/form-fields'
+import { Button } from '@/components/ui/button'
 import { saveSettings } from '../../settings/actions'
 import { getAutogrumpStats, clearAllToneScores } from '../actions'
 
@@ -294,7 +295,9 @@ export function HelenSettingsForm({ initialSettings }: Props) {
             ) : (
               <div className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 dark:bg-red-900/20 p-3">
                 <p className="text-xs text-red-700 dark:text-red-400">This will reset all tone scores on all tickets. Are you sure?</p>
-                <button
+                <Button
+                  variant="danger"
+                  size="sm"
                   type="button"
                   disabled={clearing}
                   onClick={async () => {
@@ -305,10 +308,10 @@ export function HelenSettingsForm({ initialSettings }: Props) {
                     setGrumpStats({ flagged: 0 })
                     setMessage({ type: 'success', text: `Cleared tone scores from ${result.cleared} ticket${result.cleared !== 1 ? 's' : ''}.` })
                   }}
-                  className="shrink-0 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+                  className="shrink-0"
                 >
                   {clearing ? 'Clearing...' : 'Confirm'}
-                </button>
+                </Button>
                 <button
                   type="button"
                   onClick={() => setShowClearConfirm(false)}
@@ -331,13 +334,13 @@ export function HelenSettingsForm({ initialSettings }: Props) {
             </p>
           )}
         </div>
-        <button
+        <Button
+          variant="primary"
           onClick={handleSave}
           disabled={saving}
-          className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
         >
           {saving ? 'Saving...' : 'Save Changes'}
-        </button>
+        </Button>
       </div>
     </div>
   )

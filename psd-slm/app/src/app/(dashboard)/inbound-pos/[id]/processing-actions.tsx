@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { updateInboundPO, rejectInboundPO, retryExtraction } from '../actions'
+import { Button } from '@/components/ui/button'
 
 interface ProcessingActionsProps {
   inboundPoId: string
@@ -86,12 +87,12 @@ export function ProcessingActions({
 
                 {/* Create Sales Order — disabled placeholder */}
                 <div className="relative group">
-                  <button
+                  <Button
                     disabled
-                    className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white opacity-50 cursor-not-allowed"
+                    variant="success"
                   >
                     Create Sales Order
-                  </button>
+                  </Button>
                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block">
                     <div className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs text-white whitespace-nowrap shadow-lg">
                       Coming soon — requires Sales Orders module
@@ -112,13 +113,13 @@ export function ProcessingActions({
 
             {/* Retry extraction for error state */}
             {status === 'error' && (
-              <button
+              <Button
                 onClick={handleRetry}
+                variant="primary"
                 disabled={retrying}
-                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
               >
                 {retrying ? 'Retrying...' : 'Retry Extraction'}
-              </button>
+              </Button>
             )}
 
             {/* Show status info for completed/rejected */}

@@ -8,6 +8,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/components/auth-provider'
 import { formatCurrency } from '@/lib/utils'
+import { CollapsibleCard } from './collapsible-card'
 
 interface OppRow {
   id: string
@@ -82,23 +83,23 @@ export function OpportunitiesSection({ opportunities, customerId }: Opportunitie
   ]
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-[15px] font-semibold">
-          Opportunities ({opportunities.length})
-        </h3>
-        {hasPermission('pipeline', 'create') && (
+    <CollapsibleCard
+      title="Opportunities"
+      count={opportunities.length}
+      actions={
+        hasPermission('pipeline', 'create') ? (
           <Link href={`/opportunities/new?company_id=${customerId}`}>
             <Button size="sm" variant="primary">+ New Opportunity</Button>
           </Link>
-        )}
-      </div>
+        ) : undefined
+      }
+    >
       <DataTable
         columns={columns}
         data={opportunities}
         onRowClick={(r) => router.push(`/opportunities/${r.id}`)}
         emptyMessage="No opportunities yet."
       />
-    </div>
+    </CollapsibleCard>
   )
 }

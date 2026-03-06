@@ -4,6 +4,7 @@ import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Input, Textarea, Checkbox } from '@/components/ui/form-fields'
+import { Button } from '@/components/ui/button'
 import { saveBrand } from '../actions'
 import type { Brand } from '@/types/database'
 
@@ -23,6 +24,7 @@ export function BrandForm({ brand }: Props) {
     name: brand?.name || '',
     legal_entity: brand?.legal_entity || '',
     is_default: brand?.is_default || false,
+    use_for_pos: brand?.use_for_pos || false,
     is_active: brand?.is_active ?? true,
     quote_prefix: brand?.quote_prefix || 'Q',
     address_line1: brand?.address_line1 || '',
@@ -261,12 +263,19 @@ export function BrandForm({ brand }: Props) {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="flex items-end pb-1">
               <Checkbox
                 label="Default brand"
                 checked={form.is_default}
                 onChange={(v) => update('is_default', v)}
+              />
+            </div>
+            <div className="flex items-end pb-1">
+              <Checkbox
+                label="Use for Purchase Orders"
+                checked={form.use_for_pos}
+                onChange={(v) => update('use_for_pos', v)}
               />
             </div>
             <div className="flex items-end pb-1">
@@ -424,13 +433,13 @@ export function BrandForm({ brand }: Props) {
         >
           Cancel
         </Link>
-        <button
+        <Button
+          variant="primary"
           onClick={handleSubmit}
           disabled={saving}
-          className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
         >
           {saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Brand'}
-        </button>
+        </Button>
       </div>
     </div>
   )

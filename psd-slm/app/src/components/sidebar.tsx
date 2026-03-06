@@ -47,7 +47,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: '/products', label: 'Products', icon: '🏷️', permission: { module: 'products', action: 'view' } },
       { href: '/suppliers', label: 'Suppliers', icon: '📦', permission: { module: 'suppliers', action: 'view' } },
-      { href: '/inbound-pos', label: 'Inbound POs', icon: '📥', permission: { module: 'inbound_pos', action: 'view' }, badgeKey: 'inbound_pos' },
+      { href: '/inbound-pos', label: 'Customer POs', icon: '📥', permission: { module: 'inbound_pos', action: 'view' }, badgeKey: 'inbound_pos' },
       { href: '/orders', label: 'Sales Orders', icon: '📋', permission: { module: 'sales_orders', action: 'view' } },
       { href: '/purchase-orders', label: 'Purchase Orders', icon: '📦', permission: { module: 'purchase_orders', action: 'view' } },
       { href: '/invoices', label: 'Invoices', icon: '🧾', permission: { module: 'invoices', action: 'view' } },

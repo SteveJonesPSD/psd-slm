@@ -182,12 +182,15 @@ export function SearchableSelect({
       )}
       <div ref={containerRef} className="relative">
         {selectedOption && !isOpen ? (
-          <div className={`flex items-center justify-between ${inputCls}`}>
+          <div
+            className={`flex items-center justify-between cursor-pointer ${inputCls}`}
+            onClick={() => { if (!disabled) { setSearch(''); setIsOpen(true) } }}
+          >
             <span className="truncate">{selectedOption.label}</span>
             {!disabled && (
               <button
                 type="button"
-                onClick={handleClear}
+                onClick={(e) => { e.stopPropagation(); handleClear() }}
                 className="ml-2 text-slate-400 hover:text-slate-600 shrink-0"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

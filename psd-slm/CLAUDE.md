@@ -32,7 +32,7 @@ Buy and sell prices are recorded at every stage: quote line → SO line → PO l
 Each quote has attribution entries (must total 100%). Types: direct, involvement, override. These splits carry through to commission calculation when invoices are raised.
 
 ### 5. Fulfilment Routes
-Each line has a route: `stock` (from PSD inventory), `deliver_to_site` (ordered for customer), `drop_ship` (supplier ships direct).
+Each line has a route: `stock` (from PSD inventory), `deliver_to_site` (ordered for customer), `drop_ship` (supplier ships direct). Products have a `default_route` field (`from_stock` or `drop_ship`) — all quote creation paths (manual, AI import, template clone) must respect this default.
 
 ### 6. Quote Types
 `business`, `education`, `charity`, `public_sector` — affects commission rates.
@@ -238,6 +238,22 @@ The platform MUST remain portable to self-hosted infrastructure. Every architect
 - Clean, professional aesthetic — business tool, not consumer app
 - **Colour conventions:** Purple for AI features; amber/red for warning indicators (AutoGRUMP)
 
+### Buttons
+All action buttons MUST use the `<Button>` component from `@/components/ui/button`. Never use raw `<button>` with inline Tailwind colour classes.
+
+**Variants** (translucent background + border + glow hover):
+- `default` — slate (secondary actions: Cancel, PDF, Duplicate)
+- `primary` — blue (primary actions: Save, Create, Submit, Edit, Add)
+- `success` — green (positive actions: Activate, Confirm, Accept, Publish)
+- `danger` — red (destructive actions: Delete, Cancel Contract, Reject)
+- `purple` — purple (AI features: AI Quote, AI Accept)
+- `blue` — blue (navigation actions: Create Sales Order, View Sales Order, Resend)
+- `ghost` — transparent (minimal actions)
+
+**Sizes:** `sm` (text-xs) for page action bars and inline buttons; `md` (text-sm, default) for standalone form submissions. All buttons on the same page should use the same size — if the top-of-page action buttons use `sm`, bottom-of-page buttons must also use `sm`.
+
+**Links styled as buttons:** For `<Link>` or `<a>` elements that should look like buttons, apply the variant's Tailwind classes inline (border + bg + text + hover glow) since the `<Button>` component renders a `<button>` element.
+
 ### Spacing & Vertical Rhythm
 Mandatory across the entire platform. When in doubt, use MORE whitespace. Dark cards on dark backgrounds need generous gaps to create visible separation.
 
@@ -321,8 +337,8 @@ Per-user theme preference in `users.theme_preference` (`'light'`, `'dark'`, `'sy
 6. ~~Global Settings~~ ✅ (org settings, brands, API key management, email templates, avatar management)
 7. ~~Quote Builder~~ ✅ (DR tie-in, PDF, customer portal, attribution, versioning, templates, notifications, e-signatures, attachments, AI quote generation from supplier PDFs, manual + AI-powered acceptance)
 7b. ~~Inbound PO Processing~~ ✅ (PDF upload, AI extraction via Claude, quote matching pipeline)
-7c. ~~Helpdesk & Ticketing~~ ✅ (ticket queue, SLA, contracts, canned responses, categories, tags, departments, KB, reports, customer portal, mobile views, Helen AI with triage/drafts/diagnostic assist, scratchpad, AutoGRUMP, ticket presence). **UI label: "Service Desk" — internal code/routes/permissions remain `/helpdesk/` and `helpdesk.*`**
-8. ~~Sales Orders~~ ✅ (SO from accepted quote, line status transitions, receive goods with serial capture, delivery summary)
+7c. ~~Helpdesk & Ticketing~~ ✅ (ticket queue, SLA, contracts, canned responses, categories, tags, departments, KB, reports, customer portal, mobile views, Helen AI with triage/drafts/diagnostic assist, scratchpad, AutoGRUMP, ticket presence, contract entitlement badges). **UI label: "Service Desk" — internal code/routes/permissions remain `/helpdesk/` and `helpdesk.*`**. Ticket detail shows support entitlement badges (Remote/Telephone/Onsite) from the linked `support_contracts.contract_type`, or a red "No Contract" badge if none linked.
+8. ~~Sales Orders~~ ✅ (SO from accepted quote, line status transitions, receive goods with serial capture, delivery summary). **Service detection:** `isServiceItem()` in `lib/sales-orders.ts` checks `product_type === 'service'` — do NOT use `is_stocked`/`is_serialised` heuristics. All queries feeding SO creation must include `product_type` in the product select.
 8b. ~~Onsite Scheduling~~ ✅ (dispatch calendar, field engineer mobile app, job task templates, e-signatures, PDF reports, GPS logging)
 9. ~~Purchase Orders~~ ✅ (PO from SO, draft-first, receiving goods, price variance, PDF, stock-aware quantities, customer PO gate, auto-allocation on receipt, stocking orders)
 9b. ~~Stock & Fulfilment~~ ✅ (stock locations/levels, allocations, picking, delivery notes, fulfilment view, serial uniqueness, tablet-optimised picking, PO-linked serial pre-selection, stock unallocation with reason)
@@ -436,7 +452,7 @@ Outbound quote emails sent from individual salespeople's M365 mailboxes via per-
 - **OAuth flow:** `GET /api/auth/mail-connect` → Microsoft consent → `GET /api/auth/mail-callback` → stores tokens in `user_mail_credentials`
 - **Azure AD:** App Registration needs delegated `Mail.Send`, `User.Read`, `offline_access`. Redirect URI: `{SITE_URL}/api/auth/mail-callback`
 - **Send action:** `sendQuoteEmail()` in `quotes/send-actions.ts` — generates PDF, builds HTML email, sends via `UserGraphClient`, records in `quote_email_sends`, updates status to `sent`. `X-Engage-Quote-ID`/`X-Engage-Quote-Number` headers stored for future NDR matching.
-- **Send modal:** `quotes/[id]/send-quote-modal.tsx` — 2-step (choose method → compose). Supports PDF, portal link, or both. Fallback sender if assigned user has no connected mailbox.
+- **Send modal:** `quotes/[id]/send-quote-modal.tsx` — 2-step (choose method → compose). Supports PDF, portal link, or both. Fallback sender if assigned user has no connected mailbox. Zero-sell-price warning: if any non-optional lines have £0 sell price, an amber banner lists them and requires checkbox confirmation before sending.
 - **Portal PDF download:** PDF route supports `?token=` query param for unauthenticated access. `PortalPdfButton` on portal page.
 - **Team page:** "Email Sending" column + Connect/Disconnect mailbox buttons (admin only)
 

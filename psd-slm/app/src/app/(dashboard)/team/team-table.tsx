@@ -333,10 +333,9 @@ export function TeamTable({ users, roles, mailCredentials = [] }: TeamTableProps
         if (!r.is_active) return <span className="text-xs text-slate-300">&mdash;</span>
         if (cred) {
           return (
-            <div className="flex items-center gap-1.5">
+            <span title={`Connected mailbox: ${cred.email_address}`} className="cursor-help">
               <Badge label="Connected" color="#059669" bg="#ecfdf5" />
-              <span className="text-[11px] text-slate-400">{cred.email_address}</span>
-            </div>
+            </span>
           )
         }
         return <Badge label="Not connected" color="#9ca3af" bg="#f3f4f6" />

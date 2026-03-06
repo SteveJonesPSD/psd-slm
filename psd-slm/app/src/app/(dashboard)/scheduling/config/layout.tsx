@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 
 const tabs = [
   { label: 'Job Types', href: '/scheduling/config/job-types' },
+  { label: 'Activity Types', href: '/scheduling/config/activity-types' },
   { label: 'Task Templates', href: '/scheduling/config/task-templates' },
 ]
 

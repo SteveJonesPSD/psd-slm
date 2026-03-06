@@ -5,6 +5,10 @@ const ACTIVE_THRESHOLD_MS = 2 * 60 * 1000    // 2 minutes — colored avatar
 const ONLINE_THRESHOLD_MS = 5 * 60 * 1000    // 5 minutes — visible at all
 const GC_THRESHOLD_MS = 5 * 60 * 1000        // 5 minutes — delete stale rows
 
+function isMobileUA(ua: string): boolean {
+  return /mobile|iphone|ipad|ipod|android|blackberry|opera mini|iemobile/i.test(ua)
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -26,19 +30,21 @@ export async function POST(request: NextRequest) {
 
     const { isActive } = await request.json()
     const now = new Date().toISOString()
+    const ua = request.headers.get('user-agent') || ''
+    const isMobile = isMobileUA(ua)
 
     // Upsert own heartbeat
     if (isActive) {
       await supabase
         .from('system_presence')
         .upsert(
-          { user_id: appUser.id, org_id: appUser.org_id, last_heartbeat: now, last_active: now },
+          { user_id: appUser.id, org_id: appUser.org_id, last_heartbeat: now, last_active: now, is_mobile: isMobile },
           { onConflict: 'user_id' }
         )
     } else {
       const { data: updated } = await supabase
         .from('system_presence')
-        .update({ last_heartbeat: now })
+        .update({ last_heartbeat: now, is_mobile: isMobile })
         .eq('user_id', appUser.id)
         .select('user_id')
 
@@ -46,7 +52,7 @@ export async function POST(request: NextRequest) {
         await supabase
           .from('system_presence')
           .upsert(
-            { user_id: appUser.id, org_id: appUser.org_id, last_heartbeat: now, last_active: now },
+            { user_id: appUser.id, org_id: appUser.org_id, last_heartbeat: now, last_active: now, is_mobile: isMobile },
             { onConflict: 'user_id' }
           )
       }
@@ -65,7 +71,7 @@ export async function POST(request: NextRequest) {
 
     const { data } = await supabase
       .from('system_presence')
-      .select('user_id, last_active, users:user_id(id, first_name, last_name, initials, color, avatar_url)')
+      .select('user_id, last_active, is_mobile, users:user_id(id, first_name, last_name, initials, color, avatar_url)')
       .gt('last_heartbeat', onlineThreshold)
       .neq('user_id', appUser.id)
 
@@ -80,6 +86,7 @@ export async function POST(request: NextRequest) {
         color: (u.color as string) || null,
         avatarUrl: (u.avatar_url as string) || null,
         status: lastActive >= activeThreshold ? 'active' : 'idle',
+        isMobile: (row.is_mobile as boolean) || false,
       }
     })
 

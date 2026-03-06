@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@/components/ui/button'
 import { saveSettings } from '../actions'
 
 interface ApiKeyInfo {
@@ -206,13 +207,14 @@ function ApiKeyCard({
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400 font-mono"
             />
             <div className="flex items-center gap-2">
-              <button
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={handleSave}
                 disabled={saving || !value.trim()}
-                className="rounded-lg bg-indigo-600 px-3.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
               >
                 {saving ? 'Saving...' : 'Save'}
-              </button>
+              </Button>
               <button
                 onClick={() => { setEditing(false); setValue(''); setMessage(null) }}
                 className="rounded-lg px-3.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100"

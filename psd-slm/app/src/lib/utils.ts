@@ -34,6 +34,18 @@ export function generateUUID(): string {
   )
 }
 
+/** Add N business days (Mon–Fri) to a date, returns YYYY-MM-DD string */
+export function addBusinessDays(from: Date, days: number): string {
+  const result = new Date(from)
+  let added = 0
+  while (added < days) {
+    result.setDate(result.getDate() + 1)
+    const dow = result.getDay()
+    if (dow !== 0 && dow !== 6) added++
+  }
+  return result.toISOString().split('T')[0]
+}
+
 export function formatRelativeTime(date: string): string {
   const now = Date.now()
   const then = new Date(date).getTime()

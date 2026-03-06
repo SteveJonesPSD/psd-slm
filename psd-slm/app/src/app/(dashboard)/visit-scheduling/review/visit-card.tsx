@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Badge, VISIT_STATUS_CONFIG, TIME_SLOT_CONFIG } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { cancelVisit, completeVisit, rescheduleVisit, updateVisitTimes } from '../actions'
 import type { VisitInstanceWithDetails } from '@/lib/visit-scheduling/types'
 
@@ -145,13 +146,15 @@ export function VisitCard({ visit }: VisitCardProps) {
                 onChange={(e) => setNewDate(e.target.value)}
                 className="rounded border border-slate-200 px-1.5 py-0.5 text-[10px] w-28"
               />
-              <button
+              <Button
                 onClick={handleReschedule}
+                variant="primary"
+                size="sm"
                 disabled={isPending || !newDate}
-                className="rounded bg-blue-600 text-white px-2 py-0.5 text-[10px] font-medium hover:bg-blue-700 disabled:opacity-50"
+                className="!text-[10px] !px-2 !py-0.5"
               >
                 Move
-              </button>
+              </Button>
               <button
                 onClick={() => setShowReschedule(false)}
                 className="text-[10px] text-slate-500 hover:text-slate-700"

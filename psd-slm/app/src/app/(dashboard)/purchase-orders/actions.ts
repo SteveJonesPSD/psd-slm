@@ -1,11 +1,13 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { requirePermission } from '@/lib/auth'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { requirePermission, requireAuth, hasPermission } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { logActivity } from '@/lib/activity-log'
 import { generatePoNumber } from '@/lib/sales-orders'
 import { resolveSerialisedStatus } from '@/lib/products'
+import { UserGraphClient } from '@/lib/email/user-graph-client'
 
 // --- List ---
 
@@ -54,7 +56,7 @@ export async function getPurchaseOrder(id: string) {
     { data: creator },
     { data: activities },
   ] = await Promise.all([
-    supabase.from('suppliers').select('id, name').eq('id', po.supplier_id).single(),
+    supabase.from('suppliers').select('id, name, email').eq('id', po.supplier_id).single(),
     po.sales_order_id
       ? supabase.from('sales_orders').select('id, so_number, customer_id, customers(id, name)').eq('id', po.sales_order_id).single()
       : Promise.resolve({ data: null }),
@@ -430,8 +432,8 @@ export async function receivePoGoods(input: ReceivePoGoodsInput) {
     return { error: 'Purchase order not found.' }
   }
 
-  if (!['sent', 'acknowledged', 'partially_received'].includes(po.status)) {
-    return { error: `Cannot receive goods on a PO with status "${po.status}".` }
+  if (!['acknowledged', 'partially_received'].includes(po.status)) {
+    return { error: `Cannot receive goods until the PO has been acknowledged by the supplier.` }
   }
 
   // Fetch PO line
@@ -1036,6 +1038,321 @@ export async function createStockOrder(input: CreateStockOrderInput) {
   revalidatePath('/purchase-orders')
 
   return { success: true, poId: newPo.id, poNumber }
+}
+
+// --- Send PO Email ---
+
+export interface SendPoEmailPayload {
+  toAddresses: string[]
+  ccAddresses?: string[]
+  bccAddresses?: string[]
+  subject: string
+  messageBody: string
+  senderUserId: string
+}
+
+export interface SendPoEmailResult {
+  success: boolean
+  error?: string
+}
+
+export async function sendPoEmail(
+  poId: string,
+  payload: SendPoEmailPayload
+): Promise<SendPoEmailResult> {
+  const user = await requireAuth()
+  if (!hasPermission(user, 'purchase_orders', 'edit')) {
+    return { success: false, error: 'Permission denied' }
+  }
+
+  const supabase = await createClient()
+
+  // Load PO with supplier + brand
+  const { data: po } = await supabase
+    .from('purchase_orders')
+    .select(`
+      id, po_number, status, supplier_id, sales_order_id, sent_at, created_at,
+      delivery_cost, notes, delivery_destination,
+      delivery_address_line1, delivery_address_line2, delivery_city, delivery_postcode,
+      suppliers(name)
+    `)
+    .eq('id', poId)
+    .single()
+
+  if (!po) return { success: false, error: 'Purchase order not found' }
+
+  // Load sender credential
+  const adminSupabase = createAdminClient()
+  const { data: senderCred } = await adminSupabase
+    .from('user_mail_credentials')
+    .select('*')
+    .eq('user_id', payload.senderUserId)
+    .eq('org_id', user.orgId)
+    .eq('is_active', true)
+    .single()
+
+  if (!senderCred) {
+    return { success: false, error: 'No active mail credential found for the selected sender' }
+  }
+
+  // Get sender user details
+  const { data: senderUser } = await supabase
+    .from('users')
+    .select('first_name, last_name')
+    .eq('id', payload.senderUserId)
+    .single()
+
+  const senderDisplayName = senderCred.display_name || (senderUser ? `${senderUser.first_name} ${senderUser.last_name}` : 'PSD Group')
+
+  // Get brand
+  const { data: brand } = await supabase
+    .from('brands')
+    .select('name, phone, email, logo_path, logo_width, legal_entity, footer_text, address_line1, address_line2, city, county, postcode, company_reg_number, vat_number')
+    .eq('org_id', user.orgId)
+    .eq('is_default', true)
+    .eq('is_active', true)
+    .maybeSingle()
+
+  const supplierName = (po.suppliers as unknown as { name: string } | null)?.name || 'Supplier'
+
+  // Generate PDF
+  let pdfBase64: string
+  try {
+    const result = await generatePoPdfBase64(supabase, poId, user.orgId)
+    if (!result) return { success: false, error: 'Failed to generate PDF' }
+    pdfBase64 = result
+  } catch (pdfError) {
+    console.error('[sendPoEmail] PDF generation failed:', pdfError)
+    return { success: false, error: 'Failed to generate PDF attachment' }
+  }
+
+  // Build email HTML
+  const bodyHtml = buildPoEmailHtml({
+    supplierName,
+    messageBody: payload.messageBody,
+    poNumber: po.po_number,
+    senderDisplayName,
+    brandName: brand?.name || 'PSD Group',
+    brandPhone: brand?.phone || null,
+    brandEmail: brand?.email || null,
+  })
+
+  // Custom headers for tracking
+  const customHeaders = [
+    { name: 'X-Engage-PO-ID', value: poId },
+    { name: 'X-Engage-PO-Number', value: po.po_number },
+  ]
+
+  // Send via user's mailbox
+  try {
+    const client = new UserGraphClient(payload.senderUserId, user.orgId)
+    await client.sendMail({
+      to: payload.toAddresses.map(addr => {
+        const trimmed = addr.trim()
+        return { address: trimmed, name: trimmed }
+      }),
+      cc: payload.ccAddresses && payload.ccAddresses.length > 0
+        ? payload.ccAddresses.map(addr => ({ address: addr.trim(), name: addr.trim() }))
+        : undefined,
+      bcc: payload.bccAddresses && payload.bccAddresses.length > 0
+        ? payload.bccAddresses.map(addr => ({ address: addr.trim(), name: addr.trim() }))
+        : undefined,
+      subject: payload.subject,
+      bodyHtml,
+      attachments: [{
+        name: `${po.po_number}.pdf`,
+        contentType: 'application/pdf',
+        contentBytes: pdfBase64,
+      }],
+      customHeaders,
+    })
+  } catch (sendError) {
+    console.error('[sendPoEmail] Graph send failed:', sendError)
+    return {
+      success: false,
+      error: sendError instanceof Error ? sendError.message : 'Failed to send email via Microsoft 365',
+    }
+  }
+
+  // Update PO status to 'sent' if draft
+  if (po.status === 'draft') {
+    await supabase
+      .from('purchase_orders')
+      .update({
+        status: 'sent',
+        sent_at: new Date().toISOString(),
+      })
+      .eq('id', poId)
+
+    // Update all PO line statuses from pending to ordered
+    await supabase
+      .from('purchase_order_lines')
+      .update({ status: 'ordered' })
+      .eq('purchase_order_id', poId)
+      .eq('status', 'pending')
+  }
+
+  // Activity log
+  logActivity({
+    supabase,
+    user,
+    entityType: 'purchase_order',
+    entityId: poId,
+    action: 'po.email_sent',
+    details: {
+      po_number: po.po_number,
+      supplier_name: supplierName,
+      recipient_addresses: payload.toAddresses,
+      cc_addresses: payload.ccAddresses || [],
+      bcc_addresses: payload.bccAddresses || [],
+      sender_email: senderCred.email_address,
+      sender_name: senderDisplayName,
+    },
+  })
+
+  revalidatePath('/purchase-orders')
+  revalidatePath(`/purchase-orders/${poId}`)
+  if (po.sales_order_id) {
+    revalidatePath(`/orders/${po.sales_order_id}`)
+  }
+
+  return { success: true }
+}
+
+// --- PO PDF generation helper ---
+
+async function generatePoPdfBase64(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  poId: string,
+  orgId: string
+): Promise<string | null> {
+  const { renderToBuffer } = await import('@react-pdf/renderer')
+  const React = await import('react')
+  const { PoPdfDocument } = await import('@/app/api/purchase-orders/[id]/pdf/po-pdf-document')
+
+  const { data: po } = await supabase
+    .from('purchase_orders')
+    .select('*')
+    .eq('id', poId)
+    .single()
+
+  if (!po) return null
+
+  const [
+    { data: supplier },
+    { data: salesOrder },
+    { data: lines },
+    { data: brand },
+  ] = await Promise.all([
+    supabase.from('suppliers').select('name, email, phone, address_line1, address_line2, city, county, postcode').eq('id', po.supplier_id).single(),
+    po.sales_order_id
+      ? supabase.from('sales_orders').select('so_number').eq('id', po.sales_order_id).single()
+      : Promise.resolve({ data: null }),
+    supabase
+      .from('purchase_order_lines')
+      .select('id, description, quantity, unit_cost, products(sku)')
+      .eq('purchase_order_id', poId)
+      .neq('status', 'cancelled')
+      .order('sort_order', { ascending: true }),
+    supabase
+      .from('brands')
+      .select('name, legal_entity, logo_path, logo_width, phone, fax, email, website, footer_text, address_line1, address_line2, city, county, postcode, company_reg_number, vat_number')
+      .eq('org_id', orgId)
+      .eq('is_default', true)
+      .eq('is_active', true)
+      .maybeSingle(),
+  ])
+
+  const pdfLines = (lines || []).map((l: Record<string, unknown>) => ({
+    id: l.id as string,
+    description: l.description as string,
+    quantity: l.quantity as number,
+    unit_cost: l.unit_cost as number,
+    sku: ((l.products as { sku: string } | null) as { sku: string } | null)?.sku || null,
+  }))
+
+  const element = React.createElement(PoPdfDocument, {
+    po: {
+      po_number: po.po_number,
+      created_at: po.created_at,
+      sent_at: po.sent_at,
+      delivery_cost: po.delivery_cost,
+      notes: po.notes,
+      delivery_destination: po.delivery_destination,
+      delivery_address_line1: po.delivery_address_line1,
+      delivery_address_line2: po.delivery_address_line2,
+      delivery_city: po.delivery_city,
+      delivery_postcode: po.delivery_postcode,
+    },
+    supplier: supplier || null,
+    soNumber: (salesOrder as { so_number: string } | null)?.so_number || null,
+    lines: pdfLines,
+    brand: brand || null,
+  })
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const buffer = await renderToBuffer(element as any)
+  return Buffer.from(buffer).toString('base64')
+}
+
+// --- PO email HTML template ---
+
+function buildPoEmailHtml(params: {
+  supplierName: string
+  messageBody: string
+  poNumber: string
+  senderDisplayName: string
+  brandName: string
+  brandPhone: string | null
+  brandEmail: string | null
+}): string {
+  const { supplierName, messageBody, poNumber, senderDisplayName, brandName, brandPhone, brandEmail } = params
+
+  const messageHtml = messageBody
+    .split('\n')
+    .map(line => line.trim())
+    .map(line => line ? `<p style="margin: 0 0 12px 0;">${escapeHtml(line)}</p>` : '<br>')
+    .join('\n')
+
+  const contactLines = [brandPhone, brandEmail].filter(Boolean)
+  const contactBlock = contactLines.length > 0
+    ? `<p style="margin: 0; font-size: 13px; color: #64748b;">${contactLines.join(' &middot; ')}</p>`
+    : ''
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1e293b; line-height: 1.6; margin: 0; padding: 0; background-color: #f8fafc;">
+<div style="max-width: 640px; margin: 0 auto; padding: 32px 24px;">
+  <div style="background-color: #ffffff; border-radius: 12px; padding: 32px; border: 1px solid #e2e8f0;">
+    <p style="margin: 0 0 12px 0;">Dear ${escapeHtml(supplierName)},</p>
+
+    ${messageHtml}
+
+    <p style="margin: 0 0 12px 0; font-size: 13px; color: #64748b;">
+      Please find purchase order <strong>${escapeHtml(poNumber)}</strong> attached as a PDF.
+    </p>
+
+    <p style="margin: 24px 0 0 0;">Kind regards,</p>
+    <p style="margin: 4px 0 0 0; font-weight: 600;">${escapeHtml(senderDisplayName)}</p>
+    <p style="margin: 2px 0 0 0; color: #64748b;">${escapeHtml(brandName)}</p>
+    ${contactBlock}
+  </div>
+</div>
+</body>
+</html>`
+}
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
 }
 
 // --- Seed data ---

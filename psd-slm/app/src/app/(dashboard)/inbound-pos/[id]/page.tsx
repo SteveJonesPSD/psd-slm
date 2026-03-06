@@ -23,7 +23,7 @@ export default async function InboundPODetailPage({
           href="/inbound-pos"
           className="text-sm text-slate-400 hover:text-slate-600 transition-colors"
         >
-          &larr; Back to Inbound POs
+          &larr; Back to Customer POs
         </Link>
       </div>
       <InboundPODetail data={result.data as any} />

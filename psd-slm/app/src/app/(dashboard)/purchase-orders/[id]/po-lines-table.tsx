@@ -42,7 +42,7 @@ export function PoLinesTable({ lines, poId, poStatus, deliveryCost, isStockOrder
   const [editingCost, setEditingCost] = useState<Record<string, number>>({})
 
   const isDraft = poStatus === 'draft'
-  const canReceive = ['sent', 'acknowledged', 'partially_received'].includes(poStatus)
+  const canReceive = ['acknowledged', 'partially_received'].includes(poStatus)
 
   const handleCostChange = (lineId: string, value: number) => {
     setEditingCost((prev) => ({ ...prev, [lineId]: value }))

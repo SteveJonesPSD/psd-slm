@@ -55,7 +55,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
       : Promise.resolve({ data: null }),
     supabase
       .from('quotes')
-      .select('id, quote_number, status, created_at, users!quotes_assigned_to_fkey(first_name, last_name), quote_lines(quantity, sell_price)')
+      .select('id, quote_number, title, status, created_at, users!quotes_assigned_to_fkey(first_name, last_name), quote_lines(quantity, sell_price)')
       .eq('opportunity_id', id)
       .not('status', 'eq', 'revised')
       .order('created_at', { ascending: false }),
@@ -205,6 +205,9 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
                     Quote #
                   </th>
                   <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-left">
+                    Title
+                  </th>
+                  <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-left">
                     Status
                   </th>
                   <th className="whitespace-nowrap border-b-2 border-gray-200 bg-slate-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-right">
@@ -226,6 +229,9 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
                         <Link href={`/quotes/${q.id}`} className="text-blue-600 hover:text-blue-800 no-underline">
                           {q.quote_number}
                         </Link>
+                      </td>
+                      <td className="px-5 py-3 text-slate-600 dark:text-slate-400">
+                        {q.title || '\u2014'}
                       </td>
                       <td className="px-5 py-3 whitespace-nowrap">
                         {qStatusCfg ? <Badge label={qStatusCfg.label} color={qStatusCfg.color} bg={qStatusCfg.bg} /> : q.status}

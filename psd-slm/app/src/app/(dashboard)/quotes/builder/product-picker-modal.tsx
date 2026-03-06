@@ -123,7 +123,7 @@ export function ProductPickerModal({
       quantity: 1,
       buy_price,
       sell_price,
-      fulfilment_route: 'from_stock',
+      fulfilment_route: product.default_route || 'from_stock',
       is_optional: false,
       requires_contract: false,
       notes: null,

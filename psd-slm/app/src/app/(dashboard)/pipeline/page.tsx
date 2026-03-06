@@ -41,7 +41,7 @@ export default async function PipelinePage() {
         subtitle={`${activeCount} active opportunities`}
         actions={
           <Link href="/opportunities/new">
-            <Button variant="primary">+ New Opportunity</Button>
+            <Button size="sm" variant="primary">+ New Opportunity</Button>
           </Link>
         }
       />

@@ -9,7 +9,7 @@ export default async function InboundPOsPage() {
   return (
     <div>
       <PageHeader
-        title="Inbound Purchase Orders"
+        title="Customer Purchase Orders"
         subtitle={`${items.length} purchase order${items.length === 1 ? '' : 's'}`}
       />
       <InboundPOTable initialData={items} />

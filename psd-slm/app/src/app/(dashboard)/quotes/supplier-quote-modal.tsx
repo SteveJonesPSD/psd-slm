@@ -97,6 +97,35 @@ export function SupplierQuoteModal({ open, onClose, mode = 'create', existingQuo
   // Quick product create
   const [quickCreate, setQuickCreate] = useState<{ lineIndex: number; sku: string; name: string; categoryId: string } | null>(null)
 
+  // Reset all state when modal opens
+  useEffect(() => {
+    if (open) {
+      setStep('upload')
+      setUploading(false)
+      setError('')
+      setCreating(false)
+      setInputMode('pdf')
+      setEmailText('')
+      setImageData(null)
+      setInputType('pdf')
+      setExtracted(null)
+      setSupplierMatch(null)
+      setLines([])
+      setLookups(null)
+      setPdfStoragePath(null)
+      setPdfFileName(null)
+      setCustomerId('')
+      setContactId('')
+      setAssignedTo('')
+      setBrandId('')
+      setQuoteType('')
+      setSupplierId('')
+      setNewSupplierName(null)
+      setQuickCreate(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }, [open])
+
   // --- Shared result handler ---
   const processApiResult = useCallback((result: Record<string, unknown>) => {
     const ext = result.extracted as ExtractedSupplierQuote
@@ -411,7 +440,7 @@ export function SupplierQuoteModal({ open, onClose, mode = 'create', existingQuo
     setError('')
 
     const supplierName = newSupplierName || lookups?.suppliers.find((s) => s.id === supplierId)?.name
-    const groupName = supplierName ? `${supplierName} Quote` : 'Imported Lines'
+    const groupName = ''
     const resolvedSupplierId = supplierId || null
 
     if (isMerge && onMergeLines) {

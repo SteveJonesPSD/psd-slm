@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { Badge, TICKET_STATUS_CONFIG, TICKET_PRIORITY_CONFIG, CONTRACT_TYPE_CONFIG } from '@/components/ui/badge'
+import { CollapsibleCard } from './collapsible-card'
 
 interface Ticket {
   id: string
@@ -34,19 +35,18 @@ interface SupportTicketsSectionProps {
 
 export function SupportTicketsSection({ tickets, activeCount, contract, timeUsedThisMonth, customerId }: SupportTicketsSectionProps) {
   return (
-    <div className="mb-6">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-[15px] font-semibold">
-          Support Tickets {activeCount > 0 && <span className="text-slate-400">({activeCount} active)</span>}
-        </h3>
+    <CollapsibleCard
+      title="Support Tickets"
+      count={activeCount}
+      actions={
         <Link
           href={`/helpdesk?company=${customerId}`}
           className="text-xs text-indigo-600 hover:text-indigo-800 no-underline"
         >
           View All
         </Link>
-      </div>
-
+      }
+    >
       {/* Contract Summary */}
       {contract ? (
         <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-3">
@@ -144,6 +144,6 @@ export function SupportTicketsSection({ tickets, activeCount, contract, timeUsed
           </tbody>
         </table>
       </div>
-    </div>
+    </CollapsibleCard>
   )
 }

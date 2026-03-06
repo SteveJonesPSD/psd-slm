@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import { requirePermission } from '@/lib/auth'
 import { PageHeader } from '@/components/ui/page-header'
+import { Button } from '@/components/ui/button'
 import { getJobs, getEngineers } from '../actions'
 import { WeekView } from './week-view'
 import Link from 'next/link'
@@ -27,14 +28,9 @@ export default async function WeekViewPage() {
         title="Week View"
         subtitle="Weekly schedule overview"
         actions={
-          <div className="flex gap-2">
-            <Link
-              href="/scheduling/jobs/new"
-              className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 no-underline"
-            >
-              + New Job
-            </Link>
-          </div>
+          <Link href="/scheduling/jobs/new">
+            <Button size="sm" variant="primary">+ New Job</Button>
+          </Link>
         }
       />
       <Suspense fallback={null}>

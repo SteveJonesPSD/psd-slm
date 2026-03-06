@@ -5,17 +5,19 @@ import { CSS } from '@dnd-kit/utilities'
 import { CurrencyInput } from '@/components/ui/currency-input'
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency } from '@/lib/utils'
-import { getMarginColor } from '@/lib/margin'
-import type { FormLine, QuoteAction, SupplierLookup, ProductLookup } from './quote-builder-types'
+import { getMarginColor, DEFAULT_MARGIN_GREEN, DEFAULT_MARGIN_AMBER } from '@/lib/margin'
+import type { FormLine, QuoteAction, SupplierLookup, ProductLookup, ProductSupplierLookup } from './quote-builder-types'
 
 interface LineItemRowProps {
   line: FormLine
   dispatch: React.Dispatch<QuoteAction>
   suppliers: SupplierLookup[]
   products?: ProductLookup[]
+  productSuppliers?: ProductSupplierLookup[]
+  marginThresholds?: { green: number; amber: number }
 }
 
-export function LineItemRow({ line, dispatch, suppliers, products }: LineItemRowProps) {
+export function LineItemRow({ line, dispatch, suppliers, products, productSuppliers, marginThresholds }: LineItemRowProps) {
   const {
     attributes,
     listeners,
@@ -34,7 +36,7 @@ export function LineItemRow({ line, dispatch, suppliers, products }: LineItemRow
   const lineTotal = line.quantity * line.sell_price
   const marginAmt = (line.sell_price - line.buy_price) * line.quantity
   const marginPct = line.sell_price > 0 ? ((line.sell_price - line.buy_price) / line.sell_price) * 100 : 0
-  const marginColor = getMarginColor(line.buy_price, line.sell_price)
+  const marginColor = getMarginColor(line.buy_price, line.sell_price, marginThresholds?.green ?? DEFAULT_MARGIN_GREEN, marginThresholds?.amber ?? DEFAULT_MARGIN_AMBER)
   const hasDealReg = !!line.deal_reg_line_id
   const priceChanged = hasDealReg && line.original_deal_price != null && Math.abs(line.buy_price - line.original_deal_price) > 0.01
 
@@ -95,9 +97,17 @@ export function LineItemRow({ line, dispatch, suppliers, products }: LineItemRow
           className="w-full rounded border border-slate-200 px-1 py-1.5 text-xs outline-none focus:border-slate-400"
         >
           <option value="">No supplier</option>
-          {suppliers.map((s) => (
-            <option key={s.id} value={s.id}>{s.name}</option>
-          ))}
+          {(() => {
+            if (line.product_id && productSuppliers) {
+              const linkedIds = new Set(productSuppliers.filter(ps => ps.product_id === line.product_id).map(ps => ps.supplier_id))
+              return suppliers.filter(s => linkedIds.has(s.id)).map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))
+            }
+            return suppliers.map(s => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))
+          })()}
         </select>
       </td>
 

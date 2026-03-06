@@ -3,17 +3,19 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { DataTable, type Column } from '@/components/ui/data-table'
+import { Button } from '@/components/ui/button'
 import { Badge, QUOTE_STATUS_CONFIG, QUOTE_TYPE_CONFIG } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
 import { useAuth } from '@/components/auth-provider'
 import { formatCurrency } from '@/lib/utils'
-import { getMarginColor } from '@/lib/margin'
+import { getMarginColor, DEFAULT_MARGIN_GREEN, DEFAULT_MARGIN_AMBER } from '@/lib/margin'
 import { deleteQuote, markQuoteAsLost } from './actions'
 import { LOST_REASONS } from '@/lib/opportunities'
 
 interface QuoteRow {
   id: string
   quote_number: string
+  title: string | null
   status: string
   quote_type: string | null
   vat_rate: number
@@ -27,9 +29,12 @@ interface QuoteRow {
 
 interface QuotesTableProps {
   quotes: QuoteRow[]
+  marginThresholds?: { green: number; amber: number }
 }
 
-export function QuotesTable({ quotes }: QuotesTableProps) {
+export function QuotesTable({ quotes, marginThresholds }: QuotesTableProps) {
+  const greenT = marginThresholds?.green ?? DEFAULT_MARGIN_GREEN
+  const amberT = marginThresholds?.amber ?? DEFAULT_MARGIN_AMBER
   const router = useRouter()
   const { user } = useAuth()
   const [search, setSearch] = useState('')
@@ -65,6 +70,7 @@ export function QuotesTable({ quotes }: QuotesTableProps) {
       result = result.filter(
         (r) =>
           r.quote_number.toLowerCase().includes(q) ||
+          r.title?.toLowerCase().includes(q) ||
           r.customers?.name.toLowerCase().includes(q) ||
           r.opportunities?.title.toLowerCase().includes(q)
       )
@@ -84,6 +90,11 @@ export function QuotesTable({ quotes }: QuotesTableProps) {
       label: 'Quote #',
       nowrap: true,
       render: (r) => <span className="font-semibold">{r.quote_number}</span>,
+    },
+    {
+      key: 'title',
+      label: 'Title',
+      render: (r) => r.title ? <span className="text-slate-700 dark:text-slate-300">{r.title}</span> : <span className="text-slate-400">{'\u2014'}</span>,
     },
     {
       key: 'customer',
@@ -144,7 +155,7 @@ export function QuotesTable({ quotes }: QuotesTableProps) {
         if (revenue <= 0) return '\u2014'
         const margin = revenue - cost
         const pct = (margin / revenue) * 100
-        const color = getMarginColor(cost / (lines.reduce((s, l) => s + l.quantity, 0) || 1), revenue / (lines.reduce((s, l) => s + l.quantity, 0) || 1))
+        const color = getMarginColor(cost / (lines.reduce((s, l) => s + l.quantity, 0) || 1), revenue / (lines.reduce((s, l) => s + l.quantity, 0) || 1), greenT, amberT)
         return (
           <span className={`font-medium ${color}`}>
             {formatCurrency(margin)} ({pct.toFixed(1)}%)
@@ -228,12 +239,12 @@ export function QuotesTable({ quotes }: QuotesTableProps) {
           placeholder="Search quotes..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full sm:flex-1 sm:max-w-xs rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+          className="w-full sm:flex-1 sm:max-w-xs rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-slate-200 outline-none focus:border-slate-400"
         />
         <select
           value={ownerFilter}
           onChange={(e) => setOwnerFilter(e.target.value as 'all' | 'mine')}
-          className="flex-1 sm:flex-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+          className="flex-1 sm:flex-none rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-slate-200 outline-none focus:border-slate-400"
         >
           <option value="all">All Quotes</option>
           <option value="mine">My Quotes</option>
@@ -241,7 +252,7 @@ export function QuotesTable({ quotes }: QuotesTableProps) {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="flex-1 sm:flex-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+          className="flex-1 sm:flex-none rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-slate-200 outline-none focus:border-slate-400"
         >
           <option value="">All Statuses</option>
           {Object.entries(QUOTE_STATUS_CONFIG).map(([key, cfg]) => (
@@ -251,7 +262,7 @@ export function QuotesTable({ quotes }: QuotesTableProps) {
         <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
-          className="flex-1 sm:flex-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+          className="flex-1 sm:flex-none rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-slate-900 dark:text-slate-200 outline-none focus:border-slate-400"
         >
           <option value="">All Types</option>
           {Object.entries(QUOTE_TYPE_CONFIG).map(([key, cfg]) => (
@@ -302,13 +313,13 @@ export function QuotesTable({ quotes }: QuotesTableProps) {
               >
                 Cancel
               </button>
-              <button
+              <Button
                 disabled={!lostReason}
                 onClick={handleMarkAsLost}
-                className="rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                variant="danger"
               >
                 Mark as Lost
-              </button>
+              </Button>
             </div>
           </div>
         </div>

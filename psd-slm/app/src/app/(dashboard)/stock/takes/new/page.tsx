@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
 import { SearchableSelect } from '@/components/ui/form-fields'
 import { createStockTake, getStockLocations } from '../../actions'
@@ -70,13 +71,13 @@ export default function NewStockTakePage() {
           >
             Cancel
           </Link>
-          <button
+          <Button
             onClick={handleCreate}
+            variant="primary"
             disabled={loading || !locationId}
-            className="rounded-lg bg-indigo-600 px-6 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
           >
             {loading ? 'Creating...' : 'Start Stock Take'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

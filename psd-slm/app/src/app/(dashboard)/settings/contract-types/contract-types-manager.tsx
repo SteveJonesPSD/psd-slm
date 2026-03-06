@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { PageHeader } from '@/components/ui/page-header'
 import { Badge, CONTRACT_CATEGORY_CONFIG } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { createContractType, updateContractType, getActiveContractCountForType } from '../../contracts/actions'
 import type { ContractType } from '@/lib/contracts/types'
 import { CONTRACT_CATEGORIES, VISIT_FREQUENCIES } from '@/lib/contracts/types'
@@ -37,12 +38,12 @@ export function ContractTypesManager({ types }: ContractTypesManagerProps) {
         title="Contract Types"
         subtitle="Manage service contract templates"
         actions={
-          <button
+          <Button
+            variant="primary"
             onClick={() => { setEditingType(null); setShowModal(true) }}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
           >
             + New Contract Type
-          </button>
+          </Button>
         }
       />
 
@@ -308,9 +309,9 @@ function ContractTypeModal({
 
         <div className="flex justify-end gap-2 mt-6">
           <button onClick={onClose} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Cancel</button>
-          <button onClick={handleSave} disabled={saving} className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+          <Button variant="primary" onClick={handleSave} disabled={saving}>
             {saving ? 'Saving...' : isEdit ? 'Update' : 'Create'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

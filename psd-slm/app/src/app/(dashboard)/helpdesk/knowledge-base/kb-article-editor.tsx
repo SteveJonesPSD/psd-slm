@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { Button } from '@/components/ui/button'
 import { SearchableSelect } from '@/components/ui/form-fields'
 import { createKbArticle, updateKbArticle, deleteKbArticle } from '../actions'
 
@@ -138,23 +139,23 @@ export function KbArticleEditor({ article, categories }: { article?: Article; ca
             Save Draft
           </button>
           {form.status !== 'published' && (
-            <button
+            <Button
+              variant="success"
               onClick={() => handleSave('published')}
               disabled={saving || !form.title.trim() || !form.slug.trim() || !form.body.trim()}
-              className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
             >
               Publish
-            </button>
+            </Button>
           )}
           {form.status === 'published' && (
             <>
-              <button
+              <Button
+                variant="primary"
                 onClick={() => handleSave()}
                 disabled={saving || !form.title.trim() || !form.slug.trim()}
-                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
               >
                 {saving ? 'Saving...' : 'Save'}
-              </button>
+              </Button>
               <button
                 onClick={() => handleSave('archived')}
                 disabled={saving}

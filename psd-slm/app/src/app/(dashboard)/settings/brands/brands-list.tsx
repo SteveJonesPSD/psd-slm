@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
 import type { Brand } from '@/types/database'
 import { deleteBrand, toggleBrandActive, setDefaultBrand } from '../actions'
 
@@ -23,11 +24,8 @@ export function BrandsList({ brands }: Props) {
         <p className="mb-4 text-sm text-slate-500">
           Create your first brand to start customising quotes and documents.
         </p>
-        <Link
-          href="/settings/brands/new"
-          className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
-        >
-          Create Brand
+        <Link href="/settings/brands/new">
+          <Button variant="primary">Create Brand</Button>
         </Link>
       </div>
     )

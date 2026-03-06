@@ -174,11 +174,13 @@ export function TemplateEditor({
     opportunity_id: '',
     assigned_to: '',
     brand_id: '',
+    title: '',
     quote_type: '',
     valid_until: '',
     vat_rate: 20,
     customer_notes: '',
     internal_notes: '',
+    revision_notes: '',
     attributions: [],
   }
 

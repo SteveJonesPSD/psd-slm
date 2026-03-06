@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@/components/ui/button'
 import type { AutomationMacro, TicketTag, MacroAction } from '@/types/database'
 import { TICKET_STATUSES } from '@/lib/helpdesk'
 import { createMacro, updateMacro, deleteMacro, toggleMacroActive } from '../actions'
@@ -226,12 +227,9 @@ export function MacrosManager({ initialMacros, tags, teamMembers }: MacrosManage
             Configure automatic actions triggered by AI triage tags, priorities, or status changes.
           </p>
         </div>
-        <button
-          onClick={openCreate}
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-        >
+        <Button variant="primary" onClick={openCreate}>
           New Macro
-        </button>
+        </Button>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
@@ -525,13 +523,13 @@ export function MacrosManager({ initialMacros, tags, teamMembers }: MacrosManage
               >
                 Cancel
               </button>
-              <button
+              <Button
+                variant="primary"
                 onClick={handleSave}
                 disabled={saving || !form.name.trim() || form.actions.length === 0}
-                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
               >
                 {saving ? 'Saving...' : editing ? 'Save' : 'Create'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

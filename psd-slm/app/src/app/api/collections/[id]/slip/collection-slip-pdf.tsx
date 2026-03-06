@@ -47,6 +47,36 @@ const styles = StyleSheet.create({
     color: '#0f172a',
     textAlign: 'center',
   },
+  soNumber: {
+    fontSize: 16,
+    fontFamily: 'Helvetica-Bold',
+    color: '#4f46e5',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  visitDateBox: {
+    marginTop: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    backgroundColor: '#eef2ff',
+    borderRadius: 4,
+    alignSelf: 'center',
+  },
+  visitDateLabel: {
+    fontSize: 7,
+    fontFamily: 'Helvetica-Bold',
+    color: '#6366f1',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    textAlign: 'center',
+  },
+  visitDateValue: {
+    fontSize: 11,
+    fontFamily: 'Helvetica-Bold',
+    color: '#3730a3',
+    textAlign: 'center',
+    marginTop: 1,
+  },
   detailsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -154,9 +184,11 @@ interface SlipLine {
 interface CollectionSlipPdfProps {
   slipNumber: string
   customerName: string
+  soNumber: string | null
   jobNumber: string
   engineerName: string
   date: string
+  visitDate: string | null
   itemCount: number
   notes: string | null
   lines: SlipLine[]
@@ -168,9 +200,11 @@ interface CollectionSlipPdfProps {
 export function CollectionSlipPdf({
   slipNumber,
   customerName,
+  soNumber,
   jobNumber,
   engineerName,
   date,
+  visitDate,
   itemCount,
   notes,
   lines,
@@ -192,9 +226,18 @@ export function CollectionSlipPdf({
           <Image src={qrDataUrl} style={styles.qrCode} />
         </View>
 
-        {/* Customer name — largest text */}
+        {/* Customer name + SO number — largest text */}
         <View style={styles.customerBox}>
           <Text style={styles.customerName}>{customerName}</Text>
+          {soNumber && (
+            <Text style={styles.soNumber}>{soNumber}</Text>
+          )}
+          {visitDate && (
+            <View style={styles.visitDateBox}>
+              <Text style={styles.visitDateLabel}>Booked Visit</Text>
+              <Text style={styles.visitDateValue}>{visitDate}</Text>
+            </View>
+          )}
         </View>
 
         {/* Details row */}

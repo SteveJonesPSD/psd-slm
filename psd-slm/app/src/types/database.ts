@@ -475,6 +475,9 @@ export interface Contact {
   mobile: string | null
   is_primary: boolean
   is_billing: boolean
+  is_shipping: boolean
+  is_portal_user: boolean
+  is_portal_admin: boolean
   is_active: boolean
   is_overseer: boolean
   is_auto_created: boolean
@@ -502,6 +505,12 @@ export interface Supplier {
   email: string | null
   phone: string | null
   website: string | null
+  address_line1: string | null
+  address_line2: string | null
+  city: string | null
+  county: string | null
+  postcode: string | null
+  country: string | null
   payment_terms: number
   notes: string | null
   is_active: boolean
@@ -524,6 +533,7 @@ export interface Product {
   is_active: boolean
   product_type: 'goods' | 'service'
   default_delivery_destination: 'psd_office' | 'customer_site'
+  default_route: 'from_stock' | 'drop_ship'
   created_at: string
   updated_at: string
 }
@@ -613,6 +623,7 @@ export interface Quote {
   contact_id: string | null
   assigned_to: string | null
   quote_number: string
+  title: string | null
   status: 'draft' | 'review' | 'sent' | 'accepted' | 'declined' | 'expired' | 'superseded' | 'revised'
   version: number
   parent_quote_id: string | null
@@ -632,6 +643,7 @@ export interface Quote {
   sent_at: string | null
   acknowledged_at: string | null
   acknowledged_by: string | null
+  revision_notes: string | null
   signature_image_path: string | null
   signed_by_name: string | null
   created_at: string
@@ -713,6 +725,7 @@ export interface SalesOrder {
   requires_install: boolean
   requested_install_date: string | null
   install_notes: string | null
+  linked_visit_instance_id: string | null
   quote_number: string | null
   assigned_to: string | null
   accepted_at: string | null
@@ -1040,6 +1053,7 @@ export interface Brand {
   default_payment_terms_text: string | null
   customer_type: 'education' | 'business' | 'charity' | 'public_sector' | null
   quote_prefix: string
+  use_for_pos: boolean
   is_active: boolean
   sort_order: number
   created_at: string
@@ -1553,6 +1567,8 @@ export interface TicketSummary {
   tone_summary: string | null
   tone_updated_at: string | null
   source: 'manual' | 'portal' | 'email' | null
+  customer_waiting: boolean | null
+  needs_customer_assignment: boolean | null
 }
 
 // AutoGRUMP tone analysis

@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requirePermission } from '@/lib/auth'
 import { renderToBuffer } from '@react-pdf/renderer'
 import React from 'react'
-import { PoPdfDocument } from './po-pdf-document'
+import { PoPdfDocument, type PoPdfDocumentProps } from './po-pdf-document'
 
 export async function GET(
   _request: Request,
@@ -36,7 +36,7 @@ export async function GET(
     { data: lines },
     { data: brand },
   ] = await Promise.all([
-    supabase.from('suppliers').select('name').eq('id', po.supplier_id).single(),
+    supabase.from('suppliers').select('name, email, phone, address_line1, address_line2, city, county, postcode').eq('id', po.supplier_id).single(),
     po.sales_order_id
       ? supabase.from('sales_orders').select('so_number').eq('id', po.sales_order_id).single()
       : Promise.resolve({ data: null }),
@@ -48,12 +48,16 @@ export async function GET(
       .order('sort_order', { ascending: true }),
     supabase
       .from('brands')
-      .select('name, legal_entity, logo_path, logo_width, phone, fax, email, website, footer_text, address_line1, address_line2, city, county, postcode, company_reg_number, vat_number')
+      .select('name, legal_entity, logo_path, logo_width, phone, fax, email, website, footer_text, address_line1, address_line2, city, county, postcode, company_reg_number, vat_number, use_for_pos, is_default')
       .eq('org_id', user.orgId)
-      .eq('is_default', true)
       .eq('is_active', true)
-      .maybeSingle(),
+      .order('use_for_pos', { ascending: false })
+      .order('is_default', { ascending: false }),
   ])
+
+  // Pick the PO-specific brand (use_for_pos=true) or fall back to default
+  const brands = (brand as unknown as Array<Record<string, unknown>>) || []
+  const poBrand = brands.find((b) => b.use_for_pos) || brands.find((b) => b.is_default) || brands[0] || null
 
   const pdfLines = (lines || []).map((l: Record<string, unknown>) => ({
     id: l.id as string,
@@ -80,7 +84,7 @@ export async function GET(
       supplier: supplier || null,
       soNumber: (salesOrder as { so_number: string } | null)?.so_number || null,
       lines: pdfLines,
-      brand: brand || null,
+      brand: poBrand as PoPdfDocumentProps['brand'],
     })
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

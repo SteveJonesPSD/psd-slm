@@ -122,6 +122,7 @@ export class UserGraphClient {
   async sendMail(message: {
     to: { address: string; name?: string }[]
     cc?: { address: string; name?: string }[]
+    bcc?: { address: string; name?: string }[]
     subject: string
     bodyHtml: string
     attachments?: { name: string; contentType: string; contentBytes: string }[]
@@ -143,6 +144,13 @@ export class UserGraphClient {
         ...(message.cc && message.cc.length > 0
           ? {
               ccRecipients: message.cc.map(r => ({
+                emailAddress: { address: r.address, name: r.name || r.address },
+              })),
+            }
+          : {}),
+        ...(message.bcc && message.bcc.length > 0
+          ? {
+              bccRecipients: message.bcc.map(r => ({
                 emailAddress: { address: r.address, name: r.name || r.address },
               })),
             }

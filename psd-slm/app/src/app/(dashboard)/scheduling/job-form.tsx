@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { SearchableSelect } from '@/components/ui/form-fields'
+import { Button } from '@/components/ui/button'
 import { createJob, updateJob, getContactsForCompany, getSalesOrdersForCompany, type CreateJobInput } from './actions'
+import { DateRangePicker } from './date-range-picker'
 
 interface Company {
   id: string
@@ -52,6 +54,7 @@ interface JobFormProps {
   companies: Company[]
   jobTypes: JobTypeOption[]
   engineers: Engineer[]
+  workingDays?: number[]
   // Pre-fill for edit mode
   initialData?: {
     id: string
@@ -65,6 +68,7 @@ interface JobFormProps {
     scheduled_date: string | null
     scheduled_time: string | null
     estimated_duration_minutes: number
+    chargeable_type: string | null
     internal_notes: string | null
     site_address_line1: string | null
     site_address_line2: string | null
@@ -100,7 +104,7 @@ const DURATION_OPTIONS = [
   { value: 480, label: '8 hours (Full Day)' },
 ]
 
-export function JobForm({ companies, jobTypes, engineers, initialData, sourceType, sourceId, sourceRef, prefill, initialLinkedSos }: JobFormProps) {
+export function JobForm({ companies, jobTypes, engineers, workingDays = [1, 2, 3, 4, 5], initialData, sourceType, sourceId, sourceRef, prefill, initialLinkedSos }: JobFormProps) {
   const router = useRouter()
   const isEdit = !!initialData
 
@@ -115,6 +119,7 @@ export function JobForm({ companies, jobTypes, engineers, initialData, sourceTyp
     scheduled_date: initialData?.scheduled_date || '',
     scheduled_time: initialData?.scheduled_time?.substring(0, 5) || '',
     estimated_duration_minutes: initialData?.estimated_duration_minutes || 60,
+    chargeable_type: initialData?.chargeable_type || 'as_per_so',
     internal_notes: initialData?.internal_notes || prefill?.internal_notes || '',
     site_address_line1: initialData?.site_address_line1 || prefill?.site_address_line1 || '',
     site_address_line2: initialData?.site_address_line2 || prefill?.site_address_line2 || '',
@@ -122,6 +127,18 @@ export function JobForm({ companies, jobTypes, engineers, initialData, sourceTyp
     site_county: initialData?.site_county || '',
     site_postcode: initialData?.site_postcode || prefill?.site_postcode || '',
   })
+
+  // Multi-engineer selection (create mode only — edit mode uses single assigned_to)
+  const [selectedEngineers, setSelectedEngineers] = useState<Engineer[]>(
+    isEdit && initialData?.assigned_to
+      ? engineers.filter(e => e.id === initialData.assigned_to)
+      : []
+  )
+
+  // Multi-day booking via date range picker (create mode only)
+  const [selectedDates, setSelectedDates] = useState<string[]>(
+    form.scheduled_date ? [form.scheduled_date] : []
+  )
 
   const [contacts, setContacts] = useState<Contact[]>([])
   const [salesOrders, setSalesOrders] = useState<LinkedSo[]>([])
@@ -230,6 +247,7 @@ export function JobForm({ companies, jobTypes, engineers, initialData, sourceTyp
         scheduled_date: form.scheduled_date || undefined,
         scheduled_time: form.scheduled_time || undefined,
         estimated_duration_minutes: form.estimated_duration_minutes,
+        chargeable_type: form.chargeable_type as CreateJobInput['chargeable_type'],
         internal_notes: form.internal_notes || undefined,
         site_address_line1: form.site_address_line1 || undefined,
         site_address_line2: form.site_address_line2 || undefined,
@@ -249,11 +267,46 @@ export function JobForm({ companies, jobTypes, engineers, initialData, sourceTyp
           router.push(`/scheduling/jobs/${initialData.id}`)
         }
       } else {
-        const result = await createJob(input)
-        if (result.error) {
-          setError(result.error)
-        } else if (result.data) {
-          router.push(`/scheduling/jobs/${result.data.id}`)
+        // Build the list of dates and engineers to create jobs for
+        const dates = selectedDates.length > 0 ? selectedDates : [form.scheduled_date || '']
+        const engineerIds = selectedEngineers.length > 0
+          ? selectedEngineers.map(e => e.id)
+          : [undefined] // single undefined = no engineer assigned
+
+        const totalJobs = dates.filter(Boolean).length * engineerIds.length
+
+        if (totalJobs === 1) {
+          // Single job — simple path
+          if (engineerIds[0]) input.assigned_to = engineerIds[0]
+          if (dates[0]) input.scheduled_date = dates[0]
+          const result = await createJob(input)
+          if (result.error) {
+            setError(result.error)
+          } else if (result.data) {
+            router.push(`/scheduling/jobs/${result.data.id}`)
+          }
+        } else {
+          // Multiple jobs — date × engineer matrix
+          const errors: string[] = []
+          let created = 0
+
+          for (const date of dates) {
+            for (const engId of engineerIds) {
+              const jobInput = { ...input, scheduled_date: date || undefined, assigned_to: engId }
+              const result = await createJob(jobInput)
+              if (result.error) {
+                errors.push(result.error)
+              } else {
+                created++
+              }
+            }
+          }
+
+          if (errors.length > 0 && created === 0) {
+            setError(errors[0])
+          } else {
+            router.push('/scheduling')
+          }
         }
       }
     } finally {
@@ -457,8 +510,9 @@ export function JobForm({ companies, jobTypes, engineers, initialData, sourceTyp
       {/* Scheduling */}
       <div className="rounded-lg border border-gray-200 bg-white p-5">
         <h3 className="mb-4 text-sm font-semibold text-slate-900">Scheduling</h3>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
+        <div className="space-y-4">
+          {isEdit ? (
+            /* Edit mode — single engineer */
             <SearchableSelect
               label="Assigned Engineer"
               value={form.assigned_to}
@@ -466,37 +520,115 @@ export function JobForm({ companies, jobTypes, engineers, initialData, sourceTyp
               placeholder="Search engineers..."
               onChange={(val) => setForm({ ...form, assigned_to: val })}
             />
+          ) : (
+            /* Create mode — multi-engineer selection */
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Engineers</label>
+              {selectedEngineers.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {selectedEngineers.map(eng => (
+                    <span
+                      key={eng.id}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 border border-indigo-200 px-3 py-1 text-xs font-medium text-indigo-800"
+                    >
+                      {eng.first_name} {eng.last_name}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedEngineers(prev => prev.filter(e => e.id !== eng.id))}
+                        className="ml-0.5 text-indigo-400 hover:text-indigo-700"
+                      >
+                        <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <SearchableSelect
+                value=""
+                options={engineers
+                  .filter(e => !selectedEngineers.some(se => se.id === e.id))
+                  .map(e => ({ value: e.id, label: `${e.first_name} ${e.last_name}` }))}
+                placeholder="Add an engineer..."
+                onChange={(val) => {
+                  const eng = engineers.find(e => e.id === val)
+                  if (eng && !selectedEngineers.some(se => se.id === eng.id)) {
+                    setSelectedEngineers(prev => [...prev, eng])
+                  }
+                }}
+              />
+              {selectedEngineers.length > 1 && (
+                <p className="mt-1.5 text-xs text-amber-600">
+                  {selectedEngineers.length} engineers selected — a separate job will be created for each
+                </p>
+              )}
+            </div>
+          )}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Estimated Duration</label>
+              <select
+                value={form.estimated_duration_minutes}
+                onChange={e => setForm({ ...form, estimated_duration_minutes: parseInt(e.target.value) })}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              >
+                {DURATION_OPTIONS.map(d => (
+                  <option key={d.value} value={d.value}>{d.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Is Job Chargeable?</label>
+              <select
+                value={form.chargeable_type}
+                onChange={e => setForm({ ...form, chargeable_type: e.target.value })}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="as_per_so">As per SO</option>
+                <option value="no">No</option>
+                <option value="contract">Contract</option>
+                <option value="hourly">Hourly</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Scheduled Time</label>
+              <input
+                type="time"
+                value={form.scheduled_time}
+                onChange={e => setForm({ ...form, scheduled_time: e.target.value })}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
           </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Estimated Duration</label>
-            <select
-              value={form.estimated_duration_minutes}
-              onChange={e => setForm({ ...form, estimated_duration_minutes: parseInt(e.target.value) })}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            >
-              {DURATION_OPTIONS.map(d => (
-                <option key={d.value} value={d.value}>{d.label}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Scheduled Date</label>
-            <input
-              type="date"
-              value={form.scheduled_date}
-              onChange={e => setForm({ ...form, scheduled_date: e.target.value })}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Scheduled Time</label>
-            <input
-              type="time"
-              value={form.scheduled_time}
-              onChange={e => setForm({ ...form, scheduled_time: e.target.value })}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            />
-          </div>
+          {!isEdit && (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Date</label>
+              <DateRangePicker
+                selectedDates={selectedDates}
+                workingDays={workingDays}
+                onDatesChange={(dates) => {
+                  setSelectedDates(dates)
+                  // Keep the form.scheduled_date in sync with the first selected date
+                  setForm(prev => ({ ...prev, scheduled_date: dates[0] || '' }))
+                }}
+              />
+            </div>
+          )}
+          {isEdit && (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Scheduled Date</label>
+              <input
+                type="date"
+                value={form.scheduled_date}
+                onChange={e => setForm({ ...form, scheduled_date: e.target.value })}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+          )}
+          {selectedDates.length > 1 && (
+            <p className="text-xs text-amber-600">
+              {selectedDates.length} days selected{selectedEngineers.length > 1 ? ` across ${selectedEngineers.length} engineers` : ''} — {selectedDates.length * Math.max(1, selectedEngineers.length)} job{selectedDates.length * Math.max(1, selectedEngineers.length) > 1 ? 's' : ''} will be created
+            </p>
+          )}
         </div>
       </div>
 
@@ -521,13 +653,20 @@ export function JobForm({ companies, jobTypes, engineers, initialData, sourceTyp
         >
           Cancel
         </button>
-        <button
+        <Button
           type="submit"
+          variant="primary"
           disabled={saving || !form.company_id || !form.job_type_id || !form.title.trim()}
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
         >
-          {saving ? (isEdit ? 'Saving...' : 'Creating...') : (isEdit ? 'Save Changes' : 'Create Job')}
-        </button>
+          {(() => {
+            if (saving) return isEdit ? 'Saving...' : 'Creating...'
+            if (isEdit) return 'Save Changes'
+            const dates = selectedDates.length > 1 ? selectedDates.length : 1
+            const engs = Math.max(1, selectedEngineers.length)
+            const total = dates * engs
+            return total > 1 ? `Create ${total} Jobs` : 'Create Job'
+          })()}
+        </Button>
       </div>
     </form>
   )

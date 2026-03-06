@@ -4,6 +4,8 @@ import { requirePermission } from '@/lib/auth'
 import { StatCard } from '@/components/ui/stat-card'
 import { Badge, INVOICE_STATUS_CONFIG, INVOICE_TYPE_CONFIG } from '@/components/ui/badge'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { getMarginAccent } from '@/lib/margin'
+import { getMarginThresholds } from '@/lib/margin-settings'
 import { getInvoice } from '../actions'
 import { InvoiceDetailActions } from './invoice-detail-actions'
 import { InvoiceActivity } from './invoice-activity'
@@ -16,7 +18,10 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
   const { id } = await params
   await requirePermission('invoices', 'view')
 
-  const invoice = await getInvoice(id)
+  const [invoice, marginThresholds] = await Promise.all([
+    getInvoice(id),
+    getMarginThresholds(),
+  ])
   if (!invoice) notFound()
 
   const statusCfg = INVOICE_STATUS_CONFIG[invoice.effectiveStatus]
@@ -193,7 +198,7 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
           label="Margin"
           value={formatCurrency(marginAmt)}
           sub={`${marginPct.toFixed(1)}%`}
-          accent={marginPct >= 30 ? '#059669' : marginPct >= 15 ? '#d97706' : '#dc2626'}
+          accent={getMarginAccent(marginPct, marginThresholds.green, marginThresholds.amber)}
         />
       </div>
 

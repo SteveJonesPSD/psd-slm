@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createCalendar } from '../../actions'
+import { Button } from '@/components/ui/button'
 
 export function NewCalendarForm() {
   const router = useRouter()
@@ -116,13 +117,13 @@ export function NewCalendarForm() {
           >
             Cancel
           </button>
-          <button
+          <Button
             type="submit"
+            variant="primary"
             disabled={isPending}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors disabled:opacity-50"
           >
             {isPending ? 'Creating...' : 'Create Calendar'}
-          </button>
+          </Button>
         </div>
       </div>
     </form>

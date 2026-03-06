@@ -190,7 +190,7 @@ export async function processInboundPO(
 
         createNotification(supabase, orgId, user.id, 'inbound_po_matched',
           'PO Auto-Matched',
-          `Inbound PO${customerPoNumber ? ` ${customerPoNumber}` : ''} has been matched to a quote with ${matchConfidence} confidence.`,
+          `Customer PO${customerPoNumber ? ` ${customerPoNumber}` : ''} has been matched to a quote with ${matchConfidence} confidence.`,
           `/inbound-pos/${inboundPoId}`,
           'inbound_po', inboundPoId
         )

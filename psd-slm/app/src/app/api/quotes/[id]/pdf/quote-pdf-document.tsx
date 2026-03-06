@@ -298,6 +298,7 @@ interface BrandPdf {
 interface QuotePdfDocumentProps {
   quote: {
     quote_number: string
+    title: string | null
     version: number
     vat_rate: number
     valid_until: string | null
@@ -359,6 +360,11 @@ export function QuotePdfDocument({ quote, customer, contact, brand, groups, line
             <Text style={styles.quoteInfo}>
               {quote.quote_number}
             </Text>
+            {quote.title && (
+              <Text style={[styles.quoteInfo, { fontSize: 11, color: '#334155', fontFamily: 'Helvetica-Bold', marginTop: 2 }]}>
+                {quote.title}
+              </Text>
+            )}
             <Text style={styles.quoteInfo}>Date: {formattedDate}</Text>
             {quote.valid_until && (
               <Text style={styles.quoteInfo}>

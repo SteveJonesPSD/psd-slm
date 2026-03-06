@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Input, Select } from '@/components/ui/form-fields'
+import { Button } from '@/components/ui/button'
 import { saveMailChannel } from '@/lib/email/actions'
 import type { MailChannel } from '@/lib/email/types'
 
@@ -101,13 +102,13 @@ export function ChannelForm({ channel, connectionId, onClose, onSaved }: Props) 
           >
             Cancel
           </button>
-          <button
+          <Button
+            variant="primary"
             onClick={handleSave}
             disabled={saving}
-            className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
           >
             {saving ? 'Saving...' : channel ? 'Save Changes' : 'Add Channel'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

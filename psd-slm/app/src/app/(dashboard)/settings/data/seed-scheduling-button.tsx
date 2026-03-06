@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@/components/ui/button'
 import { seedSchedulingData } from '@/app/(dashboard)/scheduling/seed-action'
 
 export function SeedSchedulingButton() {
@@ -29,13 +30,13 @@ export function SeedSchedulingButton() {
 
   return (
     <div className="flex flex-col items-end gap-1.5">
-      <button
+      <Button
+        variant="primary"
         onClick={handleSeed}
         disabled={loading}
-        className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
       >
         {loading ? 'Seeding...' : 'Seed Data'}
-      </button>
+      </Button>
       {result && (
         <p className={`text-xs ${result.startsWith('Error') ? 'text-red-600' : 'text-green-600'}`}>
           {result}

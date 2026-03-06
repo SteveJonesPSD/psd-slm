@@ -1,6 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { PageHeader } from '@/components/ui/page-header'
-import { CustomersTable } from './customers-table'
+import { CustomersPageClient } from './customers-page-client'
 
 export default async function CustomersPage() {
   const supabase = await createClient()
@@ -10,13 +9,5 @@ export default async function CustomersPage() {
     .select('*, contacts(id)')
     .order('name')
 
-  return (
-    <div>
-      <PageHeader
-        title="Customers"
-        subtitle={`${customers?.length || 0} accounts`}
-      />
-      <CustomersTable customers={customers || []} />
-    </div>
-  )
+  return <CustomersPageClient customers={customers || []} />
 }

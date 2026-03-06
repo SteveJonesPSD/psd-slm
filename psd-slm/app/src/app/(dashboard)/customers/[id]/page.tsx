@@ -4,17 +4,25 @@ import { createClient } from '@/lib/supabase/server'
 import { formatCurrency } from '@/lib/utils'
 import { StatCard } from '@/components/ui/stat-card'
 import { CustomerHeader } from './customer-header'
+import { CollapsibleCard } from './collapsible-card'
 import { ContactsSection } from './contacts-section'
 import { OpportunitiesSection } from './opportunities-section'
 import { QuotesSection } from './quotes-section'
+import { SalesOrdersSection } from './sales-orders-section'
+import { InvoicesSection } from './invoices-section'
 import { ContractsSection } from './contracts-section'
 import { SupportTicketsSection } from './support-tickets-section'
 import { VisitSchedulingSection } from './visit-scheduling-section'
 import { EmailDomainsSection } from './email-domains-section'
+import { LinkedContactsSection } from './linked-contacts-section'
+import { CustomerSearch } from './customer-search'
 import { getCompanyTickets } from '../../helpdesk/actions'
 import { getContractsByCompany } from '../../contracts/actions'
 import { getCompanyVisits } from '../../visit-scheduling/actions'
 import { getCustomerDomains } from '../domain-actions'
+import { getLinkedContacts } from '../link-actions'
+import { deriveSoDisplayStatus } from '@/lib/sales-orders'
+import { getEffectiveInvoiceStatus } from '@/lib/invoicing'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -88,6 +96,62 @@ export default async function CustomerDetailPage({ params }: PageProps) {
     // Email domains migration may not be applied yet
   }
 
+  // Fetch linked contacts (contacts from other companies linked here)
+  let linkedContacts: Awaited<ReturnType<typeof getLinkedContacts>> = []
+  try {
+    linkedContacts = await getLinkedContacts(id)
+  } catch {
+    // Multi-company contacts migration may not be applied yet
+  }
+
+  // Fetch sales orders
+  const { data: salesOrders } = await supabase
+    .from('sales_orders')
+    .select(`
+      id, so_number, customer_po, created_at,
+      users!sales_orders_assigned_to_fkey(first_name, last_name, initials, color),
+      sales_order_lines(id, status, quantity, sell_price, quantity_invoiced),
+      quotes(opportunities(title))
+    `)
+    .eq('customer_id', id)
+    .order('created_at', { ascending: false })
+
+  const soRows = (salesOrders || []).map((so: Record<string, unknown>) => {
+    const lines = (so.sales_order_lines || []) as { id: string; status: string; quantity: number; sell_price: number; quantity_invoiced: number }[]
+    const quote = so.quotes as { opportunities: { title: string } | null } | null
+    return {
+      id: so.id as string,
+      so_number: so.so_number as string,
+      display_status: deriveSoDisplayStatus(lines),
+      customer_po: so.customer_po as string | null,
+      created_at: so.created_at as string,
+      assigned_user: so.users as { first_name: string; last_name: string; initials: string | null; color: string | null } | null,
+      line_count: lines.length,
+      total: lines.reduce((s, l) => s + l.quantity * l.sell_price, 0),
+      opportunity_title: quote?.opportunities?.title ?? null,
+    }
+  })
+
+  // Fetch invoices
+  const { data: invoices } = await supabase
+    .from('invoices')
+    .select('id, invoice_number, status, invoice_type, total, created_at, due_date, paid_at, sales_orders(so_number)')
+    .eq('customer_id', id)
+    .order('created_at', { ascending: false })
+
+  const invoiceRows = (invoices || []).map((inv: Record<string, unknown>) => ({
+    id: inv.id as string,
+    invoice_number: inv.invoice_number as string,
+    status: inv.status as string,
+    effective_status: getEffectiveInvoiceStatus(inv.status as 'draft' | 'sent' | 'paid' | 'overdue' | 'void' | 'credit_note', inv.due_date as string | null),
+    invoice_type: inv.invoice_type as string,
+    total: inv.total as number,
+    created_at: inv.created_at as string,
+    due_date: inv.due_date as string | null,
+    paid_at: inv.paid_at as string | null,
+    so_number: (inv.sales_orders as Record<string, unknown> | null)?.so_number as string | null ?? null,
+  }))
+
   if (!customer) notFound()
 
   const opps = opportunities || []
@@ -96,7 +160,7 @@ export default async function CustomerDetailPage({ params }: PageProps) {
     (s: number, o: { estimated_value: number | null }) => s + (o.estimated_value || 0),
     0
   )
-  const quoteCount = (quotes || []).length
+  const openQuoteCount = (quotes || []).filter((q: { status: string }) => ['draft', 'sent', 'viewed'].includes(q.status)).length
 
   return (
     <div>
@@ -113,7 +177,7 @@ export default async function CustomerDetailPage({ params }: PageProps) {
 
       {/* Stats row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
-        <StatCard label="Contacts" value={contacts?.length || 0} />
+        <StatCard label="Open Quotes" value={openQuoteCount} accent="#d97706" />
         <StatCard
           label="Opportunities"
           value={activeOpps.length}
@@ -121,9 +185,8 @@ export default async function CustomerDetailPage({ params }: PageProps) {
           accent="#6366f1"
         />
         <StatCard
-          label="Quotes"
-          value={quoteCount}
-          accent="#d97706"
+          label="Total Quotes"
+          value={(quotes || []).length}
         />
         <StatCard
           label="Payment Terms"
@@ -132,9 +195,13 @@ export default async function CustomerDetailPage({ params }: PageProps) {
         />
       </div>
 
+      {/* Search bar */}
+      <div className="mb-8">
+        <CustomerSearch customerId={id} />
+      </div>
+
       {/* Customer info card */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5 mb-8">
-        <h3 className="text-[15px] font-semibold mb-4">Customer Details</h3>
+      <CollapsibleCard title="Customer Details">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-3 text-sm">
           <DetailField label="Account Number" value={customer.account_number} />
           <DetailField label="Xero Reference" value={customer.xero_reference} />
@@ -157,7 +224,7 @@ export default async function CustomerDetailPage({ params }: PageProps) {
             <DetailField label="Notes" value={customer.notes} className="col-span-2 lg:col-span-3" />
           )}
         </div>
-      </div>
+      </CollapsibleCard>
 
       {/* Email Domains */}
       <EmailDomainsSection domains={emailDomains} customerId={id} />
@@ -165,11 +232,20 @@ export default async function CustomerDetailPage({ params }: PageProps) {
       {/* Contacts */}
       <ContactsSection contacts={contacts || []} customerId={id} />
 
+      {/* Linked Contacts (from other companies) */}
+      <LinkedContactsSection contacts={linkedContacts} customerId={id} />
+
       {/* Opportunities */}
       <OpportunitiesSection opportunities={opps} customerId={id} />
 
       {/* Quotes */}
       <QuotesSection quotes={quotes || []} />
+
+      {/* Sales Orders */}
+      <SalesOrdersSection salesOrders={soRows} />
+
+      {/* Invoices */}
+      <InvoicesSection invoices={invoiceRows} />
 
       {/* Contracts */}
       {contractsData.length > 0 && (
@@ -178,9 +254,7 @@ export default async function CustomerDetailPage({ params }: PageProps) {
 
       {/* Scheduled Visits */}
       {visitsData.length > 0 && (
-        <div className="mt-8">
-          <VisitSchedulingSection visits={visitsData} />
-        </div>
+        <VisitSchedulingSection visits={visitsData} />
       )}
 
       {/* Support Tickets */}
@@ -211,7 +285,7 @@ function DetailField({
       <div className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-0.5">
         {label}
       </div>
-      <div className="text-slate-700">{value || '\u2014'}</div>
+      <div className="text-slate-700 dark:text-slate-300">{value || '\u2014'}</div>
     </div>
   )
 }

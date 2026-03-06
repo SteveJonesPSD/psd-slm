@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { Button } from '@/components/ui/button'
 import { Modal } from '@/components/ui/modal'
 
 export interface TicketContext {
@@ -208,13 +209,13 @@ export function AiSuggestModal({ ticketContext, onClose, onUseSuggestion }: AiSu
             placeholder="Ask Claude to refine the suggestion..."
             className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-slate-400"
           />
-          <button
+          <Button
+            variant="primary"
             onClick={handleSend}
             disabled={loading || !input.trim()}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
           >
             Send
-          </button>
+          </Button>
         </div>
       </div>
     </Modal>

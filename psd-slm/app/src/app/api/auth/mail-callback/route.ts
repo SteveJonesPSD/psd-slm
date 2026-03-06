@@ -15,6 +15,8 @@ export async function GET(request: Request) {
   const errorDescription = searchParams.get('error_description')
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || ''
 
+  console.log('[mail-callback] Received:', { hasCode: !!code, hasState: !!state, error, errorDescription })
+
   // Handle OAuth errors (user declined consent, etc.)
   if (error) {
     console.error('[mail-callback] OAuth error:', error, errorDescription)
@@ -45,10 +47,12 @@ export async function GET(request: Request) {
       .single()
 
     if (!stateRecord) {
+      console.error('[mail-callback] State lookup failed — no record found for key:', `mail_connect_${csrfToken}`)
       return NextResponse.redirect(`${baseUrl}/team?mail_error=${encodeURIComponent('Invalid or expired state token')}`)
     }
 
     const stateData = JSON.parse(stateRecord.setting_value)
+    console.log('[mail-callback] State validated for user:', targetUserId)
 
     // Clean up state token
     await supabase
@@ -77,8 +81,8 @@ export async function GET(request: Request) {
       return NextResponse.redirect(`${baseUrl}/team?mail_error=${encodeURIComponent('Mail connection not found')}`)
     }
 
-    // Exchange authorization code for tokens
-    const redirectUri = `${baseUrl}/api/auth/mail-callback`
+    // Exchange authorization code for tokens — must match the redirect_uri sent in the authorize request
+    const redirectUri = `${process.env.NEXT_PUBLIC_SITE_URL}/api/auth/mail-callback`
     const tokenUrl = `https://login.microsoftonline.com/${connection.tenant_id}/oauth2/v2.0/token`
 
     const tokenBody = new URLSearchParams({
@@ -95,6 +99,8 @@ export async function GET(request: Request) {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: tokenBody.toString(),
     })
+
+    console.log('[mail-callback] Token exchange response status:', tokenRes.status)
 
     if (!tokenRes.ok) {
       const errText = await tokenRes.text()
@@ -123,6 +129,8 @@ export async function GET(request: Request) {
       displayName = meData.displayName || ''
     }
 
+    console.log('[mail-callback] /me response:', { status: meRes.status, emailAddress, displayName })
+
     if (!emailAddress) {
       return NextResponse.redirect(`${baseUrl}/team?mail_error=${encodeURIComponent('Could not determine email address from Microsoft account')}`)
     }
@@ -149,10 +157,11 @@ export async function GET(request: Request) {
       })
 
     if (upsertError) {
-      console.error('[mail-callback] Upsert failed:', upsertError)
+      console.error('[mail-callback] DB upsert failed:', upsertError)
       return NextResponse.redirect(`${baseUrl}/team?mail_error=${encodeURIComponent('Failed to save credentials')}`)
     }
 
+    console.log('[mail-callback] Success — credential saved for', emailAddress)
     return NextResponse.redirect(`${baseUrl}/team?mail_connected=true&mail_email=${encodeURIComponent(emailAddress)}`)
   } catch (err) {
     console.error('[mail-callback] Error:', err)

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Select, Textarea } from '@/components/ui/form-fields'
+import { Button } from '@/components/ui/button'
 import { saveSettings } from '../actions'
 
 interface Props {
@@ -165,13 +166,13 @@ export function AiSuggestSettingsForm({ initialSettings }: Props) {
             </p>
           )}
         </div>
-        <button
+        <Button
+          variant="primary"
           onClick={handleSave}
           disabled={saving}
-          className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
         >
           {saving ? 'Saving...' : 'Save Changes'}
-        </button>
+        </Button>
       </div>
     </div>
   )

@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react'
 import { Badge, QUOTE_STATUS_CONFIG, MATCH_CONFIDENCE_CONFIG } from '@/components/ui/badge'
 import { manualMatchQuote, unmatchQuote, searchQuotesForMatch } from '../actions'
+import { Button } from '@/components/ui/button'
 
 interface QuoteMatchPanelProps {
   inboundPoId: string
@@ -153,12 +154,12 @@ export function QuoteMatchPanel({
             <p className="text-sm text-slate-400 mb-3">
               No quote matched automatically.
             </p>
-            <button
+            <Button
               onClick={() => setSearchMode(true)}
-              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+              variant="primary"
             >
               Search for Quote
-            </button>
+            </Button>
           </div>
         )}
 
@@ -173,13 +174,13 @@ export function QuoteMatchPanel({
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
-              <button
+              <Button
                 onClick={handleSearch}
+                variant="primary"
                 disabled={searching}
-                className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
               >
                 {searching ? '...' : 'Search'}
-              </button>
+              </Button>
             </div>
 
             {searchResults.length > 0 && (

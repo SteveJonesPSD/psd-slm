@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
 import { SearchableSelect } from '@/components/ui/form-fields'
 import { createContract } from '../../actions'
 
@@ -186,13 +187,13 @@ export function ContractForm({ customers, slaPlans }: ContractFormProps) {
         >
           Cancel
         </button>
-        <button
+        <Button
+          variant="primary"
           type="submit"
           disabled={saving || !form.customer_id || !form.name.trim() || !form.start_date}
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
         >
           {saving ? 'Creating...' : 'Create Contract'}
-        </button>
+        </Button>
       </div>
     </form>
   )

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
 import { Badge, KB_STATUS_CONFIG } from '@/components/ui/badge'
 import { deleteKbArticle, createKbCategory, updateKbCategory, deleteKbCategory } from '../actions'
 
@@ -320,13 +321,13 @@ export function KbArticleList({ initialArticles, categories }: { initialArticles
                   >
                     Back
                   </button>
-                  <button
+                  <Button
+                    variant="primary"
                     onClick={handleCatSave}
                     disabled={savingCat || !catForm.name.trim()}
-                    className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                   >
                     {savingCat ? 'Saving...' : 'Update'}
-                  </button>
+                  </Button>
                 </div>
               </div>
             ) : (
@@ -358,13 +359,13 @@ export function KbArticleList({ initialArticles, categories }: { initialArticles
                   >
                     Close
                   </button>
-                  <button
+                  <Button
+                    variant="primary"
                     onClick={handleCatSave}
                     disabled={savingCat || !catForm.name.trim()}
-                    className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                   >
                     {savingCat ? 'Creating...' : 'Create'}
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}

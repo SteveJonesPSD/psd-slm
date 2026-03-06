@@ -5,9 +5,11 @@ import { requirePermission } from '@/lib/auth'
 import { StatCard } from '@/components/ui/stat-card'
 import { Badge, QUOTE_STATUS_CONFIG, QUOTE_TYPE_CONFIG, FULFILMENT_ROUTE_CONFIG } from '@/components/ui/badge'
 import { Avatar } from '@/components/ui/avatar'
+import { MobileDetector } from '@/components/ui/mobile-detector'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { getMarginColor } from '@/lib/margin'
-import { QuoteDetailActions } from './quote-detail-actions'
+import { getMarginColor, getMarginAccent } from '@/lib/margin'
+import { getMarginThresholds } from '@/lib/margin-settings'
+import { QuoteDetailActions, QuoteBottomEdit } from './quote-detail-actions'
 import { AcknowledgementBanner } from './acknowledgement-banner'
 import { ChangeRequestsSection } from './change-requests-section'
 import { ActivitySection } from './activity-section'
@@ -15,6 +17,7 @@ import { PoDownloadButton } from './po-download-button'
 import { VersionHistoryPanel } from './version-history-panel'
 import { RevisedBanner } from './revised-banner'
 import { QuoteAttachmentsSection } from './attachments-section'
+import { MobileQuoteDetail } from './mobile-quote-detail'
 import type { User } from '@/types/database'
 
 interface PageProps {
@@ -75,7 +78,7 @@ export default async function QuoteDetailPage({ params }: PageProps) {
     // Fetch sibling versions for version history panel
     supabase
       .from('quotes')
-      .select('id, quote_number, version, status, created_at, assigned_to, users!quotes_assigned_to_fkey(first_name, last_name)')
+      .select('id, quote_number, version, status, revision_notes, created_at, assigned_to, users!quotes_assigned_to_fkey(first_name, last_name)')
       .eq('base_quote_number', quote.base_quote_number)
       .order('version', { ascending: false }),
     // Check if a sales order already exists for this quote
@@ -92,9 +95,11 @@ export default async function QuoteDetailPage({ params }: PageProps) {
       .order('created_at', { ascending: false }),
   ])
 
+  const marginThresholds = await getMarginThresholds()
+
   // Find the active version in the family (for revised banner)
   // Supabase FK joins return arrays — normalize users to single object
-  const siblingVersions = ((versionSiblings || []) as unknown as { id: string; quote_number: string; version: number; status: string; created_at: string; assigned_to: string | null; users: { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null }[]).map((v) => ({
+  const siblingVersions = ((versionSiblings || []) as unknown as { id: string; quote_number: string; version: number; status: string; revision_notes: string | null; created_at: string; assigned_to: string | null; users: { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null }[]).map((v) => ({
     ...v,
     users: Array.isArray(v.users) ? v.users[0] || null : v.users,
   }))
@@ -152,7 +157,37 @@ export default async function QuoteDetailPage({ params }: PageProps) {
     ? `${process.env.NEXT_PUBLIC_SITE_URL || ''}/q/${quote.portal_token}`
     : null
 
-  return (
+  const mobileDetail = (
+    <MobileQuoteDetail
+      quote={quote}
+      customer={customer}
+      contact={contact ? { id: contact.id, first_name: contact.first_name, last_name: contact.last_name, email: contact.email } : null}
+      assignedUser={assignedUser}
+      allLines={allLines}
+      groups={typedGroups}
+      attributions={(attributions || []).map(a => ({
+        id: a.id,
+        attribution_type: a.attribution_type,
+        split_pct: a.split_pct,
+        users: a.users as { first_name: string; last_name: string; initials: string | null; color: string | null } | null,
+      }))}
+      opportunity={opportunity}
+      brand={brand}
+      portalUrl={portalUrl}
+      existingSoId={existingSo?.id || null}
+      subtotal={subtotal}
+      totalCost={totalCost}
+      marginAmt={marginAmt}
+      marginPct={marginPct}
+      vatAmount={vatAmount}
+      grandTotal={grandTotal}
+      customerNotes={quote.customer_notes}
+      internalNotes={quote.internal_notes}
+      marginThresholds={marginThresholds}
+    />
+  )
+
+  const desktopDetail = (
     <div>
       {/* Back link */}
       <Link
@@ -192,13 +227,16 @@ export default async function QuoteDetailPage({ params }: PageProps) {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-10">
         <div>
           <div className="flex items-center gap-3 flex-wrap mb-1">
-            <h2 className="text-2xl font-bold text-slate-900">{quote.quote_number}</h2>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{quote.quote_number}</h2>
             {statusCfg && <Badge label={statusCfg.label} color={statusCfg.color} bg={statusCfg.bg} />}
             {typeCfg && <Badge label={typeCfg.label} color={typeCfg.color} bg={typeCfg.bg} />}
             {quote.version > 1 && (
               <Badge label={`v${quote.version}`} color="#6b7280" bg="#f3f4f6" />
             )}
           </div>
+          {quote.title && (
+            <p className="text-base text-slate-600 dark:text-slate-400 mb-0.5">{quote.title}</p>
+          )}
           <div className="flex items-center gap-4 flex-wrap gap-y-1 text-sm text-slate-500">
             {customer && (
               <Link href={`/customers/${customer.id}`} className="hover:text-slate-700 no-underline">
@@ -238,9 +276,23 @@ export default async function QuoteDetailPage({ params }: PageProps) {
           customer={customer ? { name: customer.name } : null}
           brand={brand ? { name: brand.name } : null}
           assignedUser={assignedUser ? { id: assignedUser.id, first_name: assignedUser.first_name, last_name: assignedUser.last_name } : null}
-          totalIncVat={grandTotal}
+          subtotal={subtotal}
+          zeroSellLines={nonOptionalLines.filter(l => l.sell_price === 0).map(l => l.description)}
         />
       </div>
+
+      {/* Revision notes banner */}
+      {quote.revision_notes && (
+        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 flex items-start gap-2">
+          <svg className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 0 1 1.037-.443 48.282 48.282 0 0 0 5.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
+          </svg>
+          <div>
+            <span className="text-xs font-semibold text-amber-700">Revision Notes</span>
+            <p className="text-sm text-amber-800 mt-0.5">{quote.revision_notes}</p>
+          </div>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
@@ -251,7 +303,7 @@ export default async function QuoteDetailPage({ params }: PageProps) {
           label="Margin"
           value={formatCurrency(marginAmt)}
           sub={`${marginPct.toFixed(1)}%`}
-          accent={marginPct >= 30 ? '#059669' : marginPct >= 15 ? '#d97706' : '#dc2626'}
+          accent={getMarginAccent(marginPct, marginThresholds.green, marginThresholds.amber)}
         />
       </div>
 
@@ -378,7 +430,7 @@ export default async function QuoteDetailPage({ params }: PageProps) {
                       const lineMarginPct = line.sell_price > 0
                         ? ((line.sell_price - line.buy_price) / line.sell_price) * 100
                         : 0
-                      const mColor = getMarginColor(line.buy_price, line.sell_price)
+                      const mColor = getMarginColor(line.buy_price, line.sell_price, marginThresholds.green, marginThresholds.amber)
                       const supplier = line.suppliers as { name: string } | null
                       const routeCfg = FULFILMENT_ROUTE_CONFIG?.[line.fulfilment_route as keyof typeof FULFILMENT_ROUTE_CONFIG]
 
@@ -487,7 +539,17 @@ export default async function QuoteDetailPage({ params }: PageProps) {
 
       {/* Activity Timeline */}
       <ActivitySection activities={(activities || []) as { id: string; action: string; created_at: string; users: { first_name: string; last_name: string; initials: string | null; color: string | null } | null }[]} />
+
+      {/* Bottom Edit Button */}
+      <QuoteBottomEdit quoteId={quote.id} status={quote.status} version={quote.version} />
     </div>
+  )
+
+  return (
+    <MobileDetector
+      mobile={mobileDetail}
+      desktop={desktopDetail}
+    />
   )
 }
 

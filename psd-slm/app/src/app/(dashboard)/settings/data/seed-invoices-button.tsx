@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@/components/ui/button'
 import { seedInvoices } from '@/app/(dashboard)/invoices/actions'
 
 export function SeedInvoicesButton() {
@@ -26,13 +27,13 @@ export function SeedInvoicesButton() {
 
   return (
     <div className="text-right">
-      <button
+      <Button
+        variant="primary"
         onClick={handleSeed}
         disabled={loading}
-        className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
       >
         {loading ? 'Seeding...' : 'Seed Invoices'}
-      </button>
+      </Button>
       {message && (
         <p className={`mt-2 text-xs ${message.type === 'success' ? 'text-emerald-600' : 'text-red-600'}`}>
           {message.text}

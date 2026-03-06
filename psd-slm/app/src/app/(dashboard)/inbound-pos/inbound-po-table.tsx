@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { DataTable, Column } from '@/components/ui/data-table'
+import { Button } from '@/components/ui/button'
 import { Badge, INBOUND_PO_STATUS_CONFIG, MATCH_CONFIDENCE_CONFIG } from '@/components/ui/badge'
 import { useAuth } from '@/components/auth-provider'
 import { deleteInboundPO } from './actions'
@@ -209,12 +210,12 @@ export function InboundPOTable({ initialData }: InboundPOTableProps) {
           className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm w-full sm:w-72 focus:outline-none focus:ring-2 focus:ring-indigo-500"
         />
         <div className="sm:ml-auto">
-          <button
+          <Button
             onClick={() => setShowUpload(true)}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors"
+            variant="primary"
           >
             Upload PO
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -222,16 +223,16 @@ export function InboundPOTable({ initialData }: InboundPOTableProps) {
       {filtered.length === 0 ? (
         <div className="rounded-xl border border-gray-200 bg-white p-10 text-center">
           <div className="text-4xl mb-3">📥</div>
-          <h3 className="text-lg font-semibold text-slate-700 mb-1">No inbound POs yet</h3>
+          <h3 className="text-lg font-semibold text-slate-700 mb-1">No customer POs yet</h3>
           <p className="text-sm text-slate-400 mb-4">
             Upload a customer&apos;s purchase order PDF to get started.
           </p>
-          <button
+          <Button
             onClick={() => setShowUpload(true)}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors"
+            variant="primary"
           >
             Upload PO
-          </button>
+          </Button>
         </div>
       ) : (
         <DataTable
@@ -250,9 +251,9 @@ export function InboundPOTable({ initialData }: InboundPOTableProps) {
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-semibold text-slate-800 mb-2">Delete Inbound PO</h3>
+            <h3 className="text-lg font-semibold text-slate-800 mb-2">Delete Customer PO</h3>
             <p className="text-sm text-slate-600 mb-1">
-              Are you sure you want to delete this inbound PO?
+              Are you sure you want to delete this customer PO?
             </p>
             <p className="text-sm text-slate-500 mb-4">
               {deleteTarget.customer_po_number && (
@@ -277,13 +278,13 @@ export function InboundPOTable({ initialData }: InboundPOTableProps) {
               >
                 Cancel
               </button>
-              <button
+              <Button
                 onClick={handleDelete}
+                variant="danger"
                 disabled={deleting}
-                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 transition-colors disabled:opacity-50"
               >
                 {deleting ? 'Deleting...' : 'Delete'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

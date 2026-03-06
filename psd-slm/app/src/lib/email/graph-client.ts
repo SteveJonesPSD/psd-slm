@@ -198,11 +198,14 @@ export class GraphClient {
     attachments?: { name: string; contentType: string; contentBytes: string }[]
   }): Promise<void> {
     const internetMessageHeaders: { name: string; value: string }[] = []
+    // Graph API only allows custom headers prefixed with 'x-' or 'X-'.
+    // Standard RFC headers (In-Reply-To, References) are rejected.
+    // Threading still works via conversationId and subject-line ticket refs.
     if (message.inReplyTo) {
-      internetMessageHeaders.push({ name: 'In-Reply-To', value: message.inReplyTo })
+      internetMessageHeaders.push({ name: 'X-In-Reply-To', value: message.inReplyTo })
     }
     if (message.references && message.references.length > 0) {
-      internetMessageHeaders.push({ name: 'References', value: message.references.join(' ') })
+      internetMessageHeaders.push({ name: 'X-References', value: message.references.join(' ') })
     }
 
     const payload: Record<string, unknown> = {

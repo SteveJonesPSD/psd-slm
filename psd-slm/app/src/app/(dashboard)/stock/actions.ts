@@ -115,6 +115,45 @@ export async function getSerialNumbers(productId: string, status?: string) {
   return data || []
 }
 
+// Get serials that are genuinely available for allocation/picking.
+// Queries in_stock serials then excludes any that appear in active stock_allocation records,
+// guarding against data drift where serial status wasn't updated but allocation count was.
+export async function getAvailableSerials(productId: string) {
+  await requirePermission('stock', 'view')
+  const supabase = await createClient()
+
+  // 1. Get all in_stock serials for this product
+  const { data: serials, error: snErr } = await supabase
+    .from('serial_number_registry')
+    .select('id, serial_number, status, location_id')
+    .eq('product_id', productId)
+    .eq('status', 'in_stock')
+    .order('serial_number', { ascending: true })
+
+  if (snErr || !serials) {
+    console.error('[getAvailableSerials]', snErr?.message)
+    return []
+  }
+
+  // 2. Get all active allocations for this product to find already-claimed serials
+  const { data: allocations } = await supabase
+    .from('stock_allocations')
+    .select('serial_numbers')
+    .eq('product_id', productId)
+    .in('status', ['allocated', 'picked'])
+
+  // Build a set of serials referenced in active allocations
+  const allocatedSerials = new Set<string>()
+  for (const alloc of allocations || []) {
+    for (const sn of (alloc.serial_numbers as string[]) || []) {
+      allocatedSerials.add(sn)
+    }
+  }
+
+  // 3. Filter out any serials that are in active allocations despite being in_stock
+  return serials.filter(s => !allocatedSerials.has(s.serial_number))
+}
+
 // Check if in_stock serials for a product were received from a PO linked to a specific SO line
 export async function getPoLinkedSerials(productId: string, soLineId: string) {
   await requirePermission('stock', 'view')
@@ -277,9 +316,10 @@ export async function getSoFulfilmentData(soId: string) {
       .in('product_id', productIds as string[])
 
     if (availability) {
-      stockAvailability = Object.fromEntries(
-        availability.map(a => [a.product_id, a.quantity_available])
-      )
+      // Sum across locations — a product may have stock in multiple locations
+      for (const a of availability) {
+        stockAvailability[a.product_id] = (stockAvailability[a.product_id] || 0) + a.quantity_available
+      }
     }
   }
 
@@ -409,6 +449,156 @@ export async function allocateStock(input: AllocateStockInput) {
   return { success: true, allocationId: allocation.id }
 }
 
+// =============================================================================
+// Allocate + Pick in one step (skips the intermediate "allocated" state)
+// =============================================================================
+
+interface AllocateAndPickInput {
+  soLineId: string
+  productId: string
+  locationId: string
+  quantity: number
+  serialNumbers?: string[]
+}
+
+export async function allocateAndPickFromStock(input: AllocateAndPickInput) {
+  const user = await requirePermission('stock', 'edit')
+  const supabase = await createClient()
+
+  // Check available stock
+  const { data: stockLevel } = await supabase
+    .from('stock_levels')
+    .select('quantity_on_hand, quantity_allocated')
+    .eq('product_id', input.productId)
+    .eq('location_id', input.locationId)
+    .single()
+
+  if (!stockLevel) {
+    return { error: 'No stock found for this product at this location.' }
+  }
+
+  const available = stockLevel.quantity_on_hand - stockLevel.quantity_allocated
+  if (input.quantity > available) {
+    return { error: `Only ${available} available. Cannot pick ${input.quantity}.` }
+  }
+
+  // Create allocation directly in 'picked' status
+  const { data: allocation, error: allocErr } = await supabase
+    .from('stock_allocations')
+    .insert({
+      org_id: user.orgId,
+      sales_order_line_id: input.soLineId,
+      product_id: input.productId,
+      location_id: input.locationId,
+      quantity_allocated: input.quantity,
+      quantity_picked: input.quantity,
+      serial_numbers: input.serialNumbers || [],
+      status: 'picked',
+      created_by: user.id,
+    })
+    .select('id')
+    .single()
+
+  if (allocErr || !allocation) {
+    return { error: `Failed to create allocation: ${allocErr?.message}` }
+  }
+
+  // Decrement on_hand (picked items leave stock)
+  await supabase.rpc('adjust_stock_on_hand', {
+    p_org_id: user.orgId,
+    p_product_id: input.productId,
+    p_location_id: input.locationId,
+    p_delta: -input.quantity,
+  })
+
+  // Create allocated + picked movements
+  await supabase.from('stock_movements').insert([
+    {
+      org_id: user.orgId,
+      product_id: input.productId,
+      location_id: input.locationId,
+      movement_type: 'allocated',
+      quantity: input.quantity,
+      reference_type: 'stock_allocation',
+      reference_id: allocation.id,
+      serial_numbers: input.serialNumbers || [],
+      notes: 'Allocated and picked from free stock',
+      created_by: user.id,
+    },
+    {
+      org_id: user.orgId,
+      product_id: input.productId,
+      location_id: input.locationId,
+      movement_type: 'picked',
+      quantity: -input.quantity,
+      reference_type: 'stock_allocation',
+      reference_id: allocation.id,
+      serial_numbers: input.serialNumbers || [],
+      notes: 'Picked from free stock',
+      created_by: user.id,
+    },
+  ])
+
+  // Update serial registry if applicable
+  if (input.serialNumbers && input.serialNumbers.length > 0) {
+    for (const sn of input.serialNumbers) {
+      await supabase
+        .from('serial_number_registry')
+        .update({ status: 'picked', so_line_id: input.soLineId })
+        .eq('org_id', user.orgId)
+        .eq('product_id', input.productId)
+        .eq('serial_number', sn)
+    }
+  }
+
+  // Check if all allocations for this SO line are picked → transition SO line to 'picked'
+  const { data: soLine } = await supabase
+    .from('sales_order_lines')
+    .select('sales_order_id, description, quantity')
+    .eq('id', input.soLineId)
+    .single()
+
+  if (soLine) {
+    const { data: allAllocations } = await supabase
+      .from('stock_allocations')
+      .select('quantity_picked, status')
+      .eq('sales_order_line_id', input.soLineId)
+      .neq('status', 'cancelled')
+
+    if (allAllocations) {
+      const totalPicked = allAllocations.reduce((sum, a) => sum + a.quantity_picked, 0)
+      if (totalPicked >= soLine.quantity) {
+        await supabase
+          .from('sales_order_lines')
+          .update({ status: 'picked' })
+          .eq('id', input.soLineId)
+      }
+    }
+
+    logActivity({
+      supabase,
+      user,
+      entityType: 'sales_order',
+      entityId: soLine.sales_order_id,
+      action: 'so.stock_picked',
+      details: {
+        allocation_id: allocation.id,
+        product_name: soLine.description,
+        quantity_picked: input.quantity,
+        serial_numbers: input.serialNumbers,
+        from_free_stock: true,
+      },
+    })
+
+    revalidatePath(`/orders/${soLine.sales_order_id}`)
+  }
+
+  revalidatePath('/stock')
+  revalidatePath('/stock/movements')
+
+  return { success: true, allocationId: allocation.id }
+}
+
 export async function deallocateStock(allocationId: string) {
   const user = await requirePermission('stock', 'edit')
   const supabase = await createClient()
@@ -505,7 +695,7 @@ export async function unallocateStockFromSoLine(soLineId: string, reason: string
   const { data: allocations, error: allocErr } = await supabase
     .from('stock_allocations')
     .select('*')
-    .eq('so_line_id', soLineId)
+    .eq('sales_order_line_id', soLineId)
     .in('status', ['allocated', 'picked'])
 
   if (allocErr || !allocations || allocations.length === 0) {
@@ -537,23 +727,24 @@ export async function unallocateStockFromSoLine(soLineId: string, reason: string
       .eq('id', alloc.id)
 
     if (wasPicked) {
-      // Picked items: stock_on_hand was already decremented during pick.
-      // We need to add it back AND reduce allocated count
+      // Picked items: on_hand was decremented during pick, allocated was NOT incremented.
+      // Restore on_hand only — no allocated adjustment needed.
       await supabase.rpc('adjust_stock_on_hand', {
         p_org_id: user.orgId,
         p_product_id: alloc.product_id,
         p_location_id: alloc.location_id,
         p_delta: qtyToRestore,
       })
+    } else {
+      // Allocated (not yet picked): allocated was incremented during allocation.
+      // Reduce allocated count to free the stock.
+      await supabase.rpc('adjust_stock_allocated', {
+        p_org_id: user.orgId,
+        p_product_id: alloc.product_id,
+        p_location_id: alloc.location_id,
+        p_delta: -qtyToRestore,
+      })
     }
-
-    // Reduce allocated count (for both allocated and picked — the alloc record still counted)
-    await supabase.rpc('adjust_stock_allocated', {
-      p_org_id: user.orgId,
-      p_product_id: alloc.product_id,
-      p_location_id: alloc.location_id,
-      p_delta: -qtyToRestore,
-    })
 
     // Create movement
     await supabase.from('stock_movements').insert({

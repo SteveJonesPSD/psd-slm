@@ -21,6 +21,7 @@ export default async function PortalPage({ params }: PageProps) {
     .select(`
       id,
       quote_number,
+      title,
       status,
       version,
       quote_type,

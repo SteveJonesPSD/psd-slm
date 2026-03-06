@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
 import { SearchableSelect } from '@/components/ui/form-fields'
 import { createTicket, getContactsForCustomer } from '../../actions'
 
@@ -278,13 +279,13 @@ export function TicketForm({ customers, categories, tags, teamMembers, brands }:
         >
           Cancel
         </button>
-        <button
+        <Button
+          variant="primary"
           type="submit"
           disabled={saving || !form.customer_id || !form.subject.trim()}
-          className="rounded-lg bg-indigo-600 px-4 py-2.5 sm:py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
         >
           {saving ? 'Creating...' : 'Create Ticket'}
-        </button>
+        </Button>
       </div>
     </form>
   )

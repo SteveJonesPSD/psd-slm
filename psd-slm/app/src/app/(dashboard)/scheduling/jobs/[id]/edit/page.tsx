@@ -57,6 +57,7 @@ export default async function EditJobPage({ params }: { params: Promise<{ id: st
           scheduled_time: job.scheduled_time,
           estimated_duration_minutes: job.estimated_duration_minutes,
           internal_notes: job.internal_notes,
+          chargeable_type: job.chargeable_type,
           site_address_line1: job.site_address_line1,
           site_address_line2: job.site_address_line2,
           site_city: job.site_city,

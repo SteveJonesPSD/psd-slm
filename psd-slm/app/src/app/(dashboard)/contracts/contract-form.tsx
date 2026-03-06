@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createCustomerContract, getContactsByCustomer } from './actions'
+import { Button } from '@/components/ui/button'
 import { formatCurrency } from '@/lib/utils'
 import type { ContractType } from '@/lib/contracts/types'
 import { CONTRACT_CATEGORIES, VISIT_FREQUENCIES, BILLING_FREQUENCIES, RENEWAL_PERIODS } from '@/lib/contracts/types'
@@ -25,8 +26,8 @@ export function ContractForm({ customers, contractTypes, opportunities, preselec
     customer_id: preselectedCustomerId || '',
     contract_type_id: '',
     contact_id: '',
-    start_date: new Date().toISOString().split('T')[0],
-    end_date: '',
+    start_date: `${new Date().getFullYear()}-04-01`,
+    end_date: `${new Date().getFullYear() + 1}-03-31`,
     renewal_period: 'april',
     renewal_month: '',
     auto_renew: true,
@@ -195,32 +196,6 @@ export function ContractForm({ customers, contractTypes, opportunities, preselec
           />
         </div>
 
-        {/* Start Date */}
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">
-            Start Date <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="date"
-            value={form.start_date}
-            onChange={handleStartDateChange}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-          />
-        </div>
-
-        {/* End Date */}
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">
-            End Date <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="date"
-            value={form.end_date}
-            onChange={upd('end_date')}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-          />
-        </div>
-
         {/* Renewal Period */}
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -228,7 +203,27 @@ export function ContractForm({ customers, contractTypes, opportunities, preselec
           </label>
           <select
             value={form.renewal_period}
-            onChange={upd('renewal_period')}
+            onChange={(e) => {
+              const period = e.target.value
+              const updates: Partial<typeof form> = { renewal_period: period }
+
+              // Auto-set start date based on renewal period
+              if (period === 'april') {
+                const year = new Date().getFullYear()
+                const start = `${year}-04-01`
+                const end = `${year + 1}-03-31`
+                updates.start_date = start
+                updates.end_date = end
+              } else if (period === 'september') {
+                const year = new Date().getFullYear()
+                const start = `${year}-09-01`
+                const end = `${year + 1}-08-31`
+                updates.start_date = start
+                updates.end_date = end
+              }
+
+              setForm((f) => ({ ...f, ...updates }))
+            }}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
           >
             {RENEWAL_PERIODS.map((p) => (
@@ -268,6 +263,32 @@ export function ContractForm({ customers, contractTypes, opportunities, preselec
               <option key={f} value={f}>{f.charAt(0).toUpperCase() + f.slice(1)}</option>
             ))}
           </select>
+        </div>
+
+        {/* Start Date */}
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">
+            Start Date <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="date"
+            value={form.start_date}
+            onChange={handleStartDateChange}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+          />
+        </div>
+
+        {/* End Date */}
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">
+            End Date <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="date"
+            value={form.end_date}
+            onChange={upd('end_date')}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+          />
         </div>
 
         {/* Auto Renew */}
@@ -378,13 +399,13 @@ export function ContractForm({ customers, contractTypes, opportunities, preselec
         >
           Cancel
         </button>
-        <button
+        <Button
           onClick={handleSave}
+          variant="primary"
           disabled={saving}
-          className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors disabled:opacity-50"
         >
           {saving ? 'Saving...' : 'Save as Draft'}
-        </button>
+        </Button>
       </div>
     </div>
   )

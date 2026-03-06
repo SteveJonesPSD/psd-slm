@@ -1,6 +1,7 @@
 'use client'
 
 import { Badge, VISIT_STATUS_CONFIG, TIME_SLOT_CONFIG } from '@/components/ui/badge'
+import { CollapsibleCard } from './collapsible-card'
 import type { VisitInstanceWithDetails } from '@/lib/visit-scheduling/types'
 
 interface VisitSchedulingSectionProps {
@@ -19,20 +20,9 @@ export function VisitSchedulingSection({ visits }: VisitSchedulingSectionProps) 
   ).sort((a, b) => b.visit_date.localeCompare(a.visit_date)).slice(0, 10)
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white">
-      <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
-        <h3 className="text-sm font-semibold text-slate-900">
-          Scheduled Visits
-          {visits.length > 0 && (
-            <span className="ml-2 inline-flex items-center justify-center rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
-              {upcoming.length} upcoming
-            </span>
-          )}
-        </h3>
-      </div>
-
+    <CollapsibleCard title="Scheduled Visits" count={upcoming.length}>
       {visits.length === 0 ? (
-        <div className="p-6 text-center text-sm text-slate-400">
+        <div className="py-6 text-center text-sm text-slate-400">
           No scheduled visits for this customer.
         </div>
       ) : (
@@ -87,6 +77,6 @@ export function VisitSchedulingSection({ visits }: VisitSchedulingSectionProps) 
           )}
         </div>
       )}
-    </div>
+    </CollapsibleCard>
   )
 }

@@ -45,6 +45,7 @@ export function ProductForm({ product, categories: initialCategories, manufactur
     is_serialised: product?.is_serialised === null ? 'null' : product?.is_serialised ? 'true' : product ? 'false' : 'null',
     is_stocked: product?.is_stocked ?? false,
     default_delivery_destination: product?.default_delivery_destination || 'psd_office' as 'psd_office' | 'customer_site',
+    default_route: product?.default_route || 'from_stock' as 'from_stock' | 'drop_ship',
     is_active: product?.is_active ?? true,
   })
 
@@ -149,6 +150,7 @@ export function ProductForm({ product, categories: initialCategories, manufactur
     fd.set('is_serialised', isService ? 'false' : form.is_serialised)
     fd.set('is_stocked', isService ? 'false' : String(form.is_stocked))
     fd.set('default_delivery_destination', isService ? 'psd_office' : form.default_delivery_destination)
+    fd.set('default_route', isService ? 'from_stock' : form.default_route)
     if (isEdit) fd.set('is_active', String(form.is_active))
     fd.set('main_supplier_id', selectedSupplier?.id || '')
 
@@ -397,21 +399,25 @@ export function ProductForm({ product, categories: initialCategories, manufactur
           />
         )}
 
-        {/* Default Delivery Destination — hidden for services */}
+        {/* Default Route — hidden for services */}
         {!isService && (
           <div className="col-span-2">
             <Select
-              label="Default Delivery Destination"
+              label="Default Route"
               options={[
-                { value: 'psd_office', label: 'Warehouse' },
-                { value: 'customer_site', label: 'Customer Site (Ship Direct)' },
+                { value: 'from_stock', label: 'From Stock (deliver to warehouse)' },
+                { value: 'drop_ship', label: 'Drop Ship (deliver to customer site)' },
               ]}
-              value={form.default_delivery_destination}
-              onChange={(v) => setForm((f) => ({ ...f, default_delivery_destination: v as 'psd_office' | 'customer_site' }))}
+              value={form.default_route}
+              onChange={(v) => {
+                const route = v as 'from_stock' | 'drop_ship'
+                const dest = route === 'drop_ship' ? 'customer_site' : 'psd_office'
+                setForm((f) => ({ ...f, default_route: route, default_delivery_destination: dest }))
+              }}
             />
-            {form.default_delivery_destination === 'customer_site' && (
+            {form.default_route === 'drop_ship' && (
               <p className="mt-1 text-xs text-amber-600">
-                This product will default to ship direct to customer site when creating sales orders.
+                This product will default to ship direct from supplier to customer site.
               </p>
             )}
           </div>

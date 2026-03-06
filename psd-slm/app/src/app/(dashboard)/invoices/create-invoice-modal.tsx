@@ -325,8 +325,9 @@ export function CreateInvoiceModal({ soId, onClose }: CreateInvoiceModalProps) {
 
       {/* Actions */}
       <div className="flex justify-end gap-2">
-        <Button variant="default" onClick={onClose}>Cancel</Button>
+        <Button size="sm" variant="default" onClick={onClose}>Cancel</Button>
         <Button
+          size="sm"
           variant="primary"
           onClick={handleCreate}
           disabled={saving || !hasSelectedLines}

@@ -1,5 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { requirePermission } from '@/lib/auth'
+import { addBusinessDays } from '@/lib/utils'
+import { getMarginThresholds } from '@/lib/margin-settings'
 import { QuoteBuilder } from '../builder/quote-builder'
 
 interface PageProps {
@@ -14,7 +16,8 @@ export default async function NewQuotePage({ searchParams }: PageProps) {
   // Fetch all lookups in parallel
   const [
     { data: customers },
-    { data: contacts },
+    { data: directContacts },
+    { data: contactLinks },
     { data: rawProducts },
     { data: categories },
     { data: suppliers },
@@ -23,10 +26,12 @@ export default async function NewQuotePage({ searchParams }: PageProps) {
     { data: dealPricing },
     { data: productSuppliers },
     { data: opportunity },
+    { data: validitySetting },
   ] = await Promise.all([
     supabase.from('customers').select('id, name, customer_type').eq('is_active', true).order('name'),
     supabase.from('contacts').select('id, customer_id, first_name, last_name, email').eq('is_active', true),
-    supabase.from('products').select('id, sku, name, category_id, default_buy_price, default_sell_price, product_categories(name)').eq('is_active', true).order('name'),
+    supabase.from('contact_customer_links').select('contact_id, customer_id'),
+    supabase.from('products').select('id, sku, name, category_id, default_buy_price, default_sell_price, default_route, product_categories(name)').eq('is_active', true).order('name'),
     supabase.from('product_categories').select('id, name').order('sort_order'),
     supabase.from('suppliers').select('id, name').eq('is_active', true).order('name'),
     supabase.from('users').select('id, first_name, last_name, initials, color').eq('is_active', true).order('first_name'),
@@ -36,7 +41,18 @@ export default async function NewQuotePage({ searchParams }: PageProps) {
     opportunity_id
       ? supabase.from('opportunities').select('id, customer_id, title').eq('id', opportunity_id).single()
       : Promise.resolve({ data: null }),
+    supabase.from('org_settings').select('setting_value').eq('org_id', user.orgId).eq('category', 'general').eq('setting_key', 'quote_validity_days').single(),
   ])
+
+  // Build contacts list: direct contacts + linked contacts (with linked customer_id)
+  const contactsById = new Map((directContacts || []).map((c) => [c.id, c]))
+  const allContacts = (directContacts || []).map((c) => ({ ...c, email: c.email || null }))
+  for (const link of contactLinks || []) {
+    const contact = contactsById.get(link.contact_id)
+    if (contact && link.customer_id !== contact.customer_id) {
+      allContacts.push({ ...contact, customer_id: link.customer_id, email: contact.email || null })
+    }
+  }
 
   // Transform products to include category_name
   const products = (rawProducts || []).map((p) => ({
@@ -47,12 +63,17 @@ export default async function NewQuotePage({ searchParams }: PageProps) {
     category_name: (p.product_categories as unknown as { name: string } | null)?.name || null,
     default_buy_price: p.default_buy_price,
     default_sell_price: p.default_sell_price,
+    default_route: p.default_route || 'from_stock',
   }))
+
+  const validityDays = parseInt(validitySetting?.setting_value ?? '14', 10) || 14
+  const defaultValidUntil = addBusinessDays(new Date(), validityDays)
+  const marginThresholds = await getMarginThresholds()
 
   return (
     <QuoteBuilder
       customers={customers || []}
-      contacts={(contacts || []).map((c) => ({ ...c, email: c.email || null }))}
+      contacts={allContacts}
       products={products}
       categories={categories || []}
       suppliers={suppliers || []}
@@ -63,6 +84,8 @@ export default async function NewQuotePage({ searchParams }: PageProps) {
       currentUserId={user.id}
       opportunityId={opportunity_id || null}
       opportunityCustomerId={opportunity?.customer_id || null}
+      defaultValidUntil={defaultValidUntil}
+      marginThresholds={marginThresholds}
     />
   )
 }

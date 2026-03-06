@@ -4,9 +4,6 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { useAuth } from '@/components/auth-provider'
-import { seedSuppliers } from './actions'
 import type { Supplier } from '@/types/database'
 
 type SupplierWithCount = Supplier & { product_count: number }
@@ -17,12 +14,8 @@ interface SuppliersTableProps {
 
 export function SuppliersTable({ suppliers }: SuppliersTableProps) {
   const router = useRouter()
-  const { hasPermission } = useAuth()
   const [search, setSearch] = useState('')
   const [showActive, setShowActive] = useState(true)
-  const [seeding, setSeeding] = useState(false)
-
-  const canCreate = hasPermission('suppliers', 'create')
 
   const filtered = suppliers.filter((s) => {
     const matchesSearch =
@@ -32,13 +25,6 @@ export function SuppliersTable({ suppliers }: SuppliersTableProps) {
     const matchesActive = !showActive || s.is_active
     return matchesSearch && matchesActive
   })
-
-  const handleSeed = async () => {
-    setSeeding(true)
-    await seedSuppliers()
-    setSeeding(false)
-    router.refresh()
-  }
 
   const columns: Column<SupplierWithCount>[] = [
     {
@@ -98,22 +84,11 @@ export function SuppliersTable({ suppliers }: SuppliersTableProps) {
           />
           Active only
         </label>
-        <div className="flex-1" />
-        {canCreate && (
-          <Button variant="primary" onClick={() => router.push('/suppliers/new')}>
-            + New Supplier
-          </Button>
-        )}
       </div>
 
       {filtered.length === 0 && suppliers.length === 0 ? (
         <div className="rounded-xl border border-gray-200 bg-white p-10 text-center">
-          <p className="text-sm text-slate-400 mb-4">No suppliers yet.</p>
-          {canCreate && (
-            <Button variant="primary" onClick={handleSeed} disabled={seeding}>
-              {seeding ? 'Seeding...' : 'Seed Default Suppliers'}
-            </Button>
-          )}
+          <p className="text-sm text-slate-400">No suppliers yet.</p>
         </div>
       ) : (
         <DataTable

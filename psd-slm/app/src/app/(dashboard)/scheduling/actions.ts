@@ -530,6 +530,61 @@ export async function getTeams() {
 }
 
 // ============================================================================
+// COLLECTION STATUS HELPER
+// ============================================================================
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function attachCollectionStatus(supabase: any, jobs: any[]) {
+  if (jobs.length === 0) return jobs
+
+  const jobIds = jobs.map(j => j.id)
+
+  // Fetch SO links and collection statuses in parallel
+  const [soResult, colResult] = await Promise.all([
+    supabase
+      .from('job_sales_orders')
+      .select('job_id, sales_orders(so_number)')
+      .in('job_id', jobIds),
+    supabase
+      .from('job_collections')
+      .select('job_id, status')
+      .in('job_id', jobIds)
+      .neq('status', 'cancelled'),
+  ])
+
+  // Build SO numbers per job
+  const soNumbersByJob = new Map<string, string[]>()
+  for (const r of (soResult.data || []) as { job_id: string; sales_orders: { so_number: string } | null }[]) {
+    const existing = soNumbersByJob.get(r.job_id) || []
+    if (r.sales_orders?.so_number) existing.push(r.sales_orders.so_number)
+    soNumbersByJob.set(r.job_id, existing)
+  }
+  const jobsWithSo = new Set(soNumbersByJob.keys())
+
+  // Build collection status per job: 'collected' if all collected, 'pending' if any pending/partial
+  const collectionsByJob = new Map<string, string[]>()
+  for (const c of (colResult.data || []) as { job_id: string; status: string }[]) {
+    const existing = collectionsByJob.get(c.job_id) || []
+    existing.push(c.status)
+    collectionsByJob.set(c.job_id, existing)
+  }
+
+  return jobs.map(job => {
+    const hasSo = jobsWithSo.has(job.id)
+    const soNumbers = soNumbersByJob.get(job.id) || []
+    const statuses = collectionsByJob.get(job.id)
+    let collectionStatus: 'none' | 'pending' | 'collected' = 'none'
+
+    if (statuses && statuses.length > 0) {
+      const allCollected = statuses.every(s => s === 'collected')
+      collectionStatus = allCollected ? 'collected' : 'pending'
+    }
+
+    return { ...job, _hasSo: hasSo, _soNumbers: soNumbers, _collectionStatus: collectionStatus }
+  })
+}
+
+// ============================================================================
 // JOBS CRUD
 // ============================================================================
 
@@ -585,7 +640,9 @@ export async function getJobs(filters?: {
   const { data, error } = await query.order('scheduled_date', { ascending: true, nullsFirst: false }).order('scheduled_time', { ascending: true, nullsFirst: false })
 
   if (error) return { error: error.message }
-  return { data: data || [] }
+
+  const jobs = data || []
+  return { data: await attachCollectionStatus(supabase, jobs) }
 }
 
 export async function getJob(id: string) {
@@ -666,6 +723,7 @@ export interface CreateJobInput {
   scheduled_date?: string
   scheduled_time?: string
   estimated_duration_minutes: number
+  chargeable_type?: 'as_per_so' | 'no' | 'contract' | 'hourly'
   internal_notes?: string
   site_address_line1?: string
   site_address_line2?: string
@@ -710,6 +768,7 @@ export async function createJob(input: CreateJobInput) {
       site_city: input.site_city || null,
       site_county: input.site_county || null,
       site_postcode: input.site_postcode || null,
+      chargeable_type: input.chargeable_type || 'as_per_so',
       source_type: input.source_type || 'manual',
       source_id: input.source_id || null,
       created_by: user.id,
@@ -777,6 +836,27 @@ export async function createJob(input: CreateJobInput) {
   return { data }
 }
 
+export async function createMultipleJobs(input: CreateJobInput, engineerIds: string[]) {
+  // Creates one job per engineer with identical data
+  const results: { id: string; job_number: string; assigned_to: string | null }[] = []
+  const errors: string[] = []
+
+  for (const engineerId of engineerIds) {
+    const result = await createJob({ ...input, assigned_to: engineerId })
+    if (result.error) {
+      errors.push(result.error)
+    } else if (result.data) {
+      results.push({ id: result.data.id, job_number: result.data.job_number, assigned_to: engineerId })
+    }
+  }
+
+  if (errors.length > 0 && results.length === 0) {
+    return { error: errors[0] }
+  }
+
+  return { data: results }
+}
+
 export async function updateJob(id: string, input: Partial<CreateJobInput>) {
   const user = await requirePermission('scheduling', 'edit')
   const supabase = await createClient()
@@ -795,6 +875,7 @@ export async function updateJob(id: string, input: Partial<CreateJobInput>) {
   if (input.scheduled_date !== undefined) { updates.scheduled_date = input.scheduled_date || null; changedFields.push('scheduled_date') }
   if (input.scheduled_time !== undefined) { updates.scheduled_time = input.scheduled_time || null; changedFields.push('scheduled_time') }
   if (input.estimated_duration_minutes !== undefined) { updates.estimated_duration_minutes = input.estimated_duration_minutes; changedFields.push('estimated_duration_minutes') }
+  if (input.chargeable_type !== undefined) { updates.chargeable_type = input.chargeable_type; changedFields.push('chargeable_type') }
   if (input.internal_notes !== undefined) { updates.internal_notes = input.internal_notes || null; changedFields.push('internal_notes') }
   if (input.site_address_line1 !== undefined) { updates.site_address_line1 = input.site_address_line1 || null; changedFields.push('site_address') }
   if (input.site_address_line2 !== undefined) { updates.site_address_line2 = input.site_address_line2 || null }
@@ -1317,7 +1398,59 @@ export async function getMyTodayJobs() {
     .order('scheduled_time', { ascending: true, nullsFirst: false })
 
   if (error) return { error: error.message }
-  return { data: data || [] }
+
+  const jobs = data || []
+  return { data: await attachCollectionStatus(supabase, jobs) }
+}
+
+export async function getMyScheduleRange() {
+  const user = await requireAuth()
+  const supabase = await createClient()
+
+  const now = new Date()
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const end = new Date(now)
+  end.setDate(end.getDate() + 13) // 2 weeks from today
+  const endDate = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`
+
+  const [jobsResult, activitiesResult] = await Promise.all([
+    supabase
+      .from('jobs')
+      .select(`
+        *,
+        company:company_id(id, name, phone),
+        contact:contact_id(id, first_name, last_name, phone, email, mobile),
+        job_type:job_type_id(id, name, slug, color, background)
+      `)
+      .eq('org_id', user.orgId)
+      .eq('assigned_to', user.id)
+      .gte('scheduled_date', today)
+      .lte('scheduled_date', endDate)
+      .neq('status', 'cancelled')
+      .order('scheduled_date')
+      .order('scheduled_time', { ascending: true, nullsFirst: false }),
+    supabase
+      .from('activities')
+      .select(`
+        *,
+        activity_type:activity_type_id(id, name, slug, color, background)
+      `)
+      .eq('org_id', user.orgId)
+      .eq('engineer_id', user.id)
+      .gte('scheduled_date', today)
+      .lte('scheduled_date', endDate)
+      .order('scheduled_date')
+      .order('scheduled_time', { ascending: true, nullsFirst: false }),
+  ])
+
+  const jobs = await attachCollectionStatus(supabase, jobsResult.data || [])
+
+  return {
+    jobs,
+    activities: activitiesResult.data || [],
+    today,
+    endDate,
+  }
 }
 
 // ============================================================================
@@ -1362,7 +1495,8 @@ export async function getContactsForCompany(companyId: string) {
   const user = await requireAuth()
   const supabase = await createClient()
 
-  const { data, error } = await supabase
+  // Direct contacts
+  const { data: direct, error } = await supabase
     .from('contacts')
     .select('id, first_name, last_name, job_title, phone, email, mobile')
     .eq('customer_id', companyId)
@@ -1370,7 +1504,19 @@ export async function getContactsForCompany(companyId: string) {
     .order('first_name')
 
   if (error) return { error: error.message }
-  return { data: data || [] }
+
+  // Linked contacts (from other companies)
+  const { data: links } = await supabase
+    .from('contact_customer_links')
+    .select('contacts(id, first_name, last_name, job_title, phone, email, mobile, is_active)')
+    .eq('customer_id', companyId)
+
+  const linked = (links || [])
+    .map((l) => l.contacts as unknown as { id: string; first_name: string; last_name: string; job_title: string | null; phone: string | null; email: string | null; mobile: string | null; is_active: boolean } | null)
+    .filter((c): c is NonNullable<typeof c> => c != null && c.is_active)
+    .filter((c) => !(direct || []).some((d) => d.id === c.id))
+
+  return { data: [...(direct || []), ...linked.map(({ is_active: _, ...c }) => c)] }
 }
 
 export async function getSalesOrdersForCompany(companyId: string) {
@@ -1680,4 +1826,296 @@ export async function getJobReports(jobId: string) {
 
   if (error) return { error: error.message }
   return { data: data || [] }
+}
+
+// ============================================================================
+// ACTIVITY TYPES
+// ============================================================================
+
+export async function getActivityTypes() {
+  const user = await requirePermission('scheduling', 'view')
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('activity_types')
+    .select('*')
+    .eq('org_id', user.orgId)
+    .order('sort_order')
+
+  if (error) return { error: error.message }
+  return { data: data || [] }
+}
+
+export async function getWorkingDays(): Promise<number[]> {
+  const user = await requireAuth()
+  const supabase = await createClient()
+
+  const { data } = await supabase
+    .from('org_settings')
+    .select('setting_value')
+    .eq('org_id', user.orgId)
+    .eq('setting_key', 'scheduling_working_days')
+    .single()
+
+  if (data?.setting_value) {
+    try {
+      return JSON.parse(data.setting_value)
+    } catch { /* fall through */ }
+  }
+  return [1, 2, 3, 4, 5] // default Mon-Fri
+}
+
+export async function getActiveActivityTypes() {
+  const user = await requirePermission('scheduling', 'view')
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('activity_types')
+    .select('*')
+    .eq('org_id', user.orgId)
+    .eq('is_active', true)
+    .order('sort_order')
+
+  if (error) return { error: error.message }
+  return { data: data || [] }
+}
+
+export async function createActivityType(input: {
+  name: string
+  slug: string
+  color: string
+  background: string
+  default_duration_minutes: number
+  is_active?: boolean
+}) {
+  const user = await requirePermission('scheduling', 'admin')
+  const supabase = await createClient()
+
+  const { data: existing } = await supabase
+    .from('activity_types')
+    .select('sort_order')
+    .eq('org_id', user.orgId)
+    .order('sort_order', { ascending: false })
+    .limit(1)
+
+  const nextOrder = (existing?.[0]?.sort_order ?? -1) + 1
+
+  const { data, error } = await supabase
+    .from('activity_types')
+    .insert({
+      org_id: user.orgId,
+      name: input.name,
+      slug: input.slug,
+      color: input.color,
+      background: input.background,
+      default_duration_minutes: input.default_duration_minutes,
+      is_active: input.is_active ?? true,
+      sort_order: nextOrder,
+    })
+    .select()
+    .single()
+
+  if (error) return { error: error.message }
+
+  logActivity({
+    supabase, user,
+    entityType: 'activity_type', entityId: data.id,
+    action: 'created',
+    details: { name: input.name },
+  })
+
+  revalidatePath('/scheduling')
+  revalidatePath('/scheduling/config/activity-types')
+  return { data }
+}
+
+export async function updateActivityType(id: string, input: {
+  name?: string
+  slug?: string
+  color?: string
+  background?: string
+  default_duration_minutes?: number
+  is_active?: boolean
+}) {
+  const user = await requirePermission('scheduling', 'admin')
+  const supabase = await createClient()
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updates: Record<string, any> = {}
+  if (input.name !== undefined) updates.name = input.name
+  if (input.slug !== undefined) updates.slug = input.slug
+  if (input.color !== undefined) updates.color = input.color
+  if (input.background !== undefined) updates.background = input.background
+  if (input.default_duration_minutes !== undefined) updates.default_duration_minutes = input.default_duration_minutes
+  if (input.is_active !== undefined) updates.is_active = input.is_active
+
+  const { error } = await supabase
+    .from('activity_types')
+    .update(updates)
+    .eq('id', id)
+    .eq('org_id', user.orgId)
+
+  if (error) return { error: error.message }
+
+  logActivity({
+    supabase, user,
+    entityType: 'activity_type', entityId: id,
+    action: 'updated',
+    details: { changed_fields: Object.keys(updates) },
+  })
+
+  revalidatePath('/scheduling')
+  revalidatePath('/scheduling/config/activity-types')
+  return { success: true }
+}
+
+export async function deleteActivityType(id: string) {
+  const user = await requirePermission('scheduling', 'admin')
+  const supabase = await createClient()
+
+  const { count } = await supabase
+    .from('activities')
+    .select('id', { count: 'exact', head: true })
+    .eq('activity_type_id', id)
+
+  if (count && count > 0) {
+    return { error: `Cannot delete — ${count} activities use this type. Deactivate it instead.` }
+  }
+
+  const { error } = await supabase
+    .from('activity_types')
+    .delete()
+    .eq('id', id)
+    .eq('org_id', user.orgId)
+
+  if (error) return { error: error.message }
+
+  logActivity({
+    supabase, user,
+    entityType: 'activity_type', entityId: id,
+    action: 'deleted',
+  })
+
+  revalidatePath('/scheduling')
+  revalidatePath('/scheduling/config/activity-types')
+  return { success: true }
+}
+
+// ============================================================================
+// ACTIVITIES
+// ============================================================================
+
+export interface CreateActivityInput {
+  activity_type_id: string
+  engineer_id: string
+  title: string
+  description?: string
+  scheduled_date: string
+  scheduled_time?: string
+  duration_minutes: number
+  all_day?: boolean
+  notes?: string
+}
+
+export async function getActivities() {
+  const user = await requirePermission('scheduling', 'view')
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('activities')
+    .select(`
+      *,
+      activity_type:activity_type_id(id, name, slug, color, background),
+      engineer:engineer_id(id, first_name, last_name, initials, color)
+    `)
+    .eq('org_id', user.orgId)
+    .order('scheduled_date')
+    .order('scheduled_time')
+
+  if (error) return { error: error.message }
+  return { data: data || [] }
+}
+
+export async function createActivity(input: CreateActivityInput) {
+  const user = await requirePermission('scheduling', 'create')
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('activities')
+    .insert({
+      org_id: user.orgId,
+      activity_type_id: input.activity_type_id,
+      engineer_id: input.engineer_id,
+      title: input.title,
+      description: input.description || null,
+      scheduled_date: input.scheduled_date,
+      scheduled_time: input.scheduled_time || null,
+      duration_minutes: input.duration_minutes,
+      all_day: input.all_day ?? false,
+      notes: input.notes || null,
+      created_by: user.id,
+    })
+    .select()
+    .single()
+
+  if (error) return { error: error.message }
+
+  logActivity({
+    supabase, user,
+    entityType: 'activity', entityId: data.id,
+    action: 'created',
+    details: { title: input.title, engineer_id: input.engineer_id, date: input.scheduled_date },
+  })
+
+  revalidatePath('/scheduling')
+  return { data }
+}
+
+export async function deleteActivity(id: string) {
+  const user = await requirePermission('scheduling', 'edit')
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('activities')
+    .delete()
+    .eq('id', id)
+    .eq('org_id', user.orgId)
+
+  if (error) return { error: error.message }
+
+  logActivity({
+    supabase, user,
+    entityType: 'activity', entityId: id,
+    action: 'deleted',
+  })
+
+  revalidatePath('/scheduling')
+  return { success: true }
+}
+
+export async function dragMoveActivity(activityId: string, engineerId: string, date: string, time?: string) {
+  const user = await requirePermission('scheduling', 'edit')
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('activities')
+    .update({
+      engineer_id: engineerId,
+      scheduled_date: date,
+      scheduled_time: time || null,
+    })
+    .eq('id', activityId)
+    .eq('org_id', user.orgId)
+
+  if (error) return { error: error.message }
+
+  logActivity({
+    supabase, user,
+    entityType: 'activity', entityId: activityId,
+    action: 'rescheduled',
+    details: { engineer_id: engineerId, date, time },
+  })
+
+  revalidatePath('/scheduling')
+  return { success: true }
 }

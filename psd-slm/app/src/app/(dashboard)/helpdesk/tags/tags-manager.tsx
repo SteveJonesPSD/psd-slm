@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@/components/ui/button'
 import type { TicketTag } from '@/types/database'
 import { createTag, updateTag, deleteTag, updateTagAiAssignable } from '../actions'
 
@@ -81,12 +82,9 @@ export function TagsManager({ initialData }: TagsManagerProps) {
           <h1 className="text-lg font-semibold text-slate-900">Tags</h1>
           <p className="text-sm text-slate-500">Manage ticket tags. Tags marked as AI-assignable will be used by the auto-triage system.</p>
         </div>
-        <button
-          onClick={openCreate}
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-        >
+        <Button variant="primary" onClick={openCreate}>
           New Tag
-        </button>
+        </Button>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
@@ -231,13 +229,13 @@ export function TagsManager({ initialData }: TagsManagerProps) {
               >
                 Cancel
               </button>
-              <button
+              <Button
+                variant="primary"
                 onClick={handleSave}
                 disabled={saving || !form.name.trim()}
-                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
               >
                 {saving ? 'Saving...' : editing ? 'Save' : 'Create'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

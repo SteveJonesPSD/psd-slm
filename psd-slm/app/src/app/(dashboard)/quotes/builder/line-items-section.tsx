@@ -40,6 +40,7 @@ interface LineItemsSectionProps {
   productSuppliers: ProductSupplierLookup[]
   dealPricing: ActiveDealPricing[]
   onRefreshProducts?: () => void
+  marginThresholds?: { green: number; amber: number }
 }
 
 export function LineItemsSection({
@@ -51,6 +52,7 @@ export function LineItemsSection({
   productSuppliers,
   dealPricing,
   onRefreshProducts,
+  marginThresholds,
 }: LineItemsSectionProps) {
   const [pickerGroupId, setPickerGroupId] = useState<string | null>(null)
 
@@ -200,6 +202,8 @@ export function LineItemsSection({
                                 dispatch={dispatch}
                                 suppliers={suppliers}
                                 products={products}
+                                productSuppliers={productSuppliers}
+                                marginThresholds={marginThresholds}
                               />
                             ))}
                           </tbody>

@@ -1,6 +1,7 @@
 import { requirePermission } from '@/lib/auth'
 import Link from 'next/link'
 import { PageHeader } from '@/components/ui/page-header'
+import { Button } from '@/components/ui/button'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { Badge, STOCK_TAKE_STATUS_CONFIG } from '@/components/ui/badge'
 import { formatDate } from '@/lib/utils'
@@ -69,16 +70,12 @@ export default async function StockTakesPage() {
       <PageHeader
         title="Stock Takes"
         subtitle="Periodic stock counting and reconciliation"
+        actions={
+          <Link href="/stock/takes/new">
+            <Button size="sm" variant="primary">+ New Stock Take</Button>
+          </Link>
+        }
       />
-
-      <div className="flex justify-end mb-4">
-        <Link
-          href="/stock/takes/new"
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white no-underline hover:bg-indigo-700"
-        >
-          + New Stock Take
-        </Link>
-      </div>
 
       <DataTable
         columns={columns}

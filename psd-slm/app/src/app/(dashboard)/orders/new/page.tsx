@@ -2,6 +2,7 @@ import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { requirePermission } from '@/lib/auth'
+import { getMarginThresholds } from '@/lib/margin-settings'
 import { CreateSoForm } from './create-so-form'
 
 interface PageProps {
@@ -45,7 +46,7 @@ export default async function NewSalesOrderPage({ searchParams }: PageProps) {
     { data: customer },
     { data: contact },
     { data: groups },
-    { data: lines },
+    { data: lines, error: linesErr },
     { data: teamMembers },
   ] = await Promise.all([
     supabase.from('customers').select('id, name, address_line1, address_line2, city, county, postcode').eq('id', quote.customer_id).single(),
@@ -53,9 +54,13 @@ export default async function NewSalesOrderPage({ searchParams }: PageProps) {
       ? supabase.from('contacts').select('id, first_name, last_name, email').eq('id', quote.contact_id).single()
       : Promise.resolve({ data: null }),
     supabase.from('quote_groups').select('*').eq('quote_id', quote_id).order('sort_order'),
-    supabase.from('quote_lines').select('*, products(name, sku, is_stocked, is_serialised, default_delivery_destination), suppliers(name)').eq('quote_id', quote_id).order('sort_order'),
+    supabase.from('quote_lines').select('*, products(name, sku, product_type, is_stocked, is_serialised, default_delivery_destination), suppliers(name)').eq('quote_id', quote_id).order('sort_order'),
     supabase.from('users').select('id, first_name, last_name').eq('org_id', user.orgId).eq('is_active', true).order('first_name'),
   ])
+
+  if (linesErr) {
+    console.error('[NewSalesOrderPage] Failed to fetch quote lines:', linesErr.message, linesErr.details)
+  }
 
   return (
     <div>
@@ -72,6 +77,13 @@ export default async function NewSalesOrderPage({ searchParams }: PageProps) {
         <span className="font-medium text-slate-700">{customer?.name}</span>
       </p>
 
+      {linesErr && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 mb-6">
+          <span className="font-medium">Failed to load quote lines:</span> {linesErr.message}
+          {linesErr.details && <span className="block text-xs mt-1 text-red-500">{linesErr.details}</span>}
+        </div>
+      )}
+
       <CreateSoForm
         quote={quote}
         customer={customer}
@@ -81,11 +93,12 @@ export default async function NewSalesOrderPage({ searchParams }: PageProps) {
           id: string; group_id: string | null; sort_order: number; description: string;
           quantity: number; buy_price: number; sell_price: number;
           fulfilment_route: string; is_optional: boolean; requires_contract: boolean;
-          products: { name: string; sku: string; is_stocked: boolean; is_serialised: boolean | null; default_delivery_destination: string } | null;
+          products: { name: string; sku: string; product_type?: string; is_stocked: boolean; is_serialised: boolean | null; default_delivery_destination: string } | null;
           suppliers: { name: string } | null;
         }[]}
         teamMembers={(teamMembers || []) as { id: string; first_name: string; last_name: string }[]}
         currentUserId={user.id}
+        marginThresholds={await getMarginThresholds()}
       />
     </div>
   )

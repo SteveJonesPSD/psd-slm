@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { Badge, CONTRACT_STATUS_CONFIG, CONTRACT_CATEGORY_CONFIG, RENEWAL_PERIOD_CONFIG } from '@/components/ui/badge'
 import { formatCurrency } from '@/lib/utils'
+import { CollapsibleCard } from './collapsible-card'
 
 interface ContractRow {
   id: string
@@ -99,24 +100,24 @@ export function ContractsSection({ contracts, customerId }: ContractsSectionProp
   ]
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 mb-6">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-[15px] font-semibold">
-          Contracts ({contracts.length})
-        </h3>
+    <CollapsibleCard
+      title="Contracts"
+      count={contracts.length}
+      actions={
         <Link
           href={`/contracts/new?company=${customerId}`}
-          className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white no-underline hover:bg-indigo-700 transition-colors"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-blue-500 bg-blue-500/15 text-blue-700 hover:shadow-[0_0_12px_rgba(59,130,246,0.5)] dark:border-blue-400 dark:bg-blue-400/15 dark:text-blue-300 dark:hover:shadow-[0_0_12px_rgba(96,165,250,0.4)] px-3 py-1.5 text-xs font-medium transition-all no-underline"
         >
           + Add Contract
         </Link>
-      </div>
+      }
+    >
       <DataTable
         columns={columns}
         data={contracts}
         onRowClick={(r) => router.push(`/contracts/${r.id}`)}
         emptyMessage="No contracts yet."
       />
-    </div>
+    </CollapsibleCard>
   )
 }

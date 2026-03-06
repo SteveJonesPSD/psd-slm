@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
 import { uploadAttachment } from '../../actions'
 
 interface Attachment {
@@ -249,13 +250,14 @@ export function MediaSection({ ticketId, attachments }: { ticketId: string; atta
 
               {selectedFiles.length > 0 && (
                 <div className="flex justify-end">
-                  <button
+                  <Button
+                    variant="primary"
+                    size="sm"
                     onClick={handleUpload}
                     disabled={uploading}
-                    className="rounded bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                   >
                     {uploading ? 'Uploading...' : `Upload ${selectedFiles.length} file${selectedFiles.length > 1 ? 's' : ''}`}
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>

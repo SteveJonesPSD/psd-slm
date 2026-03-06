@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import type { MailConnection, MailChannel, MailProcessingLog } from '@/lib/email/types'
 import { CHANNEL_STATUS, getChannelStatus } from '@/lib/email/types'
 import { ConnectionForm } from './connection-form'
@@ -115,12 +116,12 @@ export function EmailIntegrationSettings({ connections, channels, processingLog,
             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Azure AD app credentials for Microsoft Graph API</p>
           </div>
           {!connection && (
-            <button
+            <Button
+              variant="primary"
               onClick={() => { setEditingConnection(null); setShowConnectionForm(true) }}
-              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
             >
               Configure
-            </button>
+            </Button>
           )}
         </div>
 
@@ -199,10 +200,10 @@ export function EmailIntegrationSettings({ connections, channels, processingLog,
           </div>
           <div className="flex items-center gap-2">
             {channels.length > 0 && (
-              <button
+              <Button
+                variant="primary"
                 onClick={handlePollNow}
                 disabled={polling}
-                className="rounded-lg border border-indigo-200 dark:border-indigo-800 px-4 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 disabled:opacity-50"
               >
                 {polling ? (
                   <span className="flex items-center gap-2">
@@ -210,15 +211,15 @@ export function EmailIntegrationSettings({ connections, channels, processingLog,
                     Polling...
                   </span>
                 ) : 'Poll Now'}
-              </button>
+              </Button>
             )}
             {connection && (
-              <button
+              <Button
+                variant="primary"
                 onClick={() => { setEditingChannel(null); setShowChannelForm(true) }}
-                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
               >
                 Add Channel
-              </button>
+              </Button>
             )}
           </div>
         </div>

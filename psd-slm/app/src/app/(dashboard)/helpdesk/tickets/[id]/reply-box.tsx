@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
 import { addMessage } from '../../actions'
 import type { PresenceViewer } from '../../actions'
 import { AiSuggestModal } from './ai-suggest-modal'
@@ -184,17 +185,13 @@ export function ReplyBox({ ticketId, ticketStatus, cannedResponses, ticketContex
         <div className="text-xs text-slate-400">
           {isInternal && 'Internal notes are not visible to the customer'}
         </div>
-        <button
+        <Button
+          variant="primary"
           onClick={handleSend}
           disabled={sending || !body.trim()}
-          className={`rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50 ${
-            isInternal
-              ? 'bg-amber-600 hover:bg-amber-700'
-              : 'bg-indigo-600 hover:bg-indigo-700'
-          }`}
         >
           {sending ? 'Sending...' : isInternal ? 'Add Note' : 'Send Reply'}
-        </button>
+        </Button>
       </div>
 
       {showAiSuggest && ticketContext && (
@@ -232,15 +229,15 @@ export function ReplyBox({ ticketId, ticketStatus, cannedResponses, ticketContex
               >
                 Cancel
               </button>
-              <button
+              <Button
+                variant="primary"
                 onClick={() => {
                   setShowPresenceConfirm(false)
                   doSend()
                 }}
-                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
               >
                 Send Anyway
-              </button>
+              </Button>
             </div>
           </div>
         </div>

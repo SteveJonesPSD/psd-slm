@@ -228,7 +228,7 @@ export function MetadataSidebar({ ticket, teamMembers, categories, tags, current
           {(ticket.customers as Record<string, unknown>)?.name ? (
             <span className="text-slate-700 dark:text-slate-200 font-medium">{(ticket.customers as Record<string, unknown>).name as string}</span>
           ) : (
-            <span className="text-red-600 dark:text-red-400 font-medium">Unmatched — assign manually</span>
+            <span className="text-amber-600 dark:text-amber-400 font-medium">Needs customer assignment</span>
           )}
         </div>
         {ticket.contacts ? (

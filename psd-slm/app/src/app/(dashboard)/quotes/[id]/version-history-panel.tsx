@@ -13,6 +13,7 @@ interface VersionRow {
   quote_number: string
   version: number
   status: string
+  revision_notes: string | null
   created_at: string
   assigned_to: string | null
   users: { first_name: string; last_name: string } | null
@@ -91,9 +92,19 @@ export function VersionHistoryPanel({ versions, currentQuoteId }: VersionHistory
                     onClick={!isCurrent ? () => router.push(`/quotes/${v.id}`) : undefined}
                   >
                     <td className="px-5 py-2.5">
-                      <span className={`font-semibold ${isCurrent ? 'text-blue-700' : ''}`}>
+                      <span className={`inline-flex items-center gap-1 font-semibold ${isCurrent ? 'text-blue-700' : ''}`}>
                         v{v.version}
                         {isCurrent && <span className="ml-1.5 text-xs text-blue-500">(current)</span>}
+                        {v.revision_notes && (
+                          <span className="group relative">
+                            <svg className="h-3.5 w-3.5 text-amber-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 0 1 1.037-.443 48.282 48.282 0 0 0 5.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
+                            </svg>
+                            <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 -translate-x-1/2 whitespace-pre-wrap rounded-lg bg-slate-800 px-3 py-2 text-xs font-normal text-white shadow-lg opacity-0 transition-opacity group-hover:opacity-100 max-w-xs w-max">
+                              {v.revision_notes}
+                            </span>
+                          </span>
+                        )}
                       </span>
                     </td>
                     <td className="px-5 py-2.5 font-medium">{v.quote_number}</td>

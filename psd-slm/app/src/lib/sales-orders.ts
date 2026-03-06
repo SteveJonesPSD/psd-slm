@@ -160,7 +160,7 @@ export function getValidTransitions(
 }
 
 // Detect if a product should be treated as a service item
-export function isServiceItem(product: { is_stocked: boolean; is_serialised: boolean | null } | null): boolean {
+export function isServiceItem(product: { product_type?: string; is_stocked: boolean; is_serialised: boolean | null } | null): boolean {
   if (!product) return false
-  return !product.is_stocked && (product.is_serialised === false || product.is_serialised === null)
+  return product.product_type === 'service'
 }

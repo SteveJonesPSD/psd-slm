@@ -1,6 +1,6 @@
 import { requirePermission } from '@/lib/auth'
 import { PageHeader } from '@/components/ui/page-header'
-import { getCompaniesForSelect, getJobTypes, getEngineers } from '../../actions'
+import { getCompaniesForSelect, getJobTypes, getEngineers, getWorkingDays } from '../../actions'
 import { JobForm } from '../../job-form'
 
 interface PageProps {
@@ -12,10 +12,11 @@ export default async function NewJobPage({ searchParams }: PageProps) {
 
   const params = await searchParams
 
-  const [companiesResult, typesResult, engineersResult] = await Promise.all([
+  const [companiesResult, typesResult, engineersResult, workingDays] = await Promise.all([
     getCompaniesForSelect(),
     getJobTypes(),
     getEngineers(),
+    getWorkingDays(),
   ])
 
   // Source linking from URL params (e.g. from SO install column)
@@ -39,6 +40,7 @@ export default async function NewJobPage({ searchParams }: PageProps) {
       <PageHeader title="New Job" subtitle={sourceRef ? `for ${sourceRef}` : undefined} />
       <JobForm
         companies={companiesResult.data || []}
+        workingDays={workingDays}
         jobTypes={(typesResult.data || []).map(t => ({
           id: t.id,
           name: t.name,

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { SearchableSelect } from '@/components/ui/form-fields'
-import { allocateStock, getSerialNumbers, getStockLocations } from '@/app/(dashboard)/stock/actions'
+import { allocateStock, allocateAndPickFromStock, getAvailableSerials, getStockLocations } from '@/app/(dashboard)/stock/actions'
 import type { StockLocation } from '@/types/database'
 
 interface AllocateStockModalProps {
@@ -16,6 +16,7 @@ interface AllocateStockModalProps {
   alreadyOnPo: number
   available: number
   isSerialized: boolean
+  pickMode?: boolean
   onClose: () => void
   onSuccess: () => void
 }
@@ -35,6 +36,7 @@ export function AllocateStockModal({
   alreadyOnPo,
   available,
   isSerialized,
+  pickMode = false,
   onClose,
   onSuccess,
 }: AllocateStockModalProps) {
@@ -63,7 +65,7 @@ export function AllocateStockModal({
     })
 
     if (isSerialized) {
-      getSerialNumbers(productId, 'in_stock').then(serials => {
+      getAvailableSerials(productId).then(serials => {
         setAvailableSerials(serials.map(s => ({
           id: s.id,
           serial_number: s.serial_number,
@@ -125,7 +127,8 @@ export function AllocateStockModal({
     setLoading(true)
     setError(null)
 
-    const result = await allocateStock({
+    const actionFn = pickMode ? allocateAndPickFromStock : allocateStock
+    const result = await actionFn({
       soLineId,
       productId,
       locationId,
@@ -142,7 +145,7 @@ export function AllocateStockModal({
   }
 
   return (
-    <Modal title="Allocate from Stock" onClose={onClose} width={isSerialized ? 640 : 600}>
+    <Modal title={pickMode ? 'Pick from Free Stock' : 'Allocate from Stock'} onClose={onClose} width={isSerialized ? 640 : 600}>
       <div className="space-y-4">
         <div className="rounded-lg bg-slate-50 p-3 text-sm">
           <div className="font-medium">{productName}</div>
@@ -262,7 +265,12 @@ export function AllocateStockModal({
         <div className="flex justify-end gap-2 pt-2">
           <Button size="sm" variant="default" onClick={onClose}>Cancel</Button>
           <Button size="sm" variant="primary" onClick={handleSubmit} disabled={loading || quantity <= 0}>
-            {loading ? 'Allocating...' : `Allocate ${quantity} Unit${quantity !== 1 ? 's' : ''}`}
+            {loading
+              ? (pickMode ? 'Picking...' : 'Allocating...')
+              : (pickMode
+                ? `Pick ${quantity} Unit${quantity !== 1 ? 's' : ''}`
+                : `Allocate ${quantity} Unit${quantity !== 1 ? 's' : ''}`)
+            }
           </Button>
         </div>
       </div>

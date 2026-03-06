@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@/components/ui/button'
 import { seedContractTypes } from '../../contracts/actions'
 
 export function SeedContractsButton() {
@@ -17,13 +18,13 @@ export function SeedContractsButton() {
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <button
+      <Button
+        variant="primary"
         onClick={handleSeed}
         disabled={loading}
-        className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors disabled:opacity-50 whitespace-nowrap"
       >
         {loading ? 'Seeding...' : 'Seed Contracts'}
-      </button>
+      </Button>
       {result && <span className="text-xs text-slate-500">{result}</span>}
     </div>
   )

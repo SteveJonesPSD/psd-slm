@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { SerialisedBadge } from '@/components/ui/serialised-badge'
 import { resolveSerialisedStatus } from '@/lib/products'
 import { getMarginColor } from '@/lib/margin'
+import { getMarginThresholds } from '@/lib/margin-settings'
 import { ProductSuppliers } from './product-suppliers'
 
 interface PageProps {
@@ -27,10 +28,16 @@ export default async function ProductDetailPage({ params }: PageProps) {
 
   if (!product) notFound()
 
-  const { data: productSuppliers } = await supabase
-    .from('product_suppliers')
-    .select('*, suppliers(id, name, account_number, is_active)')
-    .eq('product_id', id)
+  const [{ data: productSuppliers }, { data: stockLevels }] = await Promise.all([
+    supabase
+      .from('product_suppliers')
+      .select('*, suppliers(id, name, account_number, is_active)')
+      .eq('product_id', id),
+    supabase
+      .from('stock_levels')
+      .select('quantity_on_hand, quantity_allocated')
+      .eq('product_id', id),
+  ])
 
   const cat = product.product_categories as unknown as { id: string; name: string; requires_serial: boolean } | null
   const categoryRequiresSerial = cat?.requires_serial ?? false
@@ -40,11 +47,17 @@ export default async function ProductDetailPage({ params }: PageProps) {
   const mainSupplier = suppliers.find((s) => s.is_preferred)
   const mainSupplierInfo = mainSupplier?.suppliers as { id: string; name: string; account_number: string | null; is_active: boolean } | undefined
 
+  // Aggregate stock across all locations
+  const totalOnHand = (stockLevels || []).reduce((sum, sl) => sum + sl.quantity_on_hand, 0)
+  const totalAllocated = (stockLevels || []).reduce((sum, sl) => sum + sl.quantity_allocated, 0)
+  const totalUnallocated = totalOnHand - totalAllocated
+
   const marginPct = (product.default_sell_price != null && product.default_buy_price != null && product.default_sell_price > 0)
     ? ((product.default_sell_price - product.default_buy_price) / product.default_sell_price * 100).toFixed(1) + '%'
     : 'N/A'
 
-  const marginColor = getMarginColor(product.default_buy_price, product.default_sell_price)
+  const marginThresholds = await getMarginThresholds()
+  const marginColor = getMarginColor(product.default_buy_price, product.default_sell_price, marginThresholds.green, marginThresholds.amber)
 
   // Serialisation source text
   const serialSource = product.is_serialised === null
@@ -136,9 +149,28 @@ export default async function ProductDetailPage({ params }: PageProps) {
           </div>
           {!isService && <DetailField label="Stocked" value={product.is_stocked ? 'Yes' : 'No'} />}
           {!isService && (
+            <div>
+              <div className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-0.5">
+                Stock
+              </div>
+              <div className="text-slate-700">
+                {totalOnHand > 0 ? (
+                  <>
+                    {totalAllocated} allocated{' '}
+                    <span className={totalUnallocated > 0 ? 'text-emerald-600 font-medium' : 'text-slate-400'}>
+                      ({totalUnallocated} unallocated)
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-slate-400">None</span>
+                )}
+              </div>
+            </div>
+          )}
+          {!isService && (
             <DetailField
-              label="Default Delivery"
-              value={product.default_delivery_destination === 'customer_site' ? 'Customer Site' : 'Warehouse'}
+              label="Default Route"
+              value={product.default_route === 'drop_ship' ? 'Drop Ship' : 'From Stock'}
             />
           )}
           {!isService && (

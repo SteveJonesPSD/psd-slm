@@ -6,6 +6,7 @@ interface PortalQuoteViewProps {
   quote: {
     id: string
     quote_number: string
+    title: string | null
     status: string
     version: number
     vat_rate: number
@@ -51,6 +52,9 @@ export function PortalQuoteView({ quote, token }: PortalQuoteViewProps) {
               {quote.quote_number}
               {quote.version > 1 && ` (Revision ${quote.version})`}
             </p>
+            {quote.title && (
+              <p className="text-sm font-medium text-slate-700 mt-1">{quote.title}</p>
+            )}
           </div>
           <div className="text-right">
             <div className="text-sm text-slate-500 mb-2">

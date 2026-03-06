@@ -430,6 +430,39 @@ export async function confirmCollection(
     })
     .eq('id', collection.id)
 
+  // Auto-deliver: transition confirmed SO lines to 'delivered' status
+  if (collection.sales_order_id) {
+    // Fetch collection lines with their SO line IDs
+    const { data: collectionLineData } = await supabase
+      .from('job_collection_lines')
+      .select('id, sales_order_line_id')
+      .eq('collection_id', collection.id)
+      .in('id', confirmedLines.map(l => l.lineId))
+
+    const soLineIds = (collectionLineData || [])
+      .map(cl => cl.sales_order_line_id)
+      .filter((id): id is string => !!id)
+
+    if (soLineIds.length > 0) {
+      // Fetch current SO line statuses — only transition lines that are in 'picked' status
+      const { data: soLines } = await supabase
+        .from('sales_order_lines')
+        .select('id, status')
+        .in('id', soLineIds)
+
+      const deliverableIds = (soLines || [])
+        .filter(l => l.status === 'picked')
+        .map(l => l.id)
+
+      if (deliverableIds.length > 0) {
+        await supabase
+          .from('sales_order_lines')
+          .update({ status: 'delivered' })
+          .in('id', deliverableIds)
+      }
+    }
+  }
+
   // Log activity (fire-and-forget via admin client)
   const logEntityType = collection.job_id ? 'job' : 'sales_order'
   const logEntityId = collection.job_id || collection.sales_order_id
@@ -447,6 +480,12 @@ export async function confirmCollection(
         total_count: totalLineCount,
       },
     })
+  }
+
+  // Revalidate SO page so status changes are visible
+  if (collection.sales_order_id) {
+    const { revalidatePath } = await import('next/cache')
+    revalidatePath(`/orders/${collection.sales_order_id}`)
   }
 
   return { success: true, status: newStatus }

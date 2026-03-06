@@ -13,6 +13,7 @@ export interface OnlineUser {
   color: string | null
   avatarUrl: string | null
   status: 'active' | 'idle'
+  isMobile: boolean
 }
 
 export function useSystemPresence(): OnlineUser[] {

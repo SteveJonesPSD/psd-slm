@@ -3,6 +3,7 @@
 import { useState, useEffect, useTransition } from 'react'
 import { getEngineerWeekView, confirmEngineerVisits, getHolidaysForRange } from '../actions'
 import { DAY_SHORT_NAMES, DAY_INDEX_TO_KEY, formatVisitDate } from '@/lib/visit-scheduling/types'
+import { Button } from '@/components/ui/button'
 import type { EngineerWeekView as EngineerWeekViewType } from '@/lib/visit-scheduling/types'
 import { VisitCard } from './visit-card'
 import { MonthReview } from './month-review'
@@ -400,13 +401,14 @@ function WeekGrid({
                   </span>
                 </div>
                 {draftCount > 0 && (
-                  <button
+                  <Button
                     onClick={() => onConfirmAll(eng.engineer_id)}
+                    variant="success"
+                    size="sm"
                     disabled={isPending}
-                    className="inline-flex items-center gap-1 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 transition-colors disabled:opacity-50"
                   >
                     Confirm All ({draftCount})
-                  </button>
+                  </Button>
                 )}
               </div>
 

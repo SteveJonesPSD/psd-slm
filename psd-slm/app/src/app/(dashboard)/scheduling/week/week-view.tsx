@@ -37,11 +37,13 @@ function getMondayOf(date: Date): string {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function WeekView({ allJobs, engineers, initialWeekStart, canEdit }: {
+export function WeekView({ allJobs, allActivities, engineers, initialWeekStart, canEdit, workingDays = [1, 2, 3, 4, 5] }: {
   allJobs: any[]
+  allActivities?: any[]
   engineers: any[]
   initialWeekStart: string
   canEdit: boolean
+  workingDays?: number[]
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -64,11 +66,14 @@ export function WeekView({ allJobs, engineers, initialWeekStart, canEdit }: {
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   )
 
-  // Generate 5 weekdays
+  // Generate days for the working week (Mon=1 ... Sun=7)
   const weekDays = useMemo(() => {
     const days: { date: string; label: string; isToday: boolean }[] = []
     const today = formatDateLocal(new Date())
-    for (let i = 0; i < 5; i++) {
+    // Always iterate Mon(0) through Sun(6) relative to weekStart (which is a Monday)
+    for (let i = 0; i < 7; i++) {
+      const isoDay = i + 1 // 1=Mon ... 7=Sun
+      if (!workingDays.includes(isoDay)) continue
       const d = parseDate(weekStart)
       d.setDate(d.getDate() + i)
       const dateStr = formatDateLocal(d)
@@ -79,7 +84,9 @@ export function WeekView({ allJobs, engineers, initialWeekStart, canEdit }: {
       })
     }
     return days
-  }, [weekStart])
+  }, [weekStart, workingDays])
+
+  const dayCount = weekDays.length
 
   function navigateWeek(direction: number) {
     const d = parseDate(weekStart)
@@ -128,7 +135,7 @@ export function WeekView({ allJobs, engineers, initialWeekStart, canEdit }: {
     }
   }
 
-  const weekLabel = `${weekDays[0]?.label} — ${weekDays[4]?.label}`
+  const weekLabel = weekDays.length > 0 ? `${weekDays[0].label} — ${weekDays[weekDays.length - 1].label}` : ''
 
   return (
     <div>
@@ -165,9 +172,10 @@ export function WeekView({ allJobs, engineers, initialWeekStart, canEdit }: {
             {weekDays.map(day => (
               <div
                 key={day.date}
-                className={`flex-1 min-w-[160px] border-r border-gray-200 px-2 py-2 text-center text-xs font-semibold ${
+                className={`flex-1 border-r border-gray-200 px-2 py-2 text-center text-xs font-semibold ${
                   day.isToday ? 'bg-indigo-50 text-indigo-700' : 'bg-gray-50 text-slate-600'
                 }`}
+                style={{ minWidth: dayCount <= 5 ? 160 : dayCount <= 6 ? 130 : 110 }}
               >
                 {day.label}
               </div>
@@ -190,6 +198,9 @@ export function WeekView({ allJobs, engineers, initialWeekStart, canEdit }: {
                 const dayJobs = allJobs.filter(
                   j => j.scheduled_date === day.date && j.assigned_to === eng.id && j.status !== 'cancelled'
                 )
+                const dayActivities = (allActivities || []).filter(
+                  (a: { scheduled_date: string; engineer_id: string }) => a.scheduled_date === day.date && a.engineer_id === eng.id
+                )
                 return (
                   <WeekDayCell
                     key={day.date}
@@ -197,7 +208,9 @@ export function WeekView({ allJobs, engineers, initialWeekStart, canEdit }: {
                     date={day.date}
                     isToday={day.isToday}
                     jobs={dayJobs}
+                    activities={dayActivities}
                     canEdit={canEdit}
+                    minWidth={dayCount <= 5 ? 160 : dayCount <= 6 ? 130 : 110}
                   />
                 )
               })}
@@ -227,18 +240,22 @@ export function WeekView({ allJobs, engineers, initialWeekStart, canEdit }: {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function WeekDayCell({ engineerId, date, isToday, jobs, canEdit }: { engineerId: string; date: string; isToday: boolean; jobs: any[]; canEdit: boolean }) {
+function WeekDayCell({ engineerId, date, isToday, jobs, activities, canEdit, minWidth }: { engineerId: string; date: string; isToday: boolean; jobs: any[]; activities: any[]; canEdit: boolean; minWidth: number }) {
   const id = `week-${engineerId}-date-${date}`
   const { setNodeRef, isOver } = useDroppable({ id, disabled: !canEdit })
 
   return (
     <div
       ref={setNodeRef}
-      className={`flex-1 min-w-[160px] border-r border-gray-200 p-1.5 min-h-[60px] transition-colors ${
+      className={`flex-1 border-r border-gray-200 p-1.5 min-h-[60px] transition-colors ${
         isOver ? 'bg-indigo-50' : isToday ? 'bg-indigo-50/30' : ''
       }`}
+      style={{ minWidth }}
     >
       <div className="space-y-1">
+        {activities.map((act: { id: string; title: string; all_day: boolean; scheduled_time: string | null; duration_minutes: number; activity_type: { name: string; color: string; background: string } | null }) => (
+          <WeekActivityBlock key={act.id} activity={act} />
+        ))}
         {jobs.map(job => (
           <WeekJobBlock key={job.id} job={job} canEdit={canEdit} />
         ))}
@@ -268,6 +285,22 @@ function getWeekBlockStyles(status: string, jtColor: string): React.CSSPropertie
   }
 }
 
+function WeekStockIcon({ collectionStatus, soNumbers }: { collectionStatus: 'none' | 'pending' | 'collected'; soNumbers: string[] }) {
+  const collected = collectionStatus === 'collected'
+  const color = collected ? '#4ade80' : '#fca5a5'
+  const soLabel = soNumbers.length > 0 ? soNumbers.join(', ') : ''
+  const tooltip = collected
+    ? `Stock collected${soLabel ? ` — ${soLabel}` : ''}`
+    : `Stock not yet collected${soLabel ? ` — ${soLabel}` : ''}`
+  return (
+    <span title={tooltip} className={`shrink-0 ml-auto${collected ? '' : ' animate-pulse'}`}>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill={color} className="w-3 h-3 drop-shadow-sm">
+        <path d="M.41 4.44A1.5 1.5 0 0 1 1.5 3h17a1.5 1.5 0 0 1 1.09.44l.01.01A1.5 1.5 0 0 1 20 4.5V6a1 1 0 0 1-1 1H1a1 1 0 0 1-1-1V4.5c0-.38.14-.74.41-1.01v-.05ZM1 8.5h18v7a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 1 15.5v-7Zm7 2a.75.75 0 0 0 0 1.5h4a.75.75 0 0 0 0-1.5H8Z" />
+      </svg>
+    </span>
+  )
+}
+
 function WeekBlockIcon({ status }: { status: string }) {
   if (status === 'travelling' || status === 'on_site') {
     return <span className="text-[8px]">&#9654;</span>
@@ -281,6 +314,7 @@ function WeekBlockIcon({ status }: { status: string }) {
   return null
 }
 
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function WeekJobBlock({ job, canEdit }: { job: any; canEdit: boolean }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -290,6 +324,8 @@ function WeekJobBlock({ job, canEdit }: { job: any; canEdit: boolean }) {
 
   const jt = job.job_type
   const blockStatus = getWeekBlockStatus(job)
+  const collectionStatus: 'none' | 'pending' | 'collected' = job._collectionStatus ?? 'none'
+  const soNumbers: string[] = job._soNumbers ?? []
   const statusStyles = getWeekBlockStyles(blockStatus, jt?.color || '#6b7280')
   const isPulsing = blockStatus === 'travelling' || blockStatus === 'on_site'
 
@@ -329,6 +365,7 @@ function WeekJobBlock({ job, canEdit }: { job: any; canEdit: boolean }) {
       <div className="flex items-center gap-1">
         <WeekBlockIcon status={blockStatus} />
         <span className="truncate">{job.company?.name}</span>
+        {job._hasSo && <WeekStockIcon collectionStatus={collectionStatus} soNumbers={soNumbers} />}
       </div>
       {timeLabel && (
         <span className="text-[9px] opacity-75 block">Booked: {timeLabel}</span>
@@ -343,5 +380,39 @@ function WeekJobBlock({ job, canEdit }: { job: any; canEdit: boolean }) {
         </span>
       )}
     </Link>
+  )
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function WeekActivityBlock({ activity }: { activity: any }) {
+  const at = activity.activity_type
+  const color = at?.color || '#6b7280'
+  const bg = at?.background || '#f3f4f6'
+
+  let timeLabel = ''
+  if (activity.all_day) {
+    timeLabel = 'All day'
+  } else if (activity.scheduled_time) {
+    const [hours, minutes] = activity.scheduled_time.split(':').map(Number)
+    const endMin = hours * 60 + minutes + (activity.duration_minutes || 60)
+    const endH = Math.floor(endMin / 60)
+    const endM = endMin % 60
+    timeLabel = `${activity.scheduled_time.substring(0, 5)}–${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`
+  }
+
+  return (
+    <div
+      className="block rounded px-1.5 py-1 text-[10px] font-medium no-underline border-2 border-dashed"
+      style={{ color, backgroundColor: bg, borderColor: color }}
+      title={`${activity.title}${timeLabel ? ` (${timeLabel})` : ''}`}
+    >
+      <div className="flex items-center gap-1">
+        <span className="text-[8px]">&#9632;</span>
+        <span className="truncate">{activity.title}</span>
+      </div>
+      {timeLabel && (
+        <span className="text-[9px] opacity-75 block">{timeLabel}</span>
+      )}
+    </div>
   )
 }

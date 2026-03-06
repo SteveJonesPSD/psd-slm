@@ -79,6 +79,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
           drafts={drafts}
           departments={activeDepartments}
           scratchpadNotes={scratchpadNotes}
+          assistHistory={assistHistory}
           mergedTickets={mergedTickets}
           mergedMessages={mergedMessages}
           mergeRecordId={mergeRecordId}

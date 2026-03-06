@@ -18,6 +18,11 @@ const EMPTY_FORM = {
   email: '',
   phone: '',
   website: '',
+  address_line1: '',
+  address_line2: '',
+  city: '',
+  county: '',
+  postcode: '',
   payment_terms: '30',
   notes: '',
   is_active: true,
@@ -35,6 +40,11 @@ export function SupplierForm({ supplier }: SupplierFormProps) {
           email: supplier.email || '',
           phone: supplier.phone || '',
           website: supplier.website || '',
+          address_line1: supplier.address_line1 || '',
+          address_line2: supplier.address_line2 || '',
+          city: supplier.city || '',
+          county: supplier.county || '',
+          postcode: supplier.postcode || '',
           payment_terms: String(supplier.payment_terms),
           notes: supplier.notes || '',
           is_active: supplier.is_active,
@@ -115,6 +125,33 @@ export function SupplierForm({ supplier }: SupplierFormProps) {
           value={form.website}
           onChange={upd('website')}
           className="col-span-2"
+        />
+        <Input
+          label="Address Line 1"
+          value={form.address_line1}
+          onChange={upd('address_line1')}
+          className="col-span-2"
+        />
+        <Input
+          label="Address Line 2"
+          value={form.address_line2}
+          onChange={upd('address_line2')}
+          className="col-span-2"
+        />
+        <Input
+          label="City"
+          value={form.city}
+          onChange={upd('city')}
+        />
+        <Input
+          label="County"
+          value={form.county}
+          onChange={upd('county')}
+        />
+        <Input
+          label="Postcode"
+          value={form.postcode}
+          onChange={upd('postcode')}
         />
         <Textarea
           label="Notes"

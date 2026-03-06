@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@/components/ui/button'
 import { createCategory, updateCategory, deleteCategory } from '../actions'
 
 interface Category {
@@ -85,12 +86,9 @@ export function CategoriesManager({ initialData }: { initialData: Category[] }) 
   return (
     <div>
       <div className="mb-8 flex justify-end">
-        <button
-          onClick={openCreate}
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-        >
+        <Button variant="primary" onClick={openCreate}>
           Add Category
-        </button>
+        </Button>
       </div>
 
       <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
@@ -184,13 +182,13 @@ export function CategoriesManager({ initialData }: { initialData: Category[] }) 
               >
                 Cancel
               </button>
-              <button
+              <Button
+                variant="primary"
                 onClick={handleSave}
                 disabled={saving || !form.name.trim()}
-                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
               >
                 {saving ? 'Saving...' : editing ? 'Update' : 'Create'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

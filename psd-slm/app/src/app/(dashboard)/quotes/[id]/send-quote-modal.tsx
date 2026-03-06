@@ -12,6 +12,7 @@ interface SendQuoteModalProps {
   quote: {
     id: string
     quote_number: string
+    title: string | null
     status: string
     valid_until: string | null
     vat_rate: number
@@ -35,12 +36,13 @@ interface SendQuoteModalProps {
     last_name: string
   } | null
   portalUrl: string | null
-  totalIncVat: number
+  subtotal: number
+  zeroSellLines?: string[]
   isResend?: boolean
   onClose: () => void
 }
 
-type SendMethod = 'pdf' | 'portal' | 'both'
+type SendMethod = 'pdf' | 'portal'
 type Step = 'method' | 'compose'
 
 export function SendQuoteModal({
@@ -50,7 +52,8 @@ export function SendQuoteModal({
   brand,
   assignedUser,
   portalUrl,
-  totalIncVat,
+  subtotal,
+  zeroSellLines = [],
   isResend = false,
   onClose,
 }: SendQuoteModalProps) {
@@ -60,6 +63,7 @@ export function SendQuoteModal({
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [showPreview, setShowPreview] = useState(false)
+  const [zeroSellConfirmed, setZeroSellConfirmed] = useState(false)
 
   // Sender state
   const [assignedCred, setAssignedCred] = useState<UserMailCredential | null>(null)
@@ -73,10 +77,13 @@ export function SendQuoteModal({
       ? `${contact.first_name} ${contact.last_name} <${contact.email}>`
       : ''
   )
+  const [ccField, setCcField] = useState('')
+  const [bccField, setBccField] = useState('')
+  const [showCcBcc, setShowCcBcc] = useState(false)
   const [subject, setSubject] = useState(
     isResend
-      ? `Resend: Quote ${quote.quote_number} from ${brand?.name || 'PSD Group'} — ${customer?.name || ''}`
-      : `Quote ${quote.quote_number} from ${brand?.name || 'PSD Group'} — ${customer?.name || ''}`
+      ? `Resend: Quote ${quote.quote_number}${quote.title ? ` — ${quote.title}` : ''} from ${brand?.name || 'PSD Group'}`
+      : `Quote ${quote.quote_number}${quote.title ? ` — ${quote.title}` : ''} from ${brand?.name || 'PSD Group'}`
   )
 
   const validUntilFormatted = quote.valid_until
@@ -87,12 +94,12 @@ export function SendQuoteModal({
     isResend
       ? `Please find our reissued quotation ${quote.quote_number} for ${customer?.name || ''}.
 
-The total value is ${formatCurrency(totalIncVat)} (inc. VAT)${validUntilFormatted ? `, valid until ${validUntilFormatted}` : ''}.
+The total value is ${formatCurrency(subtotal)} (ex. VAT)${validUntilFormatted ? `, valid until ${validUntilFormatted}` : ''}.
 
 Please don't hesitate to contact me if you have any questions.`
       : `Please find our quotation ${quote.quote_number} for ${customer?.name || ''} as requested.
 
-The total value is ${formatCurrency(totalIncVat)} (inc. VAT)${validUntilFormatted ? `, valid until ${validUntilFormatted}` : ''}.
+The total value is ${formatCurrency(subtotal)} (ex. VAT)${validUntilFormatted ? `, valid until ${validUntilFormatted}` : ''}.
 
 Please don't hesitate to contact me if you have any questions.`
   )
@@ -121,7 +128,8 @@ Please don't hesitate to contact me if you have any questions.`
   }, [quote.assigned_to])
 
   const selectedCred = orgCreds.find(c => c.user_id === selectedSenderId) || assignedCred
-  const canSend = selectedSenderId && toField.trim() && subject.trim() && sendMethod
+  const hasZeroSellWarning = zeroSellLines.length > 0
+  const canSend = selectedSenderId && toField.trim() && subject.trim() && sendMethod && (!hasZeroSellWarning || zeroSellConfirmed)
 
   const handleSelectMethod = (method: SendMethod) => {
     setSendMethod(method)
@@ -141,9 +149,14 @@ Please don't hesitate to contact me if you have any questions.`
       return
     }
 
+    const ccAddresses = parseEmailAddresses(ccField)
+    const bccAddresses = parseEmailAddresses(bccField)
+
     const result = await sendQuoteEmail(quote.id, {
       sendMethod,
       toAddresses,
+      ccAddresses,
+      bccAddresses,
       subject,
       messageBody,
       senderUserId: selectedSenderId,
@@ -181,10 +194,10 @@ Please don't hesitate to contact me if you have any questions.`
                     <path strokeLinecap="round" strokeLinejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
                   </svg>
                 </div>
-                <span className="text-base font-semibold text-slate-900 dark:text-white">Send as PDF</span>
+                <span className="text-base font-semibold text-slate-900 dark:text-white">Send PDF</span>
               </div>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                Email the quote as a PDF attachment. The customer can review and reply to you directly.
+                Email the quote as a PDF attachment with a portal link to view, download, and accept online.
               </p>
             </button>
 
@@ -200,32 +213,14 @@ Please don't hesitate to contact me if you have any questions.`
                     <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m9.86-9.86a4.5 4.5 0 0 0-6.364 0l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
                   </svg>
                 </div>
-                <span className="text-base font-semibold text-slate-900 dark:text-white">Send Portal Link</span>
+                <span className="text-base font-semibold text-slate-900 dark:text-white">Send Portal Link Only</span>
               </div>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                Email a link to the interactive online quote. The customer can view, download PDF, and accept online.
+                Email a link to the online quote portal only, without a PDF attachment.
               </p>
             </button>
           </div>
 
-          {/* Both option */}
-          <button
-            type="button"
-            onClick={() => handleSelectMethod('both')}
-            className="w-full rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 text-left hover:border-slate-400 dark:hover:border-slate-500 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                </svg>
-              </div>
-              <div>
-                <span className="text-sm font-semibold text-slate-900 dark:text-white">Send Both</span>
-                <span className="text-xs text-slate-400 ml-2">PDF attachment + portal link in same email</span>
-              </div>
-            </div>
-          </button>
         </div>
       )}
 
@@ -246,11 +241,42 @@ Please don't hesitate to contact me if you have any questions.`
           {/* Method badge */}
           <div className="flex items-center gap-2 mb-4">
             <span className="inline-flex items-center rounded-full bg-blue-50 dark:bg-blue-900/30 px-2.5 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-300">
-              {sendMethod === 'pdf' && 'PDF Attachment'}
-              {sendMethod === 'portal' && 'Portal Link'}
-              {sendMethod === 'both' && 'PDF + Portal Link'}
+              {sendMethod === 'pdf' && 'PDF + Portal Link'}
+              {sendMethod === 'portal' && 'Portal Link Only'}
             </span>
           </div>
+
+          {/* Zero sell price warning */}
+          {hasZeroSellWarning && (
+            <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/30 p-3">
+              <div className="flex items-start gap-2">
+                <svg className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                </svg>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                    {zeroSellLines.length === 1 ? '1 line has' : `${zeroSellLines.length} lines have`} a zero sale price
+                  </p>
+                  <ul className="mt-1 space-y-0.5">
+                    {zeroSellLines.map((desc, i) => (
+                      <li key={i} className="text-xs text-amber-700 dark:text-amber-300">• {desc}</li>
+                    ))}
+                  </ul>
+                  <label className="mt-2 flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={zeroSellConfirmed}
+                      onChange={(e) => setZeroSellConfirmed(e.target.checked)}
+                      className="h-4 w-4 rounded border-amber-400 text-amber-600 focus:ring-amber-500"
+                    />
+                    <span className="text-xs font-medium text-amber-800 dark:text-amber-200">
+                      I confirm these lines should be sent at £0.00
+                    </span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* From field */}
           <div className="mb-4">
@@ -299,7 +325,18 @@ Please don't hesitate to contact me if you have any questions.`
 
           {/* To field */}
           <div className="mb-4">
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">To</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">To</label>
+              {!showCcBcc && (
+                <button
+                  type="button"
+                  onClick={() => setShowCcBcc(true)}
+                  className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                >
+                  CC / BCC
+                </button>
+              )}
+            </div>
             <input
               type="text"
               value={toField}
@@ -308,6 +345,32 @@ Please don't hesitate to contact me if you have any questions.`
               className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm outline-none focus:border-slate-400"
             />
           </div>
+
+          {/* CC / BCC fields */}
+          {showCcBcc && (
+            <>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">CC</label>
+                <input
+                  type="text"
+                  value={ccField}
+                  onChange={e => setCcField(e.target.value)}
+                  placeholder="name@example.com (separate multiple with commas)"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">BCC</label>
+                <input
+                  type="text"
+                  value={bccField}
+                  onChange={e => setBccField(e.target.value)}
+                  placeholder="name@example.com (separate multiple with commas)"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm outline-none focus:border-slate-400"
+                />
+              </div>
+            </>
+          )}
 
           {/* Subject */}
           <div className="mb-4">
@@ -346,7 +409,7 @@ Please don't hesitate to contact me if you have any questions.`
             </button>
             {showPreview && (
               <div className="mt-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3 text-sm text-slate-600 dark:text-slate-300 space-y-2">
-                {(sendMethod === 'pdf' || sendMethod === 'both') && (
+                {sendMethod === 'pdf' && (
                   <div className="flex items-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
@@ -354,7 +417,7 @@ Please don't hesitate to contact me if you have any questions.`
                     <span className="font-mono text-xs">{quote.quote_number}.pdf</span>
                   </div>
                 )}
-                {(sendMethod === 'portal' || sendMethod === 'both') && portalUrl && (
+                {portalUrl && (
                   <div className="flex items-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m9.86-9.86a4.5 4.5 0 0 0-6.364 0l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />

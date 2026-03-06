@@ -32,6 +32,7 @@ export function MobileJobDetail({ job }: { job: any }) {
     google: `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}`,
     apple: `https://maps.apple.com/?daddr=${encodedAddress}`,
     waze: `https://waze.com/ul?q=${encodedAddress}&navigate=yes`,
+    tesla: `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}`,
   } : null
 
   const durationH = Math.floor(job.estimated_duration_minutes / 60)
@@ -187,9 +188,9 @@ export function MobileJobDetail({ job }: { job: any }) {
           <div className="mt-3">
             <button
               onClick={() => setShowMapPicker(!showMapPicker)}
-              className="w-full flex items-center gap-2 rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-700 text-left"
+              className="w-full flex items-center gap-2 rounded-lg bg-slate-50 dark:bg-slate-700 px-4 py-3 text-sm text-slate-700 dark:text-slate-200 text-left"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-400 dark:text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
@@ -198,23 +199,27 @@ export function MobileJobDetail({ job }: { job: any }) {
                   <span key={i}>{p}{i < addressParts.length - 1 ? ', ' : ''}</span>
                 ))}
               </div>
-              <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-slate-400 transition-transform ${showMapPicker ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-slate-400 dark:text-slate-500 transition-transform ${showMapPicker ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
               </svg>
             </button>
             {showMapPicker && (
-              <div className="mt-1 flex gap-2">
+              <div className="mt-1 grid grid-cols-2 gap-2">
                 <a href={mapLinks.google} target="_blank" rel="noopener noreferrer"
-                   className="flex-1 rounded-lg bg-blue-50 px-3 py-2.5 text-center text-xs font-medium text-blue-700 no-underline hover:bg-blue-100 active:bg-blue-200">
+                   className="rounded-lg bg-blue-50 dark:bg-blue-900/30 px-3 py-2.5 text-center text-xs font-medium text-blue-700 dark:text-blue-300 no-underline hover:bg-blue-100 dark:hover:bg-blue-900/50 active:bg-blue-200">
                   Google Maps
                 </a>
                 <a href={mapLinks.apple} target="_blank" rel="noopener noreferrer"
-                   className="flex-1 rounded-lg bg-gray-100 px-3 py-2.5 text-center text-xs font-medium text-gray-700 no-underline hover:bg-gray-200 active:bg-gray-300">
+                   className="rounded-lg bg-gray-100 dark:bg-slate-700 px-3 py-2.5 text-center text-xs font-medium text-gray-700 dark:text-slate-200 no-underline hover:bg-gray-200 dark:hover:bg-slate-600 active:bg-gray-300">
                   Apple Maps
                 </a>
                 <a href={mapLinks.waze} target="_blank" rel="noopener noreferrer"
-                   className="flex-1 rounded-lg bg-cyan-50 px-3 py-2.5 text-center text-xs font-medium text-cyan-700 no-underline hover:bg-cyan-100 active:bg-cyan-200">
+                   className="rounded-lg bg-cyan-50 dark:bg-cyan-900/30 px-3 py-2.5 text-center text-xs font-medium text-cyan-700 dark:text-cyan-300 no-underline hover:bg-cyan-100 dark:hover:bg-cyan-900/50 active:bg-cyan-200">
                   Waze
+                </a>
+                <a href={mapLinks.tesla} target="_blank" rel="noopener noreferrer"
+                   className="rounded-lg bg-red-50 dark:bg-red-900/30 px-3 py-2.5 text-center text-xs font-medium text-red-700 dark:text-red-300 no-underline hover:bg-red-100 dark:hover:bg-red-900/50 active:bg-red-200">
+                  Tesla
                 </a>
               </div>
             )}

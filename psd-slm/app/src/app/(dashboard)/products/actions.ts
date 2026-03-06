@@ -32,6 +32,7 @@ export async function createProduct(formData: FormData) {
   const productType = (formData.get('product_type') as string) || 'goods'
 
   const defaultDelivery = (formData.get('default_delivery_destination') as string) || 'psd_office'
+  const defaultRoute = (formData.get('default_route') as string) || 'from_stock'
 
   const { data, error } = await supabase
     .from('products')
@@ -48,6 +49,7 @@ export async function createProduct(formData: FormData) {
       is_stocked: formData.get('is_stocked') === 'true',
       product_type: productType,
       default_delivery_destination: defaultDelivery,
+      default_route: defaultRoute,
     })
     .select()
     .single()
@@ -122,6 +124,7 @@ export async function updateProduct(id: string, formData: FormData) {
   const productType = (formData.get('product_type') as string) || 'goods'
 
   const defaultDelivery = (formData.get('default_delivery_destination') as string) || 'psd_office'
+  const defaultRoute = (formData.get('default_route') as string) || 'from_stock'
 
   const updates: Record<string, unknown> = {
     sku,
@@ -135,6 +138,7 @@ export async function updateProduct(id: string, formData: FormData) {
     is_stocked: formData.get('is_stocked') === 'true',
     product_type: productType,
     default_delivery_destination: defaultDelivery,
+    default_route: defaultRoute,
   }
 
   if (isActiveStr !== null) {

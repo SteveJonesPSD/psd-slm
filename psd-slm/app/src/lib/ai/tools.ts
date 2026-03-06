@@ -366,7 +366,7 @@ async function getQuoteDetail(
 async function getQuotesForCompany(input: ToolInput, supabase: SupabaseClient): Promise<string> {
   let query = supabase
     .from('quotes')
-    .select('id, quote_number, status, version, quote_type, valid_until, created_at, users!quotes_assigned_to_fkey(first_name, last_name)')
+    .select('id, quote_number, title, status, version, quote_type, valid_until, created_at, users!quotes_assigned_to_fkey(first_name, last_name)')
     .eq('customer_id', input.customer_id)
     .order('created_at', { ascending: false })
     .limit(input.limit ?? 20)

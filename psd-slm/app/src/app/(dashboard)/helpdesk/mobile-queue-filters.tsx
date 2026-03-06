@@ -61,28 +61,29 @@ export function MobileQueueFilters({
       <div className="space-y-5">
         {/* Search */}
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-slate-500">Search</label>
+          <label className="mb-1.5 block text-xs font-medium text-slate-500 dark:text-slate-400">Search</label>
           <input
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleApply() }}
             placeholder="Search tickets..."
-            className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            className="w-full rounded-xl border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
           />
         </div>
 
         {/* Priority pills */}
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-slate-500">Priority</label>
+          <label className="mb-1.5 block text-xs font-medium text-slate-500 dark:text-slate-400">Priority</label>
           <div className="flex flex-wrap gap-2">
             {PRIORITIES.map(p => (
               <button
                 key={p.value}
                 onClick={() => setPriorityFilter(p.value)}
-                className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                className={`rounded-lg px-3.5 py-2 text-xs font-medium transition-colors ${
                   priorityFilter === p.value
-                    ? 'bg-indigo-100 text-indigo-700'
-                    : 'bg-gray-100 text-gray-500'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400'
                 }`}
               >
                 {p.label}
@@ -93,11 +94,11 @@ export function MobileQueueFilters({
 
         {/* Assigned To */}
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-slate-500">Assigned To</label>
+          <label className="mb-1.5 block text-xs font-medium text-slate-500 dark:text-slate-400">Assigned To</label>
           <select
             value={assignedFilter}
             onChange={e => setAssignedFilter(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            className="w-full rounded-xl border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
           >
             <option value="">All Agents</option>
             {teamMembers.map(m => (
@@ -108,16 +109,16 @@ export function MobileQueueFilters({
 
         {/* Type pills */}
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-slate-500">Type</label>
+          <label className="mb-1.5 block text-xs font-medium text-slate-500 dark:text-slate-400">Type</label>
           <div className="flex flex-wrap gap-2">
             {TYPES.map(t => (
               <button
                 key={t.value}
                 onClick={() => setTypeFilter(t.value)}
-                className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                className={`rounded-lg px-3.5 py-2 text-xs font-medium transition-colors ${
                   typeFilter === t.value
-                    ? 'bg-indigo-100 text-indigo-700'
-                    : 'bg-gray-100 text-gray-500'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400'
                 }`}
               >
                 {t.label}
@@ -128,20 +129,24 @@ export function MobileQueueFilters({
 
         {/* Status toggle */}
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-slate-500">Status</label>
+          <label className="mb-1.5 block text-xs font-medium text-slate-500 dark:text-slate-400">Status</label>
           <div className="flex gap-2">
             <button
               onClick={() => setShowAll(false)}
-              className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                !showAll ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-500'
+              className={`rounded-lg px-3.5 py-2 text-xs font-medium transition-colors ${
+                !showAll
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400'
               }`}
             >
               Active
             </button>
             <button
               onClick={() => setShowAll(true)}
-              className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                showAll ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-500'
+              className={`rounded-lg px-3.5 py-2 text-xs font-medium transition-colors ${
+                showAll
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400'
               }`}
             >
               All
@@ -153,13 +158,13 @@ export function MobileQueueFilters({
         <div className="flex items-center justify-between pt-2">
           <button
             onClick={onClear}
-            className="text-sm text-slate-400 hover:text-slate-600"
+            className="text-sm text-slate-400 dark:text-slate-500 hover:text-slate-600"
           >
             Clear All
           </button>
           <button
             onClick={handleApply}
-            className="rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-indigo-700"
+            className="rounded-xl bg-indigo-600 px-6 py-2.5 text-sm font-medium text-white active:bg-indigo-700"
           >
             Apply Filters
           </button>

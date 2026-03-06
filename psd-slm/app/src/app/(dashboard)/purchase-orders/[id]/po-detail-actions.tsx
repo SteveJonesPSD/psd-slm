@@ -7,15 +7,18 @@ import { Button } from '@/components/ui/button'
 import { Modal } from '@/components/ui/modal'
 import { useAuth } from '@/components/auth-provider'
 import { updatePoStatus } from '../actions'
+import { SendPoModal } from './send-po-modal'
 
 interface PoDetailActionsProps {
   poId: string
   status: string
   poNumber?: string
   supplierName?: string
+  supplierEmail?: string | null
+  purchaseType?: string
 }
 
-export function PoDetailActions({ poId, status, poNumber, supplierName }: PoDetailActionsProps) {
+export function PoDetailActions({ poId, status, poNumber, supplierName, supplierEmail, purchaseType }: PoDetailActionsProps) {
   const router = useRouter()
   const { hasPermission } = useAuth()
   const [showCancelModal, setShowCancelModal] = useState(false)
@@ -44,18 +47,6 @@ export function PoDetailActions({ poId, status, poNumber, supplierName }: PoDeta
     }
   }
 
-  const handleConfirmSend = async () => {
-    setLoading('sent')
-    const result = await updatePoStatus(poId, 'sent')
-    setLoading(null)
-    if ('error' in result && result.error) {
-      alert(result.error)
-    } else {
-      setShowSendModal(false)
-      router.refresh()
-    }
-  }
-
   const handleCancel = async () => {
     setLoading('cancelled')
     const result = await updatePoStatus(poId, 'cancelled')
@@ -71,12 +62,8 @@ export function PoDetailActions({ poId, status, poNumber, supplierName }: PoDeta
   if (!canEdit || isTerminal) {
     return (
       <div className="flex items-center gap-2">
-        <Link
-          href={`/api/purchase-orders/${poId}/pdf`}
-          target="_blank"
-          className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 no-underline hover:bg-slate-50"
-        >
-          Download PDF
+        <Link href={`/api/purchase-orders/${poId}/pdf`} target="_blank">
+          <Button size="sm">Download PDF</Button>
         </Link>
       </div>
     )
@@ -85,22 +72,39 @@ export function PoDetailActions({ poId, status, poNumber, supplierName }: PoDeta
   return (
     <>
       <div className="flex items-center gap-2">
-        <Link
-          href={`/api/purchase-orders/${poId}/pdf`}
-          target="_blank"
-          className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 no-underline hover:bg-slate-50"
-        >
-          Download PDF
+        <Link href={`/api/purchase-orders/${poId}/pdf`} target="_blank">
+          <Button size="sm">Download PDF</Button>
         </Link>
         {status === 'draft' && (
-          <Button
-            size="sm"
-            variant="primary"
-            onClick={() => handleAction('sent')}
-            disabled={loading === 'sent'}
-          >
-            {loading === 'sent' ? 'Sending...' : 'Send to Supplier'}
-          </Button>
+          <>
+            {purchaseType === 'stock_order' && (
+              <Button
+                size="sm"
+                variant="success"
+                onClick={async () => {
+                  setLoading('save')
+                  const result = await updatePoStatus(poId, 'sent')
+                  setLoading(null)
+                  if ('error' in result && result.error) {
+                    alert(result.error)
+                  } else {
+                    router.refresh()
+                  }
+                }}
+                disabled={loading === 'save'}
+              >
+                {loading === 'save' ? 'Saving...' : 'Save PO'}
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="success"
+              onClick={() => handleAction('sent')}
+              disabled={loading === 'sent'}
+            >
+              {loading === 'sent' ? 'Sending...' : 'Send to Supplier'}
+            </Button>
+          </>
         )}
         {status === 'sent' && (
           <Button
@@ -122,22 +126,15 @@ export function PoDetailActions({ poId, status, poNumber, supplierName }: PoDeta
       </div>
 
       {showSendModal && (
-        <Modal title="Send to Supplier" onClose={() => setShowSendModal(false)}>
-          <p className="text-sm text-slate-600 mb-4">
-            Are you sure you want to send <strong>{poNumber || 'this PO'}</strong> to <strong>{supplierName || 'the supplier'}</strong>?
-          </p>
-          <p className="text-xs text-slate-400 mb-4">
-            This will mark the PO as sent and update all line statuses to &ldquo;ordered&rdquo;.
-          </p>
-          <div className="flex justify-end gap-2">
-            <Button size="sm" variant="default" onClick={() => setShowSendModal(false)}>
-              Cancel
-            </Button>
-            <Button size="sm" variant="primary" onClick={handleConfirmSend} disabled={loading === 'sent'}>
-              {loading === 'sent' ? 'Sending...' : 'Confirm & Send'}
-            </Button>
-          </div>
-        </Modal>
+        <SendPoModal
+          po={{
+            id: poId,
+            po_number: poNumber || '',
+            supplier_name: supplierName || 'Supplier',
+            supplier_email: supplierEmail || null,
+          }}
+          onClose={() => setShowSendModal(false)}
+        />
       )}
 
       {showCancelModal && (
