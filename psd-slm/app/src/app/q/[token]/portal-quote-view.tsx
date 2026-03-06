@@ -34,7 +34,7 @@ export function PortalQuoteView({ quote, token }: PortalQuoteViewProps) {
   return (
     <div>
       {/* Quote header */}
-      <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
+      <div className="rounded-xl border border-gray-200 bg-white p-4 sm:p-6 mb-6">
         {/* Brand header */}
         {quote.brands && (
           <div className="flex items-center gap-3 mb-4 pb-4 border-b border-gray-100">
@@ -45,9 +45,9 @@ export function PortalQuoteView({ quote, token }: PortalQuoteViewProps) {
           </div>
         )}
 
-        <div className="flex items-start justify-between mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Quotation</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Quotation</h1>
             <p className="text-sm text-slate-500 mt-1">
               {quote.quote_number}
               {quote.version > 1 && ` (Revision ${quote.version})`}
@@ -56,7 +56,7 @@ export function PortalQuoteView({ quote, token }: PortalQuoteViewProps) {
               <p className="text-sm font-medium text-slate-700 mt-1">{quote.title}</p>
             )}
           </div>
-          <div className="text-right">
+          <div className="sm:text-right">
             <div className="text-sm text-slate-500 mb-2">
               {quote.sent_at && <p>Sent: {formatDate(quote.sent_at)}</p>}
               {quote.valid_until && <p>Valid until: {formatDate(quote.valid_until)}</p>}
@@ -88,14 +88,14 @@ export function PortalQuoteView({ quote, token }: PortalQuoteViewProps) {
       </div>
 
       {/* Line items grouped with section headers */}
-      <div className="rounded-xl border border-gray-200 bg-white mb-6">
-        <table className="w-full text-sm">
+      <div className="rounded-xl border border-gray-200 bg-white mb-6 overflow-hidden">
+        <table className="w-full text-xs sm:text-sm">
           <thead>
             <tr>
-              <th className="px-6 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Description</th>
-              <th className="px-4 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500 w-20">Qty</th>
-              <th className="px-4 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500 w-28">Unit Price</th>
-              <th className="px-6 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500 w-28">Total</th>
+              <th className="px-3 sm:px-6 py-2 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wide text-slate-500">Description</th>
+              <th className="px-1.5 sm:px-4 py-2 text-right text-[10px] sm:text-[11px] font-semibold uppercase tracking-wide text-slate-500 w-10 sm:w-20">Qty</th>
+              <th className="px-1.5 sm:px-4 py-2 text-right text-[10px] sm:text-[11px] font-semibold uppercase tracking-wide text-slate-500 w-16 sm:w-28">Price</th>
+              <th className="px-3 sm:px-6 py-2 text-right text-[10px] sm:text-[11px] font-semibold uppercase tracking-wide text-slate-500 w-16 sm:w-28">Total</th>
             </tr>
           </thead>
           <tbody>
@@ -107,24 +107,24 @@ export function PortalQuoteView({ quote, token }: PortalQuoteViewProps) {
               return [
                 groups.length > 1 && (
                   <tr key={`group-${group.id}`}>
-                    <td colSpan={4} className="bg-slate-50 px-6 py-2 border-t border-slate-200">
-                      <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">{group.name}</span>
+                    <td colSpan={4} className="bg-slate-50 px-3 sm:px-6 py-2 border-t border-slate-200">
+                      <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-slate-600">{group.name}</span>
                     </td>
                   </tr>
                 ),
                 ...groupLines.map((line) => (
                   <tr key={line.id} className="border-t border-slate-100">
-                    <td className="px-6 py-2.5">
-                      {line.description}
+                    <td className="px-3 sm:px-6 py-2 sm:py-2.5">
+                      <span className="break-words">{line.description}</span>
                       {line.requires_contract && (
-                        <span className="ml-2 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
-                          Contract Required
+                        <span className="ml-1 sm:ml-2 inline-block rounded-full bg-amber-100 px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-[10px] font-medium text-amber-700">
+                          Contract
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-2.5 text-right">{line.quantity}</td>
-                    <td className="px-4 py-2.5 text-right">{formatCurrency(line.sell_price)}</td>
-                    <td className="px-6 py-2.5 text-right font-medium">{formatCurrency(line.quantity * line.sell_price)}</td>
+                    <td className="px-1.5 sm:px-4 py-2 sm:py-2.5 text-right">{line.quantity}</td>
+                    <td className="px-1.5 sm:px-4 py-2 sm:py-2.5 text-right whitespace-nowrap">{formatCurrency(line.sell_price)}</td>
+                    <td className="px-3 sm:px-6 py-2 sm:py-2.5 text-right font-medium whitespace-nowrap">{formatCurrency(line.quantity * line.sell_price)}</td>
                   </tr>
                 )),
               ]
@@ -133,18 +133,18 @@ export function PortalQuoteView({ quote, token }: PortalQuoteViewProps) {
         </table>
 
         {/* Totals */}
-        <div className="border-t-2 border-slate-200 px-6 py-4">
+        <div className="border-t-2 border-slate-200 px-3 sm:px-6 py-3 sm:py-4">
           <div className="flex justify-end">
-            <div className="w-64 space-y-1.5">
-              <div className="flex justify-between text-sm">
+            <div className="w-full sm:w-64 space-y-1.5 text-xs sm:text-sm">
+              <div className="flex justify-between">
                 <span className="text-slate-500">Subtotal</span>
                 <span className="font-medium">{formatCurrency(subtotal)}</span>
               </div>
-              <div className="flex justify-between text-sm">
+              <div className="flex justify-between">
                 <span className="text-slate-500">VAT ({quote.vat_rate}%)</span>
                 <span>{formatCurrency(vatAmount)}</span>
               </div>
-              <div className="flex justify-between text-base font-bold border-t border-slate-200 pt-1.5">
+              <div className="flex justify-between text-sm sm:text-base font-bold border-t border-slate-200 pt-1.5">
                 <span>Total</span>
                 <span>{formatCurrency(grandTotal)}</span>
               </div>
@@ -155,18 +155,18 @@ export function PortalQuoteView({ quote, token }: PortalQuoteViewProps) {
 
       {/* Optional items */}
       {optionalLines.length > 0 && (
-        <div className="rounded-xl border border-gray-200 bg-white mb-6">
-          <div className="px-6 py-4 bg-slate-50 border-b border-gray-200">
-            <span className="text-sm font-semibold text-slate-700">Optional Items</span>
+        <div className="rounded-xl border border-gray-200 bg-white mb-6 overflow-hidden">
+          <div className="px-3 sm:px-6 py-3 sm:py-4 bg-slate-50 border-b border-gray-200">
+            <span className="text-xs sm:text-sm font-semibold text-slate-700">Optional Items</span>
           </div>
-          <table className="w-full text-sm">
+          <table className="w-full text-xs sm:text-sm">
             <tbody>
               {optionalLines.map((line) => (
                 <tr key={line.id} className="border-t border-slate-100">
-                  <td className="px-6 py-2.5 text-slate-600">{line.description}</td>
-                  <td className="px-4 py-2.5 text-right w-20">{line.quantity}</td>
-                  <td className="px-4 py-2.5 text-right w-28">{formatCurrency(line.sell_price)}</td>
-                  <td className="px-6 py-2.5 text-right w-28 font-medium">{formatCurrency(line.quantity * line.sell_price)}</td>
+                  <td className="px-3 sm:px-6 py-2 sm:py-2.5 text-slate-600 break-words">{line.description}</td>
+                  <td className="px-1.5 sm:px-4 py-2 sm:py-2.5 text-right w-10 sm:w-20">{line.quantity}</td>
+                  <td className="px-1.5 sm:px-4 py-2 sm:py-2.5 text-right w-16 sm:w-28 whitespace-nowrap">{formatCurrency(line.sell_price)}</td>
+                  <td className="px-3 sm:px-6 py-2 sm:py-2.5 text-right w-16 sm:w-28 font-medium whitespace-nowrap">{formatCurrency(line.quantity * line.sell_price)}</td>
                 </tr>
               ))}
             </tbody>
@@ -191,10 +191,10 @@ export function PortalQuoteView({ quote, token }: PortalQuoteViewProps) {
 
       {/* Brand contact */}
       {quote.brands && (quote.brands.phone || quote.brands.email || quote.brands.website) && (
-        <div className="text-center text-xs text-slate-400 mb-6 space-x-3">
+        <div className="text-center text-xs text-slate-400 mb-6 flex flex-wrap justify-center gap-x-3 gap-y-1">
           {quote.brands.phone && <span>{quote.brands.phone}</span>}
-          {quote.brands.email && <span>{quote.brands.email}</span>}
-          {quote.brands.website && <span>{quote.brands.website}</span>}
+          {quote.brands.email && <span className="break-all">{quote.brands.email}</span>}
+          {quote.brands.website && <span className="break-all">{quote.brands.website}</span>}
         </div>
       )}
 

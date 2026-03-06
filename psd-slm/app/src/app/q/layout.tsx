@@ -3,7 +3,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     <div className="min-h-screen bg-[#f5f6f8]">
       {/* Header */}
       <header className="bg-slate-900 text-white">
-        <div className="mx-auto max-w-4xl px-6 py-4 flex items-center gap-3">
+        <div className="mx-auto max-w-5xl px-3 sm:px-6 py-4 flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500 to-purple-700 text-sm font-bold text-white">
             i8
           </div>
@@ -15,7 +15,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       </header>
 
       {/* Body */}
-      <main className="mx-auto max-w-4xl px-6 py-8">
+      <main className="mx-auto max-w-5xl px-3 sm:px-6 py-6 sm:py-8">
         {children}
       </main>
     </div>
