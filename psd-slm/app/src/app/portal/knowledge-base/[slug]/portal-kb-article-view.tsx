@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { rateKbArticle } from '@/lib/portal/actions'
+import { usePortal } from '../../portal-context'
+import { ratePortalKbArticle } from '@/lib/portal/kb-actions'
 
 interface Article {
   id: string
@@ -18,6 +19,7 @@ interface Article {
 }
 
 export function PortalKbArticleView({ article }: { article: Article }) {
+  const ctx = usePortal()
   const [rated, setRated] = useState(article.myRating?.is_helpful ?? null)
   const [totalRatings, setTotalRatings] = useState(article.totalRatings)
   const [helpfulCount, setHelpfulCount] = useState(article.helpfulCount)
@@ -32,7 +34,7 @@ export function PortalKbArticleView({ article }: { article: Article }) {
       else setHelpfulCount(prev => prev - 1)
     }
     setRated(isHelpful)
-    await rateKbArticle(article.id, isHelpful)
+    await ratePortalKbArticle(article.id, isHelpful, ctx)
   }
 
   // Simple markdown-to-HTML rendering (basic)
@@ -119,7 +121,7 @@ export function PortalKbArticleView({ article }: { article: Article }) {
       {/* CTA */}
       <div className="mt-4 text-center">
         <Link
-          href="/portal/tickets/new"
+          href="/portal/helpdesk/new"
           className="text-sm text-indigo-600 hover:text-indigo-800"
         >
           Still need help? Contact support

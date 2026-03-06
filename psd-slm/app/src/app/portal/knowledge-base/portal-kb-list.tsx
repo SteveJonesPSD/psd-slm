@@ -56,7 +56,7 @@ export function PortalKbList({ articles }: { articles: Article[] }) {
       {filtered.length === 0 ? (
         <div className="rounded-xl border border-gray-200 bg-white px-6 py-12 text-center">
           <p className="text-slate-400">No articles found</p>
-          <Link href="/portal/tickets/new" className="mt-2 inline-block text-sm text-indigo-600 hover:text-indigo-800">
+          <Link href="/portal/helpdesk/new" className="mt-2 inline-block text-sm text-indigo-600 hover:text-indigo-800">
             Still need help? Create a support ticket
           </Link>
         </div>

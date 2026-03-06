@@ -1,58 +1,62 @@
-import { getPortalContact } from '@/lib/portal/auth'
+import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
+import { requirePortalSession } from '@/lib/portal/session'
+import { getPortalBranding } from '@/lib/settings'
+import { getAgentAvatars } from '@/lib/agent-avatars'
+import { PortalProvider } from './portal-context'
+import { PortalNav } from './portal-nav'
+import { PortalChatPanel } from './portal-chat-panel'
+
+// Routes under /portal that render without a session (login, auth callbacks)
+const PORTAL_PUBLIC_PATHS = ['/portal/login', '/portal/auth/']
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
-  const contact = await getPortalContact()
+  const headersList = await headers()
+  const pathname = headersList.get('x-pathname') || ''
+
+  // Let public portal pages render without session (avoids redirect loop)
+  const isPublicPortalPath = PORTAL_PUBLIC_PATHS.some(p => pathname.startsWith(p))
+
+  if (isPublicPortalPath) {
+    return <>{children}</>
+  }
+
+  let ctx
+  try {
+    ctx = await requirePortalSession()
+  } catch {
+    redirect('/portal/login')
+  }
+
+  const [branding, agentAvatars] = await Promise.all([
+    getPortalBranding(ctx.orgId),
+    getAgentAvatars(ctx.orgId),
+  ])
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="border-b border-gray-200 bg-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 text-xs font-extrabold text-white">
-              i8
-            </div>
-            <span className="text-sm font-semibold text-slate-800">Support Portal</span>
+    <PortalProvider value={{ ...ctx, portalLogoUrl: branding.logoUrl, orgName: branding.orgName, agentAvatars }}>
+      <div className="min-h-screen bg-[#f5f6f8] dark:bg-slate-900 text-slate-700 dark:text-slate-200">
+        <PortalNav />
+
+        <main className="mx-auto max-w-6xl px-4 sm:px-6 py-8 md:py-10 lg:py-12">
+          {children}
+        </main>
+
+        <footer className="border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+          <div className="mx-auto max-w-6xl px-6 py-4 flex items-center justify-center gap-2 text-xs text-slate-400">
+            <span>{branding.orgName} &middot; Customer Portal</span>
+            {branding.logoUrl && (
+              <>
+                <span className="text-slate-300 dark:text-slate-600">|</span>
+                <span className="text-[11px] text-slate-300 dark:text-slate-600">Powered by</span>
+                <img src="/innov8iv-logo.png" alt="Innov8iv Engage" className="h-4 w-auto opacity-30" />
+              </>
+            )}
           </div>
-          {contact ? (
-            <div className="flex items-center gap-4">
-              <nav className="flex gap-4">
-                <a href="/portal/tickets" className="text-sm text-slate-600 hover:text-slate-900 no-underline">
-                  Tickets
-                </a>
-                <a href="/portal/knowledge-base" className="text-sm text-slate-600 hover:text-slate-900 no-underline">
-                  Knowledge Base
-                </a>
-                {contact.is_overseer && (
-                  <a href="/portal/dashboard" className="text-sm text-slate-600 hover:text-slate-900 no-underline">
-                    Dashboard
-                  </a>
-                )}
-              </nav>
-              <div className="flex items-center gap-2 border-l border-gray-200 pl-4">
-                <span className="text-xs text-slate-500">{contact.first_name} {contact.last_name}</span>
-                <form action="/api/auth/signout" method="post">
-                  <button type="submit" className="text-xs text-slate-400 hover:text-slate-600">
-                    Logout
-                  </button>
-                </form>
-              </div>
-            </div>
-          ) : null}
-        </div>
-      </header>
+        </footer>
 
-      {/* Main Content */}
-      <main className="mx-auto max-w-5xl px-6 py-8">
-        {children}
-      </main>
-
-      {/* Footer */}
-      <footer className="border-t border-gray-200 bg-white">
-        <div className="mx-auto max-w-5xl px-6 py-4 text-center text-xs text-slate-400">
-          PSD Group Ltd · Support Portal · Need help? Call 0800 123 4567
-        </div>
-      </footer>
-    </div>
+        <PortalChatPanel />
+      </div>
+    </PortalProvider>
   )
 }

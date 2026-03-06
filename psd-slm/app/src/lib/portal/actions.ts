@@ -133,10 +133,11 @@ export async function createPortalTicket(formData: FormData) {
   let slaResolutionDueAt: string | null = null
 
   const { data: contractData } = await supabase
-    .from('support_contracts')
+    .from('customer_contracts')
     .select('sla_plan_id, sla_plans(*, sla_plan_targets(*))')
     .eq('customer_id', contact.customer_id)
-    .eq('is_active', true)
+    .eq('status', 'active')
+    .not('sla_plan_id', 'is', null)
     .limit(1)
     .maybeSingle()
 
