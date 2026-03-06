@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { formatCurrency } from '@/lib/utils'
+import { requireAuth, hasPermission } from '@/lib/auth'
 import { Badge, CONTRACT_STATUS_CONFIG, CONTRACT_CATEGORY_CONFIG, RENEWAL_PERIOD_CONFIG } from '@/components/ui/badge'
 import { getCustomerContract, getFieldEngineers } from '../actions'
 import { ContractActions } from './contract-actions'
@@ -22,17 +23,19 @@ function formatFrequency(f: string | null): string {
 
 export default async function ContractDetailPage({ params }: PageProps) {
   const { id } = await params
-  const [contract, engineers] = await Promise.all([
+  const [user, contract, engineers] = await Promise.all([
+    requireAuth(),
     getCustomerContract(id),
     getFieldEngineers(),
   ])
 
   if (!contract) notFound()
 
+  const canEdit = hasPermission(user, 'contracts', 'edit')
   const statusCfg = CONTRACT_STATUS_CONFIG[contract.status]
   const catCfg = CONTRACT_CATEGORY_CONFIG[contract.category]
   const renewalCfg = RENEWAL_PERIOD_CONFIG[contract.renewal_period]
-  const isEditable = ['draft', 'active'].includes(contract.status)
+  const isEditable = ['draft', 'active'].includes(contract.status) && canEdit
 
   return (
     <div>
@@ -63,7 +66,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
           </div>
         </div>
 
-        <ContractActions contract={contract} />
+        {canEdit && <ContractActions contract={contract} />}
       </div>
 
       {/* Info panel */}

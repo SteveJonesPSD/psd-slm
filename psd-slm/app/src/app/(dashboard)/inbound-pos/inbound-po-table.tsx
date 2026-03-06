@@ -54,14 +54,14 @@ const formatDate = (dateStr: string) => {
 
 export function InboundPOTable({ initialData }: InboundPOTableProps) {
   const router = useRouter()
-  const { user } = useAuth()
+  const { hasPermission } = useAuth()
   const [statusFilter, setStatusFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [showUpload, setShowUpload] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<InboundPORow | null>(null)
   const [deleting, setDeleting] = useState(false)
 
-  const canDelete = user.role.name === 'admin' || user.role.name === 'super_admin'
+  const canDelete = hasPermission('inbound_pos', 'delete')
 
   const handleDelete = async () => {
     if (!deleteTarget) return

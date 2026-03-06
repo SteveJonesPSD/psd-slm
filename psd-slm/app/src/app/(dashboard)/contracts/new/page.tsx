@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { PageHeader } from '@/components/ui/page-header'
+import { requirePermission } from '@/lib/auth'
 import { getContractFormData } from '../actions'
 import { ContractForm } from '../contract-form'
 
@@ -8,6 +9,7 @@ interface PageProps {
 }
 
 export default async function NewContractPage({ searchParams }: PageProps) {
+  await requirePermission('contracts', 'create')
   const { company } = await searchParams
   const formData = await getContractFormData()
 

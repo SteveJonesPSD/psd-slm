@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { useAuth } from '@/components/auth-provider'
 import { AiCustomerModal } from './ai-customer-modal'
 
 interface CustomersPageActionsProps {
@@ -9,7 +10,11 @@ interface CustomersPageActionsProps {
 }
 
 export function CustomersPageActions({ onNewCustomer }: CustomersPageActionsProps) {
+  const { hasPermission } = useAuth()
   const [showAiModal, setShowAiModal] = useState(false)
+
+  const canCreate = hasPermission('customers', 'create')
+  if (!canCreate) return null
 
   return (
     <>

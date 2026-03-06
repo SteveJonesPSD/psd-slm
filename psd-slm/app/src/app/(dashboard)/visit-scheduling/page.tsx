@@ -3,14 +3,18 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { StatCard } from '@/components/ui/stat-card'
 import { Badge, VISIT_STATUS_CONFIG, TIME_SLOT_CONFIG } from '@/components/ui/badge'
+import { requireAuth, hasPermission } from '@/lib/auth'
 import { getVisitStats, getEngineerWeekView, getFieldEngineers } from './actions'
 import { DAY_SHORT_NAMES, DAY_INDEX_TO_KEY } from '@/lib/visit-scheduling/types'
 
 export default async function VisitSchedulingPage() {
-  const [stats, engineers] = await Promise.all([
+  const [user, stats, engineers] = await Promise.all([
+    requireAuth(),
     getVisitStats(),
     getFieldEngineers(),
   ])
+
+  const canCreate = hasPermission(user, 'visit_scheduling', 'create')
 
   // Get this week's Monday
   const now = new Date()
@@ -44,9 +48,11 @@ export default async function VisitSchedulingPage() {
         subtitle="Recurring visit scheduling for education contracts"
         actions={
           <div className="flex items-center gap-2">
-            <Link href="/visit-scheduling/generate">
-              <Button size="sm" variant="success">Generate Visits</Button>
-            </Link>
+            {canCreate && (
+              <Link href="/visit-scheduling/generate">
+                <Button size="sm" variant="success">Generate Visits</Button>
+              </Link>
+            )}
             <Link href="/visit-scheduling/calendars">
               <Button size="sm">Calendars</Button>
             </Link>

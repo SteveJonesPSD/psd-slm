@@ -3,14 +3,18 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { StatCard } from '@/components/ui/stat-card'
 import { formatCurrency } from '@/lib/utils'
+import { requireAuth, hasPermission } from '@/lib/auth'
 import { getCustomerContracts, getContractStats } from './actions'
 import { ContractsTable } from './contracts-table'
 
 export default async function ContractsPage() {
-  const [contracts, stats] = await Promise.all([
+  const [user, contracts, stats] = await Promise.all([
+    requireAuth(),
     getCustomerContracts(),
     getContractStats(),
   ])
+
+  const canCreate = hasPermission(user, 'contracts', 'create')
 
   return (
     <div>
@@ -22,9 +26,11 @@ export default async function ContractsPage() {
             <Link href="/contracts/engineer-grid">
               <Button size="sm">Engineer Grid</Button>
             </Link>
-            <Link href="/contracts/new">
-              <Button size="sm" variant="primary">+ New Contract</Button>
-            </Link>
+            {canCreate && (
+              <Link href="/contracts/new">
+                <Button size="sm" variant="primary">+ New Contract</Button>
+              </Link>
+            )}
           </div>
         }
       />
