@@ -1,3 +1,4 @@
+import React from 'react'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
@@ -401,93 +402,105 @@ export default async function QuoteDetailPage({ params }: PageProps) {
           <h3 className="text-[15px] font-semibold">Line Items</h3>
         </div>
 
-        {groupedLines.map((group) => (
-          <div key={group.id}>
-            <div className="bg-slate-50 border-t border-gray-200 px-5 py-2">
-              <span className="text-sm font-semibold text-slate-700">{group.name}</span>
-              <span className="ml-2 text-xs text-slate-400">({group.lines.length} items)</span>
-            </div>
-            {group.lines.length > 0 && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr>
-                      <th className="px-5 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 max-w-[160px]">SKU</th>
-                      <th className="px-5 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Description</th>
-                      <th className="px-5 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">Route</th>
-                      <th className="px-5 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Supplier</th>
-                      <th className="px-5 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Qty</th>
-                      <th className="px-5 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Buy</th>
-                      <th className="px-5 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Sell</th>
-                      <th className="px-5 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Margin</th>
-                      <th className="px-5 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Total</th>
-                      <th className="px-5 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Flags</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {group.lines.map((line) => {
-                      const lineTotal = line.quantity * line.sell_price
-                      const lineMarginPct = line.sell_price > 0
-                        ? ((line.sell_price - line.buy_price) / line.sell_price) * 100
-                        : 0
-                      const mColor = getMarginColor(line.buy_price, line.sell_price, marginThresholds.green, marginThresholds.amber)
-                      const supplier = line.suppliers as { name: string } | null
-                      const routeCfg = FULFILMENT_ROUTE_CONFIG?.[line.fulfilment_route as keyof typeof FULFILMENT_ROUTE_CONFIG]
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm table-fixed">
+            <colgroup>
+              <col className="w-[12%]" />
+              <col />
+              <col className="w-[8%]" />
+              <col className="w-[12%]" />
+              <col className="w-[5%]" />
+              <col className="w-[8%]" />
+              <col className="w-[8%]" />
+              <col className="w-[7%]" />
+              <col className="w-[9%]" />
+              <col className="w-[9%]" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th className="px-5 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">SKU</th>
+                <th className="px-5 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Description</th>
+                <th className="px-5 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Route</th>
+                <th className="px-5 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">Supplier</th>
+                <th className="px-5 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Qty</th>
+                <th className="px-5 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Buy</th>
+                <th className="px-5 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Sell</th>
+                <th className="px-5 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Margin</th>
+                <th className="px-5 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Total</th>
+                <th className="px-5 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Flags</th>
+              </tr>
+            </thead>
+            <tbody>
+              {groupedLines.map((group) => (
+                <React.Fragment key={group.id}>
+                  <tr className="bg-slate-50 dark:bg-slate-700/50 border-t border-gray-200 dark:border-slate-600">
+                    <td colSpan={10} className="px-5 py-2">
+                      <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{group.name}</span>
+                      <span className="ml-4 text-xs text-slate-400">({group.lines.length} {group.lines.length === 1 ? 'item' : 'items'})</span>
+                    </td>
+                  </tr>
+                  {group.lines.map((line) => {
+                    const lineTotal = line.quantity * line.sell_price
+                    const lineMarginPct = line.sell_price > 0
+                      ? ((line.sell_price - line.buy_price) / line.sell_price) * 100
+                      : 0
+                    const mColor = getMarginColor(line.buy_price, line.sell_price, marginThresholds.green, marginThresholds.amber)
+                    const supplier = line.suppliers as { name: string } | null
+                    const routeCfg = FULFILMENT_ROUTE_CONFIG?.[line.fulfilment_route as keyof typeof FULFILMENT_ROUTE_CONFIG]
 
-                      return (
-                        <tr key={line.id} className={`border-t border-slate-100 ${line.is_optional ? 'bg-slate-50/50' : ''}`}>
-                          <td className="px-5 py-2.5 text-xs text-slate-400 font-mono max-w-[160px] break-words">
-                            {line.products?.sku || '\u2014'}
-                          </td>
-                          <td className="px-5 py-2.5">
-                            <div className="flex items-center gap-2">
-                              {line.product_id ? (
-                                <a
-                                  href={`/products/${line.product_id}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className={`hover:text-blue-600 no-underline ${line.is_optional ? 'text-slate-500' : 'font-medium'}`}
-                                >
-                                  {line.description}
-                                </a>
-                              ) : (
-                                <span className={line.is_optional ? 'text-slate-500' : 'font-medium'}>{line.description}</span>
-                              )}
-                              {line.deal_reg_line_id && (
-                                <Badge label="DR" color="#7c3aed" bg="#f5f3ff" />
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-5 py-2.5 whitespace-nowrap">
-                            {routeCfg ? (
-                              <Badge label={routeCfg.label} color={routeCfg.color} bg={routeCfg.bg} />
+                    return (
+                      <tr key={line.id} className={`border-t border-slate-100 dark:border-slate-700 ${line.is_optional ? 'bg-slate-50/50 dark:bg-slate-800/50' : ''}`}>
+                        <td className="px-5 py-2.5 text-xs text-slate-400 font-mono break-words">
+                          {line.products?.sku || '\u2014'}
+                        </td>
+                        <td className="px-5 py-2.5">
+                          <div className="flex items-center gap-2">
+                            {line.product_id ? (
+                              <a
+                                href={`/products/${line.product_id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`hover:text-blue-600 no-underline ${line.is_optional ? 'text-slate-500' : 'font-medium'}`}
+                              >
+                                {line.description}
+                              </a>
                             ) : (
-                              <span className="text-xs text-slate-400">{line.fulfilment_route?.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) || '\u2014'}</span>
+                              <span className={line.is_optional ? 'text-slate-500' : 'font-medium'}>{line.description}</span>
                             )}
-                          </td>
-                          <td className="px-5 py-2.5 text-slate-500">{supplier?.name || '\u2014'}</td>
-                          <td className="px-5 py-2.5 text-right">{line.quantity}</td>
-                          <td className="px-5 py-2.5 text-right">{formatCurrency(line.buy_price)}</td>
-                          <td className="px-5 py-2.5 text-right">{formatCurrency(line.sell_price)}</td>
-                          <td className="px-5 py-2.5 text-right whitespace-nowrap">
-                            <span className={`font-medium ${mColor}`}>{lineMarginPct.toFixed(1)}%</span>
-                          </td>
-                          <td className="px-5 py-2.5 text-right font-medium">{formatCurrency(lineTotal)}</td>
-                          <td className="px-5 py-2.5">
-                            <div className="flex gap-1">
-                              {line.is_optional && <Badge label="Optional" color="#6b7280" bg="#f3f4f6" />}
-                              {line.requires_contract && <Badge label="Contract" color="#d97706" bg="#fffbeb" />}
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        ))}
+                            {line.deal_reg_line_id && (
+                              <Badge label="DR" color="#7c3aed" bg="#f5f3ff" />
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-5 py-2.5">
+                          {routeCfg ? (
+                            <Badge label={routeCfg.label} color={routeCfg.color} bg={routeCfg.bg} />
+                          ) : (
+                            <span className="text-xs text-slate-400">{line.fulfilment_route?.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) || '\u2014'}</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-2.5 text-slate-500 break-words">{supplier?.name || '\u2014'}</td>
+                        <td className="px-5 py-2.5 text-right">{line.quantity}</td>
+                        <td className="px-5 py-2.5 text-right">{formatCurrency(line.buy_price)}</td>
+                        <td className="px-5 py-2.5 text-right">{formatCurrency(line.sell_price)}</td>
+                        <td className="px-5 py-2.5 text-right whitespace-nowrap">
+                          <span className={`font-medium ${mColor}`}>{lineMarginPct.toFixed(1)}%</span>
+                        </td>
+                        <td className="px-5 py-2.5 text-right font-medium">{formatCurrency(lineTotal)}</td>
+                        <td className="px-5 py-2.5">
+                          <div className="flex gap-1">
+                            {line.is_optional && <Badge label="Optional" color="#6b7280" bg="#f3f4f6" />}
+                            {line.requires_contract && <Badge label="Contract" color="#d97706" bg="#fffbeb" />}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
         {/* Ungrouped lines */}
         {ungroupedLines.length > 0 && (
@@ -543,32 +556,28 @@ export default async function QuoteDetailPage({ params }: PageProps) {
       {/* Bottom Edit Button */}
       <QuoteBottomEdit quoteId={quote.id} status={quote.status} version={quote.version} />
 
-      {/* Floating totals bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm shadow-lg">
-        <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between gap-6">
-          <div className="flex items-center gap-6 text-sm">
-            <div>
-              <span className="text-slate-400 text-xs uppercase tracking-wide mr-1.5">Subtotal</span>
+      {/* Floating totals bar — sticky within scrollable main area */}
+      <div className="sticky bottom-0 z-40 -mx-6 md:-mx-10 lg:-mx-12 border-t border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
+        <div className="px-6 md:px-10 lg:px-12 py-3 flex items-center justify-between text-sm">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Margin</span>
+            <span className={`font-semibold ${getMarginColor(totalCost, subtotal, marginThresholds.green, marginThresholds.amber)}`}>
+              {formatCurrency(marginAmt)} ({marginPct.toFixed(1)}%)
+            </span>
+          </div>
+          <div className="flex items-center gap-8">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Subtotal</span>
               <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(subtotal)}</span>
             </div>
-            <div>
-              <span className="text-slate-400 text-xs uppercase tracking-wide mr-1.5">Cost</span>
-              <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(totalCost)}</span>
-            </div>
-            <div>
-              <span className="text-slate-400 text-xs uppercase tracking-wide mr-1.5">Margin</span>
-              <span className={`font-semibold ${getMarginColor(totalCost, subtotal, marginThresholds.green, marginThresholds.amber)}`}>
-                {formatCurrency(marginAmt)} ({marginPct.toFixed(1)}%)
-              </span>
-            </div>
-            <div>
-              <span className="text-slate-400 text-xs uppercase tracking-wide mr-1.5">VAT</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">VAT</span>
               <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(vatAmount)}</span>
             </div>
-          </div>
-          <div className="text-right">
-            <span className="text-slate-400 text-xs uppercase tracking-wide mr-2">Grand Total</span>
-            <span className="text-lg font-bold text-slate-900 dark:text-white">{formatCurrency(grandTotal)}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total</span>
+              <span className="text-base font-bold text-slate-900 dark:text-white">{formatCurrency(grandTotal)}</span>
+            </div>
           </div>
         </div>
       </div>
