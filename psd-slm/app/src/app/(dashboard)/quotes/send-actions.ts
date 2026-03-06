@@ -105,7 +105,7 @@ export async function sendQuoteEmail(
   const { data: quote } = await supabase
     .from('quotes')
     .select(`
-      id, quote_number, status, portal_token, vat_rate, valid_until, customer_notes,
+      id, quote_number, title, status, portal_token, vat_rate, valid_until, customer_notes,
       customer_id, contact_id, assigned_to, brand_id,
       customers(name),
       contacts!quotes_contact_id_fkey(first_name, last_name, email),
@@ -167,6 +167,7 @@ export async function sendQuoteEmail(
     contactFirstName,
     messageBody: payload.messageBody,
     quoteNumber: quote.quote_number,
+    quoteTitle: quote.title || null,
     validUntil: quote.valid_until,
     sendMethod: payload.sendMethod,
     portalUrl,
@@ -351,6 +352,7 @@ function buildQuoteEmailHtml(params: {
   contactFirstName: string
   messageBody: string
   quoteNumber: string
+  quoteTitle: string | null
   validUntil: string | null
   sendMethod: 'pdf' | 'portal'
   portalUrl: string
@@ -359,7 +361,8 @@ function buildQuoteEmailHtml(params: {
   brandPhone: string | null
   brandEmail: string | null
 }): string {
-  const { contactFirstName, messageBody, quoteNumber, validUntil, sendMethod, portalUrl, senderDisplayName, brandName, brandPhone, brandEmail } = params
+  const { contactFirstName, messageBody, quoteNumber, quoteTitle, validUntil, sendMethod, portalUrl, senderDisplayName, brandName, brandPhone, brandEmail } = params
+  const quoteRef = quoteTitle ? `${quoteNumber} — ${quoteTitle}` : quoteNumber
 
   // Convert plain text message to HTML paragraphs
   const messageHtml = messageBody
@@ -376,7 +379,7 @@ function buildQuoteEmailHtml(params: {
   const portalButton = `
     <div style="margin: 24px 0; text-align: center;">
       <a href="${portalUrl}" style="display: inline-block; background-color: #4f46e5; color: #ffffff; font-weight: 600; font-size: 15px; padding: 12px 32px; border-radius: 8px; text-decoration: none;">
-        View Quote ${quoteNumber} Online
+        View Quote ${quoteRef} Online
       </a>
     </div>
     <p style="margin: 0 0 12px 0; font-size: 13px; color: #64748b;">

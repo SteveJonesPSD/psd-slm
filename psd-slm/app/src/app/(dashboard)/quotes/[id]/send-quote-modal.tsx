@@ -92,12 +92,12 @@ export function SendQuoteModal({
 
   const [messageBody, setMessageBody] = useState(
     isResend
-      ? `Please find our reissued quotation ${quote.quote_number} for ${customer?.name || ''}.
+      ? `Please find our reissued quotation ${quote.quote_number}${quote.title ? ` in respect of ${quote.title}` : ''} for ${customer?.name || ''}.
 
 The total value is ${formatCurrency(subtotal)} (ex. VAT)${validUntilFormatted ? `, valid until ${validUntilFormatted}` : ''}.
 
 Please don't hesitate to contact me if you have any questions.`
-      : `Please find our quotation ${quote.quote_number} for ${customer?.name || ''} as requested.
+      : `Please find our quotation ${quote.quote_number}${quote.title ? ` in respect of ${quote.title}` : ''} for ${customer?.name || ''} as requested.
 
 The total value is ${formatCurrency(subtotal)} (ex. VAT)${validUntilFormatted ? `, valid until ${validUntilFormatted}` : ''}.
 

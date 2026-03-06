@@ -45,46 +45,48 @@ export function PortalQuoteView({ quote, token }: PortalQuoteViewProps) {
           </div>
         )}
 
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Quotation</h1>
             <p className="text-sm text-slate-500 mt-1">
               {quote.quote_number}
               {quote.version > 1 && ` (Revision ${quote.version})`}
+              {quote.title && ` — ${quote.title}`}
             </p>
-            {quote.title && (
-              <p className="text-sm font-medium text-slate-700 mt-1">{quote.title}</p>
-            )}
           </div>
-          <div className="sm:text-right">
-            <div className="text-sm text-slate-500 mb-2">
-              {quote.sent_at && <p>Sent: {formatDate(quote.sent_at)}</p>}
-              {quote.valid_until && <p>Valid until: {formatDate(quote.valid_until)}</p>}
-            </div>
-            <PortalPdfButton quoteId={quote.id} quoteNumber={quote.quote_number} token={token} />
+          <div className="sm:text-right text-sm text-slate-500">
+            {quote.sent_at && <p>Sent: {formatDate(quote.sent_at)}</p>}
+            {quote.valid_until && <p>Valid until: {formatDate(quote.valid_until)}</p>}
           </div>
         </div>
 
-        {/* Customer details */}
-        {quote.customers && (
-          <div className="mb-4 text-sm">
-            <div className="font-semibold text-slate-700">{quote.customers.name}</div>
-            {quote.customers.address_line1 && <div className="text-slate-500">{quote.customers.address_line1}</div>}
-            {quote.customers.address_line2 && <div className="text-slate-500">{quote.customers.address_line2}</div>}
-            {(quote.customers.city || quote.customers.postcode) && (
-              <div className="text-slate-500">
-                {[quote.customers.city, quote.customers.postcode].filter(Boolean).join(', ')}
+        {/* Customer details + PDF download */}
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div className="min-w-0">
+            {quote.customers && (
+              <div className="mb-3 sm:mb-4 text-sm">
+                <div className="font-semibold text-slate-700">{quote.customers.name}</div>
+                {quote.customers.address_line1 && <div className="text-slate-500">{quote.customers.address_line1}</div>}
+                {quote.customers.address_line2 && <div className="text-slate-500">{quote.customers.address_line2}</div>}
+                {(quote.customers.city || quote.customers.postcode) && (
+                  <div className="text-slate-500">
+                    {[quote.customers.city, quote.customers.postcode].filter(Boolean).join(', ')}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {quote.contacts && (
+              <div className="text-sm text-slate-500">
+                Attn: {quote.contacts.first_name} {quote.contacts.last_name}
+                {quote.contacts.email && ` (${quote.contacts.email})`}
               </div>
             )}
           </div>
-        )}
-
-        {quote.contacts && (
-          <div className="text-sm text-slate-500">
-            Attn: {quote.contacts.first_name} {quote.contacts.last_name}
-            {quote.contacts.email && ` (${quote.contacts.email})`}
+          <div className="shrink-0">
+            <PortalPdfButton quoteId={quote.id} quoteNumber={quote.quote_number} token={token} />
           </div>
-        )}
+        </div>
       </div>
 
       {/* Line items grouped with section headers */}
