@@ -435,8 +435,10 @@ export default async function QuoteDetailPage({ params }: PageProps) {
                 <React.Fragment key={group.id}>
                   <tr className="bg-slate-50 dark:bg-slate-700/50 border-t border-gray-200 dark:border-slate-600">
                     <td colSpan={10} className="px-5 py-2">
-                      <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{group.name}</span>
-                      <span className="ml-4 text-xs text-slate-400">({group.lines.length} {group.lines.length === 1 ? 'item' : 'items'})</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{group.name}</span>
+                        <span className="text-xs text-slate-400">({group.lines.length} {group.lines.length === 1 ? 'item' : 'items'})</span>
+                      </div>
                     </td>
                   </tr>
                   {group.lines.map((line) => {
