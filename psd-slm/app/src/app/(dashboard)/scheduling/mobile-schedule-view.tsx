@@ -203,7 +203,7 @@ export function MobileScheduleView({ jobs, activities, today, canCreate, working
       {/* Job cards */}
       {dayJobs.length > 0 ? (
         <div className="space-y-3">
-          {dayJobs.map((job: { id: string; title: string; status: string; priority: string; scheduled_time: string | null; estimated_duration_minutes: number; site_address_line1: string | null; site_city: string | null; site_postcode: string | null; job_type: { name: string; color: string; background: string } | null; company: { name: string; phone: string | null } | null; contact: { first_name: string; last_name: string; phone: string | null; email: string | null; mobile: string | null } | null; _hasSo?: boolean; _collectionStatus?: 'none' | 'pending' | 'collected' }) => {
+          {dayJobs.map((job: { id: string; title: string; status: string; priority: string; scheduled_time: string | null; estimated_duration_minutes: number; site_address_line1: string | null; site_city: string | null; site_postcode: string | null; job_type: { name: string; color: string; background: string } | null; company: { name: string; phone: string | null } | null; contact: { first_name: string; last_name: string; phone: string | null; email: string | null; mobile: string | null } | null; _hasSo?: boolean; _collectionStatus?: 'none' | 'pending' | 'collected'; _soNumbers?: string[] }) => {
             const statusCfg = JOB_STATUS_CONFIG[job.status] || { label: job.status, color: '#6b7280', bg: '#f3f4f6' }
             const priorityCfg = JOB_PRIORITY_CONFIG[job.priority] || { label: job.priority, color: '#6b7280', bg: '#f3f4f6' }
             const jt = job.job_type
