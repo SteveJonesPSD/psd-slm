@@ -12,6 +12,14 @@ import { AiAcceptModal } from './ai-accept-modal'
 import { SendQuoteModal } from './send-quote-modal'
 import type { Quote } from '@/types/database'
 
+interface LinkedContract {
+  id: string
+  contract_number: string
+  category: string
+  esign_status: string
+  status: string
+}
+
 interface QuoteDetailActionsProps {
   quote: Quote
   portalUrl: string | null
@@ -22,9 +30,10 @@ interface QuoteDetailActionsProps {
   assignedUser: { id: string; first_name: string; last_name: string } | null
   subtotal: number
   zeroSellLines?: string[]
+  linkedContracts?: LinkedContract[]
 }
 
-export function QuoteDetailActions({ quote, portalUrl, existingSoId, contact, customer, brand, assignedUser, subtotal, zeroSellLines = [] }: QuoteDetailActionsProps) {
+export function QuoteDetailActions({ quote, portalUrl, existingSoId, contact, customer, brand, assignedUser, subtotal, zeroSellLines = [], linkedContracts = [] }: QuoteDetailActionsProps) {
   const router = useRouter()
   const { hasPermission } = useAuth()
   const [showSendModal, setShowSendModal] = useState(false)
@@ -209,15 +218,29 @@ export function QuoteDetailActions({ quote, portalUrl, existingSoId, contact, cu
         )}
 
         {/* Create / View Sales Order — only for acknowledged accepted quotes */}
-        {canEdit && quote.status === 'accepted' && quote.acknowledged_at && !existingSoId && (
-          <Button
-            size="sm"
-            variant="blue"
-            onClick={() => router.push(`/orders/new?quote_id=${quote.id}`)}
-          >
-            Create Sales Order
-          </Button>
-        )}
+        {canEdit && quote.status === 'accepted' && quote.acknowledged_at && !existingSoId && (() => {
+          const unsignedContract = linkedContracts.find(
+            c => ['service', 'licensing'].includes(c.category) && c.esign_status === 'pending'
+          )
+          if (unsignedContract) {
+            return (
+              <span title={`Sales order creation is pending contract e-signature on ${unsignedContract.contract_number}`}>
+                <Button size="sm" variant="blue" disabled>
+                  Create Sales Order
+                </Button>
+              </span>
+            )
+          }
+          return (
+            <Button
+              size="sm"
+              variant="blue"
+              onClick={() => router.push(`/orders/new?quote_id=${quote.id}`)}
+            >
+              Create Sales Order
+            </Button>
+          )
+        })()}
         {quote.status === 'accepted' && existingSoId && (
           <Button
             size="sm"

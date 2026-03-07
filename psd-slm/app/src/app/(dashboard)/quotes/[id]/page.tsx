@@ -19,6 +19,8 @@ import { VersionHistoryPanel } from './version-history-panel'
 import { RevisedBanner } from './revised-banner'
 import { QuoteAttachmentsSection } from './attachments-section'
 import { MobileQuoteDetail } from './mobile-quote-detail'
+import { ContractFromLinesSection } from './contract-from-lines-section'
+import { getContractsBySourceQuote } from '../../contracts/actions'
 import type { User } from '@/types/database'
 
 interface PageProps {
@@ -63,7 +65,7 @@ export default async function QuoteDetailPage({ params }: PageProps) {
       ? supabase.from('users').select('id, first_name, last_name, initials, color').eq('id', quote.assigned_to).single()
       : Promise.resolve({ data: null }),
     supabase.from('quote_groups').select('*').eq('quote_id', id).order('sort_order'),
-    supabase.from('quote_lines').select('*, products(name, sku), suppliers(name)').eq('quote_id', id).order('sort_order'),
+    supabase.from('quote_lines').select('*, products(name, sku, product_type), suppliers(name)').eq('quote_id', id).order('sort_order'),
     supabase.from('quote_attributions').select('*, users(first_name, last_name, initials, color)').eq('quote_id', id),
     quote.opportunity_id
       ? supabase.from('opportunities').select('id, title').eq('id', quote.opportunity_id).single()
@@ -95,6 +97,11 @@ export default async function QuoteDetailPage({ params }: PageProps) {
       .eq('quote_id', id)
       .order('created_at', { ascending: false }),
   ])
+
+  // Fetch linked contracts for contract-from-lines section and SO gate
+  const linkedContracts = quote.status === 'accepted'
+    ? await getContractsBySourceQuote(id)
+    : []
 
   const marginThresholds = await getMarginThresholds()
 
@@ -132,7 +139,7 @@ export default async function QuoteDetailPage({ params }: PageProps) {
     buy_price: number; sell_price: number; fulfilment_route: string; is_optional: boolean;
     requires_contract: boolean; deal_reg_line_id: string | null; notes: string | null;
     product_id: string | null;
-    products: { name: string; sku: string } | null; suppliers: { name: string } | null
+    products: { name: string; sku: string; product_type: string } | null; suppliers: { name: string } | null
   }
   const allLines = (lines || []) as LineRow[]
   const nonOptionalLines = allLines.filter((l) => !l.is_optional)
@@ -225,6 +232,26 @@ export default async function QuoteDetailPage({ params }: PageProps) {
         />
       )}
 
+      {/* Contract e-sign gate banner */}
+      {quote.status === 'accepted' && linkedContracts.some(c => ['service', 'licensing'].includes(c.category) && c.esign_status === 'pending') && (
+        <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 flex items-start gap-2">
+          <svg className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+          </svg>
+          <div>
+            <p className="text-sm text-blue-800 font-medium">Contract awaiting e-signature</p>
+            <p className="text-sm text-blue-700 mt-0.5">
+              This quote has a linked contract awaiting e-signature. The sales order will be available once the contract is signed.{' '}
+              {linkedContracts.filter(c => c.esign_status === 'pending').map(c => (
+                <Link key={c.id} href={`/contracts/${c.id}`} className="text-blue-600 hover:text-blue-800 underline">
+                  {c.contract_number}
+                </Link>
+              ))}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-10">
         <div>
@@ -275,6 +302,7 @@ export default async function QuoteDetailPage({ params }: PageProps) {
           assignedUser={assignedUser ? { id: assignedUser.id, first_name: assignedUser.first_name, last_name: assignedUser.last_name } : null}
           subtotal={subtotal}
           zeroSellLines={nonOptionalLines.filter(l => l.sell_price === 0).map(l => l.description)}
+          linkedContracts={linkedContracts}
         />
       </div>
 
@@ -550,6 +578,26 @@ export default async function QuoteDetailPage({ params }: PageProps) {
           </>
         )}
       </div>
+
+      {/* Contract from Lines — only for accepted quotes with contractable lines */}
+      {quote.status === 'accepted' && customer && (
+        <ContractFromLinesSection
+          quoteId={id}
+          customerId={customer.id}
+          lines={allLines.map(l => ({
+            id: l.id,
+            description: l.description,
+            product_id: l.product_id,
+            product_type: l.products?.product_type || null,
+            quantity: l.quantity,
+            buy_price: l.buy_price,
+            sell_price: l.sell_price,
+            group_name: typedGroups.find(g => g.id === l.group_id)?.name || null,
+            is_optional: l.is_optional,
+          }))}
+          linkedContracts={linkedContracts}
+        />
+      )}
 
       {/* Change Requests */}
       {changeRequests && changeRequests.length > 0 && (

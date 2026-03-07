@@ -1244,3 +1244,202 @@ function mapContractRow(row: Record<string, unknown>): CustomerContractWithDetai
     calendar_schedule_weeks: (cal?.schedule_weeks as number) || null,
   }
 }
+
+// ============================================================
+// Contract Creation from Quote Lines (Phase 2)
+// ============================================================
+
+export async function createContractFromLines(payload: {
+  quote_id: string
+  customer_id: string
+  contract_type_id: string
+  selected_line_ids: string[]
+  go_live_date: string
+  term_months: number | null
+  notice_alert_days: number
+  secondary_alert_days: number
+  auto_invoice: boolean
+  invoice_frequency: string
+  annual_value: number
+}): Promise<{ success: boolean; contractId?: string; contractNumber?: string; error?: string }> {
+  const user = await requirePermission('contracts', 'create')
+  const supabase = await createClient()
+
+  // Fetch selected quote lines
+  const { data: quoteLines, error: linesError } = await supabase
+    .from('quote_lines')
+    .select('id, description, product_id, quantity, buy_price, sell_price, products(product_type)')
+    .in('id', payload.selected_line_ids)
+
+  if (linesError || !quoteLines?.length) {
+    return { success: false, error: linesError?.message || 'No matching quote lines found' }
+  }
+
+  // Fetch contract type for category
+  const { data: contractType } = await supabase
+    .from('contract_types')
+    .select('category')
+    .eq('id', payload.contract_type_id)
+    .single()
+
+  const category = (contractType?.category as string) || 'support'
+
+  // Generate contract number
+  const contractNumber = await generateContractNumber(supabase, user.orgId)
+
+  // Calculate dates
+  const goLive = new Date(payload.go_live_date)
+  let endDate: string | null = null
+  let invoiceScheduleStart: string | null = null
+
+  if (payload.term_months) {
+    const end = new Date(goLive)
+    end.setMonth(end.getMonth() + payload.term_months)
+    end.setDate(end.getDate() - 1)
+    endDate = end.toISOString().split('T')[0]
+
+    // Invoice schedule starts 12 months after go-live (year 1 covered by SO)
+    const schedStart = new Date(goLive)
+    schedStart.setFullYear(schedStart.getFullYear() + 1)
+    invoiceScheduleStart = schedStart.toISOString().split('T')[0]
+  } else if (payload.auto_invoice) {
+    // Open-ended with auto invoice: schedule starts 12 months after go-live
+    const schedStart = new Date(goLive)
+    schedStart.setFullYear(schedStart.getFullYear() + 1)
+    invoiceScheduleStart = schedStart.toISOString().split('T')[0]
+  }
+
+  // Determine e-sign status
+  const esignStatus = ['service', 'licensing'].includes(category) ? 'pending' : 'not_required'
+
+  // Insert contract
+  const { data: contract, error: contractError } = await supabase
+    .from('customer_contracts')
+    .insert({
+      org_id: user.orgId,
+      customer_id: payload.customer_id,
+      contract_type_id: payload.contract_type_id,
+      contract_number: contractNumber,
+      status: 'draft',
+      start_date: payload.go_live_date,
+      end_date: endDate,
+      renewal_period: 'custom',
+      annual_value: payload.annual_value,
+      billing_frequency: 'annually',
+      source_quote_id: payload.quote_id,
+      term_months: payload.term_months,
+      go_live_date: payload.go_live_date,
+      invoice_schedule_start: invoiceScheduleStart,
+      notice_alert_days: payload.notice_alert_days,
+      secondary_alert_days: payload.secondary_alert_days,
+      auto_invoice: payload.auto_invoice,
+      invoice_frequency: payload.invoice_frequency,
+      renewal_status: 'active',
+      esign_status: esignStatus,
+      created_by: user.id,
+    })
+    .select('id, contract_number')
+    .single()
+
+  if (contractError || !contract) {
+    return { success: false, error: contractError?.message || 'Failed to create contract' }
+  }
+
+  // Insert contract lines
+  const contractLines = quoteLines.map((ql, idx) => {
+    const prods = ql.products as unknown as { product_type: string } | { product_type: string }[] | null
+    const prodObj = Array.isArray(prods) ? prods[0] : prods
+    const productType = prodObj?.product_type || null
+    return {
+      customer_contract_id: contract.id,
+      description: ql.description,
+      quantity: ql.quantity,
+      unit_price_annual: ql.sell_price,
+      unit_price: ql.sell_price,
+      buy_price: ql.buy_price,
+      product_id: ql.product_id,
+      product_type: productType,
+      source_quote_line_id: ql.id,
+      line_type: 'recurring' as const,
+      sort_order: idx,
+    }
+  })
+
+  const { data: insertedLines, error: lineInsertError } = await supabase
+    .from('contract_lines')
+    .insert(contractLines)
+    .select('id, product_id')
+
+  if (lineInsertError) {
+    console.error('[contracts] Failed to insert contract lines:', lineInsertError.message)
+  }
+
+  // Insert supplier price stubs
+  if (insertedLines?.length) {
+    const stubRows = insertedLines.map(line => ({
+      org_id: user.orgId,
+      contract_line_id: line.id,
+      product_id: line.product_id,
+      notes: 'Stub — awaiting supplier price list integration',
+    }))
+
+    await supabase.from('contract_line_supplier_prices').insert(stubRows)
+  }
+
+  // Fetch quote number for activity log
+  const { data: quote } = await supabase
+    .from('quotes')
+    .select('quote_number')
+    .eq('id', payload.quote_id)
+    .single()
+
+  // Log activity on contract
+  logActivity({
+    supabase, user,
+    entityType: 'contract',
+    entityId: contract.id,
+    action: 'created',
+    details: { source: 'quote', quote_number: quote?.quote_number, lines: payload.selected_line_ids.length },
+  })
+
+  // Log activity on quote
+  logActivity({
+    supabase, user,
+    entityType: 'quote',
+    entityId: payload.quote_id,
+    action: 'contract_created',
+    details: { contract_number: contract.contract_number },
+  })
+
+  revalidatePath('/contracts')
+  revalidatePath(`/quotes/${payload.quote_id}`)
+
+  return { success: true, contractId: contract.id, contractNumber: contract.contract_number }
+}
+
+// Fetch contracts linked to a quote via source_quote_id
+export async function getContractsBySourceQuote(quoteId: string): Promise<{
+  id: string
+  contract_number: string
+  category: string
+  esign_status: string
+  status: string
+}[]> {
+  await requirePermission('contracts', 'view')
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('customer_contracts')
+    .select('id, contract_number, esign_status, status, contract_types(category)')
+    .eq('source_quote_id', quoteId)
+
+  if (error || !data) return []
+
+  return data.map(c => ({
+    id: c.id,
+    contract_number: c.contract_number,
+    category: (() => { const ct = c.contract_types as unknown as { category: string } | { category: string }[] | null; const obj = Array.isArray(ct) ? ct[0] : ct; return obj?.category || 'support' })(),
+    esign_status: c.esign_status || 'not_required',
+    status: c.status,
+  }))
+}
