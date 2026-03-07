@@ -5,6 +5,7 @@ import { requireAuth, hasPermission } from '@/lib/auth'
 import { Badge, CONTRACT_STATUS_CONFIG, CONTRACT_CATEGORY_CONFIG, RENEWAL_PERIOD_CONFIG } from '@/components/ui/badge'
 import { getCustomerContract, getFieldEngineers } from '../actions'
 import { ContractActions } from './contract-actions'
+import { EsignBanner } from './esign-banner'
 import { ContractLinesSection } from './contract-lines-section'
 import { ContractEntitlementsSection } from './contract-entitlements-section'
 import { VisitScheduleSection } from './visit-schedule-section'
@@ -69,6 +70,16 @@ export default async function ContractDetailPage({ params }: PageProps) {
         {canEdit && <ContractActions contract={contract} />}
       </div>
 
+      {/* E-Sign Banner (service/licensing only) */}
+      {['service', 'licensing'].includes(contract.category) && contract.esign_status !== 'not_required' && (
+        <EsignBanner
+          contractId={contract.id}
+          contractNumber={contract.contract_number}
+          esignStatus={contract.esign_status}
+          isAdmin={['admin', 'super_admin'].includes(user.role.name)}
+        />
+      )}
+
       {/* Info panel */}
       <div className="rounded-xl border border-gray-200 bg-white p-5 mb-8">
         <h3 className="text-[15px] font-semibold mb-4">Contract Details</h3>
@@ -95,6 +106,15 @@ export default async function ContractDetailPage({ params }: PageProps) {
             label="Billing Frequency"
             value={contract.billing_frequency ? contract.billing_frequency.charAt(0).toUpperCase() + contract.billing_frequency.slice(1) : '\u2014'}
           />
+          {contract.go_live_date && (
+            <DetailField label="Go-Live Date" value={new Date(contract.go_live_date).toLocaleDateString('en-GB')} />
+          )}
+          {contract.term_months && (
+            <DetailField label="Term" value={`${contract.term_months} months`} />
+          )}
+          {contract.is_rolling && (
+            <DetailField label="Rolling" value={`Yes (${contract.rolling_frequency || 'monthly'})`} />
+          )}
           {contract.opportunity_id && (
             <DetailField
               label="Opportunity"
@@ -105,11 +125,11 @@ export default async function ContractDetailPage({ params }: PageProps) {
               }
             />
           )}
-          {contract.quote_id && (
+          {(contract.quote_id || contract.source_quote_id) && (
             <DetailField
               label="Quote"
               value={
-                <Link href={`/quotes/${contract.quote_id}`} className="text-indigo-600 hover:text-indigo-800 no-underline">
+                <Link href={`/quotes/${contract.source_quote_id || contract.quote_id}`} className="text-indigo-600 hover:text-indigo-800 no-underline">
                   View Quote
                 </Link>
               }

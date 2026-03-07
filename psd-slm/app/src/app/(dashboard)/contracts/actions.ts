@@ -1246,6 +1246,96 @@ function mapContractRow(row: Record<string, unknown>): CustomerContractWithDetai
 }
 
 // ============================================================
+// E-Sign Actions (Phase 3)
+// ============================================================
+
+export async function signContract(contractId: string): Promise<{ error?: string }> {
+  const user = await requirePermission('contracts', 'edit')
+  const supabase = await createClient()
+
+  const { data: contract, error: fetchError } = await supabase
+    .from('customer_contracts')
+    .select('id, esign_status, status, contract_number')
+    .eq('id', contractId)
+    .single()
+
+  if (fetchError || !contract) return { error: fetchError?.message || 'Contract not found' }
+  if (contract.esign_status !== 'pending') return { error: 'Contract is not pending e-signature' }
+
+  const { error: updateError } = await supabase
+    .from('customer_contracts')
+    .update({
+      esign_status: 'signed',
+      status: contract.status === 'draft' ? 'active' : contract.status,
+      last_signed_at: new Date().toISOString(),
+      signed_by_name: `${user.firstName} ${user.lastName}`,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', contractId)
+
+  if (updateError) return { error: updateError.message }
+
+  logActivity({
+    supabase, user,
+    entityType: 'contract',
+    entityId: contractId,
+    action: 'signed',
+    details: { contract_number: contract.contract_number },
+  })
+
+  revalidatePath(`/contracts/${contractId}`)
+  revalidatePath('/contracts')
+  // Also revalidate any linked quote for the SO gate
+  const { data: cc } = await supabase.from('customer_contracts').select('source_quote_id').eq('id', contractId).single()
+  if (cc?.source_quote_id) revalidatePath(`/quotes/${cc.source_quote_id}`)
+
+  return {}
+}
+
+export async function waiveEsign(contractId: string): Promise<{ error?: string }> {
+  const user = await requirePermission('contracts', 'edit')
+  if (!['super_admin', 'admin'].includes(user.role.name)) {
+    return { error: 'Only admins can waive e-sign requirements' }
+  }
+  const supabase = await createClient()
+
+  const { data: contract, error: fetchError } = await supabase
+    .from('customer_contracts')
+    .select('id, esign_status, status, contract_number')
+    .eq('id', contractId)
+    .single()
+
+  if (fetchError || !contract) return { error: fetchError?.message || 'Contract not found' }
+  if (contract.esign_status !== 'pending') return { error: 'Contract is not pending e-signature' }
+
+  const { error: updateError } = await supabase
+    .from('customer_contracts')
+    .update({
+      esign_status: 'waived',
+      status: contract.status === 'draft' ? 'active' : contract.status,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', contractId)
+
+  if (updateError) return { error: updateError.message }
+
+  logActivity({
+    supabase, user,
+    entityType: 'contract',
+    entityId: contractId,
+    action: 'esign_waived',
+    details: { contract_number: contract.contract_number },
+  })
+
+  revalidatePath(`/contracts/${contractId}`)
+  revalidatePath('/contracts')
+  const { data: cc } = await supabase.from('customer_contracts').select('source_quote_id').eq('id', contractId).single()
+  if (cc?.source_quote_id) revalidatePath(`/quotes/${cc.source_quote_id}`)
+
+  return {}
+}
+
+// ============================================================
 // Contract Creation from Quote Lines (Phase 2)
 // ============================================================
 
