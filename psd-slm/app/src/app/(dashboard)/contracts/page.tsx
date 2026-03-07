@@ -4,14 +4,19 @@ import { Button } from '@/components/ui/button'
 import { StatCard } from '@/components/ui/stat-card'
 import { formatCurrency } from '@/lib/utils'
 import { requireAuth, hasPermission } from '@/lib/auth'
-import { getCustomerContracts, getContractStats } from './actions'
+import { getCustomerContracts, getContractStats, getContractAlerts, syncContractAlertStatuses } from './actions'
 import { ContractsTable } from './contracts-table'
+import { ContractAlertBanner } from './contracts-alert-banner'
 
 export default async function ContractsPage() {
-  const [user, contracts, stats] = await Promise.all([
+  // Sync alert statuses first (updates renewal_status thresholds)
+  await syncContractAlertStatuses()
+
+  const [user, contracts, stats, alerts] = await Promise.all([
     requireAuth(),
     getCustomerContracts(),
     getContractStats(),
+    getContractAlerts(),
   ])
 
   const canCreate = hasPermission(user, 'contracts', 'create')
@@ -59,6 +64,7 @@ export default async function ContractsPage() {
         />
       </div>
 
+      <ContractAlertBanner alerts={alerts} />
       <ContractsTable contracts={contracts} />
     </div>
   )

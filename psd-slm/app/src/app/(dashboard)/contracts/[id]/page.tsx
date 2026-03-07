@@ -4,6 +4,7 @@ import { formatCurrency } from '@/lib/utils'
 import { requireAuth, hasPermission } from '@/lib/auth'
 import { Badge, CONTRACT_STATUS_CONFIG, CONTRACT_CATEGORY_CONFIG, RENEWAL_PERIOD_CONFIG } from '@/components/ui/badge'
 import { getCustomerContract, getFieldEngineers, getInvoiceSchedule } from '../actions'
+import type { CustomerContractWithDetails } from '@/lib/contracts/types'
 import { ContractActions } from './contract-actions'
 import { EsignBanner } from './esign-banner'
 import { ContractLinesSection } from './contract-lines-section'
@@ -80,6 +81,16 @@ export default async function ContractDetailPage({ params }: PageProps) {
           esignStatus={contract.esign_status}
           isAdmin={['admin', 'super_admin'].includes(user.role.name)}
         />
+      )}
+
+      {/* Days Remaining / Rolling Card (service/licensing with end_date) */}
+      {['service', 'licensing'].includes(contract.category) && (
+        <DaysRemainingCard contract={contract} />
+      )}
+
+      {/* Contextual Status Banner */}
+      {['service', 'licensing'].includes(contract.category) && contract.esign_status !== 'pending' && (
+        <ContractStatusBanner contract={contract} />
       )}
 
       {/* Info panel */}
@@ -224,6 +235,97 @@ function DetailField({
         {label}
       </div>
       <div className="text-slate-700">{value || '\u2014'}</div>
+    </div>
+  )
+}
+
+function DaysRemainingCard({ contract }: { contract: CustomerContractWithDetails }) {
+  if (contract.is_rolling) {
+    return (
+      <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-5 mb-8">
+        <div className="text-xs font-semibold uppercase tracking-wide text-indigo-500 mb-1">Rolling Contract</div>
+        <div className="text-lg font-bold text-indigo-700">
+          {contract.rolling_frequency === 'annual' ? 'Annual' : 'Monthly'} billing
+        </div>
+        {contract.next_invoice_date && (
+          <div className="text-sm text-indigo-600 mt-1">
+            Next invoice: {new Date(contract.next_invoice_date).toLocaleDateString('en-GB')}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  if (!contract.end_date) return null
+
+  const days = Math.floor((new Date(contract.end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+  const isExpired = days < 0
+
+  let cardClasses: string
+  if (isExpired) {
+    cardClasses = 'border-red-200 bg-red-50'
+  } else if (days <= 90) {
+    cardClasses = 'border-red-200 bg-red-50'
+  } else if (days <= 180) {
+    cardClasses = 'border-amber-200 bg-amber-50'
+  } else {
+    cardClasses = 'border-green-200 bg-green-50'
+  }
+
+  const textColor = isExpired || days <= 90 ? 'text-red-700' : days <= 180 ? 'text-amber-700' : 'text-green-700'
+  const labelColor = isExpired || days <= 90 ? 'text-red-500' : days <= 180 ? 'text-amber-500' : 'text-green-500'
+
+  return (
+    <div className={`rounded-xl border ${cardClasses} p-5 mb-8`}>
+      <div className={`text-xs font-semibold uppercase tracking-wide ${labelColor} mb-1`}>
+        {isExpired ? 'Contract Expired' : 'Contract Expires In'}
+      </div>
+      <div className={`text-2xl font-bold ${textColor}`}>
+        {isExpired ? `${Math.abs(days)} days ago` : `${days} days`}
+      </div>
+      <div className={`text-sm ${textColor} mt-1`}>
+        {new Date(contract.end_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+      </div>
+    </div>
+  )
+}
+
+function ContractStatusBanner({ contract }: { contract: CustomerContractWithDetails }) {
+  if (!contract.renewal_status || contract.renewal_status === 'active') return null
+
+  const days = contract.end_date
+    ? Math.floor((new Date(contract.end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    : null
+
+  const banners: Record<string, { border: string; bg: string; text: string; message: string } | null> = {
+    alert_90: {
+      border: 'border-red-200', bg: 'bg-red-50', text: 'text-red-800',
+      message: `Contract expires in ${days} days — action required`,
+    },
+    alert_180: {
+      border: 'border-amber-200', bg: 'bg-amber-50', text: 'text-amber-800',
+      message: `Contract expires in ${days} days — consider initiating renewal`,
+    },
+    rolling: {
+      border: 'border-indigo-200', bg: 'bg-indigo-50', text: 'text-indigo-800',
+      message: `Rolling ${contract.rolling_frequency || 'monthly'} billing — contract continues until cancelled`,
+    },
+    expired: {
+      border: 'border-red-200', bg: 'bg-red-50', text: 'text-red-800',
+      message: `This contract expired on ${contract.end_date ? new Date(contract.end_date).toLocaleDateString('en-GB') : 'unknown date'}`,
+    },
+    superseded: {
+      border: 'border-slate-200', bg: 'bg-slate-50', text: 'text-slate-600',
+      message: `This contract was superseded${contract.upgrade_go_live_date ? ` on ${new Date(contract.upgrade_go_live_date).toLocaleDateString('en-GB')}` : ''}`,
+    },
+  }
+
+  const cfg = banners[contract.renewal_status]
+  if (!cfg) return null
+
+  return (
+    <div className={`rounded-lg border ${cfg.border} ${cfg.bg} px-4 py-3 mb-8`}>
+      <span className={`text-sm font-medium ${cfg.text}`}>{cfg.message}</span>
     </div>
   )
 }

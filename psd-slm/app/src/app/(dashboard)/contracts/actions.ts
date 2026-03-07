@@ -359,6 +359,94 @@ export async function getContractStats(): Promise<{
   }
 }
 
+export async function syncContractAlertStatuses(): Promise<void> {
+  const user = await requireAuth()
+  if (!hasPermission(user, 'contracts', 'view')) return
+  const supabase = await createClient()
+
+  const today = new Date().toISOString().split('T')[0]
+
+  // Fetch active contracts with end dates to check thresholds
+  const { data: contracts } = await supabase
+    .from('customer_contracts')
+    .select('id, end_date, renewal_status, notice_alert_days, secondary_alert_days, contract_types(default_notice_alert_days, secondary_alert_days)')
+    .eq('org_id', user.orgId)
+    .not('end_date', 'is', null)
+    .in('status', ['active'])
+    .in('renewal_status', ['active', 'alert_180'])
+
+  if (!contracts || contracts.length === 0) return
+
+  for (const c of contracts) {
+    const ct = (Array.isArray(c.contract_types) ? c.contract_types[0] : c.contract_types) as Record<string, unknown> | null
+    const noticeAlertDays = c.notice_alert_days ?? (ct?.default_notice_alert_days as number) ?? 180
+    const secondaryAlertDays = c.secondary_alert_days ?? (ct?.secondary_alert_days as number) ?? 90
+
+    const endDate = new Date(c.end_date!)
+    const todayDate = new Date(today)
+    const daysRemaining = Math.floor((endDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24))
+
+    let newStatus: string | null = null
+    if (daysRemaining <= secondaryAlertDays && c.renewal_status !== 'alert_90') {
+      newStatus = 'alert_90'
+    } else if (daysRemaining <= noticeAlertDays && daysRemaining > secondaryAlertDays && c.renewal_status === 'active') {
+      newStatus = 'alert_180'
+    }
+
+    if (newStatus) {
+      await supabase
+        .from('customer_contracts')
+        .update({ renewal_status: newStatus, updated_at: new Date().toISOString() })
+        .eq('id', c.id)
+    }
+  }
+}
+
+export interface ContractAlerts {
+  expiring90: number
+  expiring180: number
+  pendingInvoices: number
+  esignPending: number
+}
+
+export async function getContractAlerts(): Promise<ContractAlerts> {
+  const user = await requireAuth()
+  if (!hasPermission(user, 'contracts', 'view')) return { expiring90: 0, expiring180: 0, pendingInvoices: 0, esignPending: 0 }
+  const supabase = await createClient()
+
+  const today = new Date()
+  const in90 = new Date(); in90.setDate(in90.getDate() + 90)
+  const in180 = new Date(); in180.setDate(in180.getDate() + 180)
+
+  const { data: contracts } = await supabase
+    .from('customer_contracts')
+    .select('status, end_date, esign_status, renewal_status')
+    .eq('org_id', user.orgId)
+
+  const all = contracts || []
+  const active = all.filter(c => c.status === 'active')
+
+  const expiring90 = active.filter(c => c.end_date && new Date(c.end_date) <= in90 && new Date(c.end_date) > today).length
+  const expiring180 = active.filter(c => c.end_date && new Date(c.end_date) <= in180 && new Date(c.end_date) > in90).length
+  const esignPending = all.filter(c => c.esign_status === 'pending').length
+
+  // Pending invoice schedules
+  const { count: pendingInvoices } = await supabase
+    .from('contract_invoice_schedule')
+    .select('*', { count: 'exact', head: true })
+    .eq('org_id', user.orgId)
+    .eq('status', 'pending')
+    .lte('scheduled_date', today.toISOString().split('T')[0])
+    .is('invoice_id', null)
+
+  return {
+    expiring90,
+    expiring180,
+    pendingInvoices: pendingInvoices || 0,
+    esignPending,
+  }
+}
+
 export async function getContractsDueRenewalCount(): Promise<number> {
   const user = await requireAuth()
   if (!hasPermission(user, 'contracts', 'view')) return 0

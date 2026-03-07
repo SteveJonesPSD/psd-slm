@@ -9,6 +9,7 @@ import {
   CONTRACT_STATUS_CONFIG,
   CONTRACT_CATEGORY_CONFIG,
   RENEWAL_PERIOD_CONFIG,
+  RENEWAL_STATUS_CONFIG,
 } from '@/components/ui/badge'
 import type { CustomerContractWithDetails } from '@/lib/contracts/types'
 import {
@@ -124,12 +125,30 @@ export function ContractsTable({ contracts, hideCompany }: ContractsTableProps) 
       ),
     },
     {
-      key: 'renewal_period',
+      key: 'days_remaining',
+      label: 'Days Left',
+      nowrap: true,
+      align: 'center',
+      render: (r) => {
+        if (!r.end_date || r.category === 'support') return <span className="text-slate-300">{'\u2014'}</span>
+        if (r.is_rolling) return <span className="text-indigo-600 text-xs font-medium">Rolling</span>
+        const days = Math.floor((new Date(r.end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+        if (days < 0) return <span className="text-red-600 font-semibold">Expired</span>
+        const color = days > 180 ? 'text-green-600' : days > 90 ? 'text-amber-600' : 'text-red-600'
+        return <span className={`font-semibold ${color}`}>{days}d</span>
+      },
+    },
+    {
+      key: 'renewal_status',
       label: 'Renewal',
       nowrap: true,
       render: (r) => {
+        if (r.renewal_status && r.renewal_status !== 'active') {
+          const cfg = RENEWAL_STATUS_CONFIG[r.renewal_status]
+          return cfg ? <Badge label={cfg.label} color={cfg.color} bg={cfg.bg} /> : <span className="text-slate-400">{r.renewal_status}</span>
+        }
         const cfg = RENEWAL_PERIOD_CONFIG[r.renewal_period]
-        return cfg ? <Badge label={cfg.label} color={cfg.color} bg={cfg.bg} /> : r.renewal_period
+        return cfg ? <Badge label={cfg.label} color={cfg.color} bg={cfg.bg} /> : <span className="text-slate-300">{'\u2014'}</span>
       },
     },
     {
