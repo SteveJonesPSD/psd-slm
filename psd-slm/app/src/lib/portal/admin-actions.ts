@@ -2,6 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
+import { decrypt } from '@/lib/crypto'
 
 /**
  * Internal-facing portal management actions.
@@ -40,7 +41,7 @@ export async function getPortalUsersForCustomer(customerId: string): Promise<Int
       id: pu.id,
       contactId: pu.contact_id,
       contactName: `${contact.first_name} ${contact.last_name}`,
-      contactEmail: contact.email,
+      contactEmail: typeof contact.email === 'string' && contact.email ? decrypt(contact.email) : contact.email,
       isPortalAdmin: pu.is_portal_admin,
       isGroupAdmin: (pu as Record<string, unknown>).is_group_admin as boolean ?? false,
       isActive: pu.is_active,
