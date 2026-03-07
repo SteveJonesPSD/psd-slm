@@ -1,4 +1,5 @@
 export type ContractCategory = 'support' | 'service' | 'licensing'
+export type BillingCycleType = 'fixed_date' | 'start_date' | 'go_live_date'
 export type EsignStatus = 'not_required' | 'pending' | 'signed' | 'waived'
 export type RenewalStatus = 'active' | 'alert_180' | 'alert_90' | 'notice_given' | 'renewal_in_progress' | 'rolling' | 'superseded' | 'expired' | 'cancelled'
 export type InvoiceFrequency = 'annual' | 'monthly' | 'quarterly'
@@ -21,6 +22,9 @@ export interface ContractType {
   default_monthly_hours: number | null
   allowed_schedule_weeks: number[]
   requires_visit_slots: boolean
+  // Billing cycle
+  billing_cycle_type: BillingCycleType
+  default_billing_month: number | null
   // Service/Licensing billing fields
   default_term_months: number | null
   default_notice_alert_days: number
@@ -66,6 +70,9 @@ export interface CustomerContract {
   esign_required: boolean
   // Expansion fields
   source_quote_id: string | null
+  billing_cycle_type: BillingCycleType | null
+  billing_month: number | null
+  billing_day: number
   term_months: number | null
   go_live_date: string | null
   invoice_schedule_start: string | null
@@ -296,6 +303,40 @@ export const ESIGN_STATUS_LABELS: Record<EsignStatus, string> = {
   waived: 'Waived',
 }
 
+export interface PricebookLine {
+  id: string
+  org_id: string
+  contract_type_id: string
+  description: string
+  annual_price: number
+  vat_rate: number
+  sort_order: number
+  is_active: boolean
+  created_at?: string
+  updated_at?: string
+}
+
+export const BILLING_CYCLE_LABELS: Record<BillingCycleType, string> = {
+  fixed_date: 'Fixed Date (Apr/Sep)',
+  start_date: 'Start Date Anniversary',
+  go_live_date: 'Go-Live Date',
+}
+
+export const BILLING_MONTH_OPTIONS = [
+  { value: 4, label: 'April' },
+  { value: 9, label: 'September' },
+] as const
+
+// Helper: next billing date from a given date and billing month
+export function getNextBillingDate(fromDate: Date, billingMonth: number, billingDay: number = 1): Date {
+  const year = fromDate.getFullYear()
+  const candidate = new Date(year, billingMonth - 1, billingDay)
+  if (candidate <= fromDate) {
+    return new Date(year + 1, billingMonth - 1, billingDay)
+  }
+  return candidate
+}
+
 // New types for invoice schedule and alerts
 export interface ContractInvoiceSchedule {
   id: string
@@ -308,6 +349,9 @@ export interface ContractInvoiceSchedule {
   base_amount: number
   amount_override: number | null
   invoice_id: string | null
+  is_prorata: boolean
+  prorata_days: number | null
+  prorata_total_days: number | null
   status: ScheduleStatus
   notes: string | null
   created_at: string
@@ -364,6 +408,31 @@ export interface ContractEligibleQuoteLine {
   buy_price: number
   sell_price: number
   group_name: string | null
+}
+
+export interface CreateSupportContractPayload {
+  customer_id: string
+  contract_type_id: string
+  contact_id?: string | null
+  start_date: string
+  end_date?: string | null
+  billing_cycle_type: BillingCycleType
+  billing_month?: number
+  annual_value: number
+  lines: Array<{
+    description: string
+    annual_price: number
+    vat_rate: number
+    sort_order: number
+  }>
+  source_quote_id?: string
+  notes?: string | null
+  calendar_id?: string | null
+  sla_plan_id?: string | null
+  monthly_hours?: number | null
+  visit_frequency?: string | null
+  visit_length_hours?: number | null
+  visits_per_year?: number | null
 }
 
 export interface CreateContractFromLinesPayload {

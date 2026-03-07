@@ -63,9 +63,9 @@ export function MobileScheduleView({ jobs, activities, today, canCreate, working
   // Status counts for the selected day (jobs only)
   const counts = {
     scheduled: dayJobs.filter(j => j.status === 'scheduled').length,
-    travelling: dayJobs.filter(j => j.status === 'travelling').length,
+    travelling: dayJobs.filter(j => j.status === 'travelling' || j.status === 'return_travelling').length,
     on_site: dayJobs.filter(j => j.status === 'on_site').length,
-    completed: dayJobs.filter(j => j.status === 'completed').length,
+    completed: dayJobs.filter(j => j.status === 'completed' || j.status === 'closed').length,
   }
 
   const selectedDateObj = new Date(selectedDate + 'T12:00:00')

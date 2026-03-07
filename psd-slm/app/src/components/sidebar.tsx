@@ -19,6 +19,7 @@ type NavLink = {
   permission?: { module: string; action: string }
   adminOnly?: boolean
   badgeKey?: string
+  hiddenRoles?: string[]
 }
 
 type NavSection = {
@@ -40,7 +41,7 @@ const NAV_SECTIONS: NavSection[] = [
       { href: '/pipeline', label: 'Pipeline', icon: '📈', permission: { module: 'pipeline', action: 'view' } },
       { href: '/quotes', label: 'Quotes', icon: '📄', permission: { module: 'quotes', action: 'view' } },
       { href: '/templates', label: 'Templates', icon: '📑', permission: { module: 'templates', action: 'view' } },
-      { href: '/contracts', label: 'Contracts', icon: '📋', permission: { module: 'contracts', action: 'view' } },
+      { href: '/contracts', label: 'Contracts', icon: '📋', permission: { module: 'contracts', action: 'view' }, hiddenRoles: ['field_engineer'] },
       { href: '/deal-registrations', label: 'Deal Regs', icon: '🤝', permission: { module: 'deal_registrations', action: 'view' } },
     ],
   },
@@ -48,7 +49,7 @@ const NAV_SECTIONS: NavSection[] = [
     key: 'purchasing',
     label: 'Purchasing',
     items: [
-      { href: '/products', label: 'Products', icon: '🏷️', permission: { module: 'products', action: 'view' } },
+      { href: '/products', label: 'Products', icon: '🏷️', permission: { module: 'products', action: 'view' }, hiddenRoles: ['field_engineer'] },
       { href: '/suppliers', label: 'Suppliers', icon: '📦', permission: { module: 'suppliers', action: 'view' } },
       { href: '/inbound-pos', label: 'Customer POs', icon: '📥', permission: { module: 'inbound_pos', action: 'view' }, badgeKey: 'inbound_pos' },
       { href: '/orders', label: 'Sales Orders', icon: '📋', permission: { module: 'sales_orders', action: 'view' } },
@@ -205,6 +206,7 @@ export function Sidebar({ agentAvatars, portalLogoUrl }: { agentAvatars?: AgentA
   }
 
   const isItemVisible = (item: NavLink) => {
+    if (item.hiddenRoles?.includes(user.role.name)) return false
     if (item.adminOnly) return ['super_admin', 'admin'].includes(user.role.name)
     if (!item.permission) return true
     return hasPermission(item.permission.module, item.permission.action)

@@ -59,16 +59,10 @@ const SETTINGS_NAV: NavSection[] = [
     ],
   },
   {
-    title: 'Security',
-    icon: 'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z',
-    items: [
-      { href: '/settings/login-methods', label: 'Login Methods', icon: 'M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z' },
-    ],
-  },
-  {
     title: 'System',
     icon: 'M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01',
     items: [
+      { href: '/settings/login-methods', label: 'Login Methods', icon: 'M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z' },
       { href: '/settings/teams', label: 'Teams', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z' },
       { href: '/settings/users', label: 'Users & Roles', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z' },
       { href: '/settings/roles', label: 'Roles & Permissions', icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
@@ -128,25 +122,25 @@ export function SettingsNav() {
   }, [pathname])
 
   return (
-    <div ref={containerRef} className="flex flex-wrap items-center gap-3">
+    <div ref={containerRef} className="flex items-center gap-2 md:gap-3 overflow-x-auto md:flex-wrap md:overflow-x-visible [&]:[-ms-overflow-style:none] [&]:[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {SETTINGS_NAV.map((section) => {
         const sectionActive = section.items.some((item) => isActive(item.href))
         const isOpen = openMenu === section.title
 
         return (
-          <div key={section.title} className="relative">
+          <div key={section.title} className="relative shrink-0">
             <button
               onClick={() => setOpenMenu(isOpen ? null : section.title)}
-              className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium shadow-sm transition-colors ${
+              className={`inline-flex items-center gap-1.5 md:gap-2 rounded-lg border px-2.5 md:px-4 py-1.5 md:py-2 text-xs md:text-sm font-medium shadow-sm transition-colors whitespace-nowrap ${
                 sectionActive
                   ? 'border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50'
                   : 'border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700'
               }`}
             >
-              <SvgIcon d={section.icon} className={`h-4 w-4 shrink-0 ${sectionActive ? 'text-indigo-500 dark:text-indigo-400' : 'text-slate-400'}`} />
+              <SvgIcon d={section.icon} className={`h-3.5 w-3.5 md:h-4 md:w-4 shrink-0 ${sectionActive ? 'text-indigo-500 dark:text-indigo-400' : 'text-slate-400'}`} />
               {section.title}
               <svg
-                className={`h-4 w-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                className={`h-3.5 w-3.5 md:h-4 md:w-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"

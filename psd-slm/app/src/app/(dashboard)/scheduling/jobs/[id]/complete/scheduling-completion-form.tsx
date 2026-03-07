@@ -147,7 +147,7 @@ export function SchedulingCompletionForm({ job, currentUserName }: { job: any; c
       if (result.error) {
         setError(result.error)
       } else {
-        router.push('/scheduling')
+        router.push(`/scheduling/jobs/${job.id}`)
       }
     } finally {
       setSubmitting(false)

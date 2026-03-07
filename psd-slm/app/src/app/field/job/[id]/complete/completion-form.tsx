@@ -147,7 +147,7 @@ export function CompletionForm({ job, currentUserName }: { job: any; currentUser
       if (result.error) {
         setError(result.error)
       } else {
-        router.push('/field')
+        router.push(`/field/job/${job.id}`)
       }
     } finally {
       setSubmitting(false)

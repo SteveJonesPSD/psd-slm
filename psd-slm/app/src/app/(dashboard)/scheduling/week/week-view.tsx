@@ -319,11 +319,13 @@ function getWeekBlockStatus(job: { status: string; validated_at?: string | null 
 function getWeekBlockStyles(status: string, jtColor: string): React.CSSProperties {
   switch (status) {
     case 'travelling':
+    case 'return_travelling':
       return { backgroundColor: jtColor, borderLeft: '3px solid #d97706' }
     case 'on_site':
       return { backgroundColor: jtColor, borderLeft: '3px solid #7c3aed' }
     case 'completed':
       return { backgroundColor: '#059669' }
+    case 'closed':
     case 'validated':
       return { backgroundColor: '#2563eb' }
     default:
@@ -348,8 +350,21 @@ function WeekStockIcon({ collectionStatus, soNumbers }: { collectionStatus: 'non
 }
 
 function WeekBlockIcon({ status }: { status: string }) {
-  if (status === 'travelling' || status === 'on_site') {
-    return <span className="text-[8px]">&#9654;</span>
+  if (status === 'travelling' || status === 'return_travelling') {
+    return (
+      <svg className="shrink-0 w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor" aria-label="Travelling">
+        <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.85 7h10.29l1.04 3H5.81l1.04-3zM19 17H5v-4.66l.12-.34h13.77l.11.34V17z" />
+        <circle cx="7.5" cy="14.5" r="1.5" />
+        <circle cx="16.5" cy="14.5" r="1.5" />
+      </svg>
+    )
+  }
+  if (status === 'on_site') {
+    return (
+      <svg className="shrink-0 w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor" aria-label="On site">
+        <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z" />
+      </svg>
+    )
   }
   if (status === 'completed') {
     return <span className="text-[8px]">&#10003;</span>
@@ -365,7 +380,7 @@ function WeekBlockIcon({ status }: { status: string }) {
 function WeekJobBlock({ job, canEdit }: { job: any; canEdit: boolean }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: job.id,
-    disabled: !canEdit || job.status === 'completed' || job.status === 'cancelled',
+    disabled: !canEdit || ['completed', 'return_travelling', 'closed', 'cancelled'].includes(job.status),
   })
 
   const jt = job.job_type
@@ -373,7 +388,7 @@ function WeekJobBlock({ job, canEdit }: { job: any; canEdit: boolean }) {
   const collectionStatus: 'none' | 'pending' | 'collected' = job._collectionStatus ?? 'none'
   const soNumbers: string[] = job._soNumbers ?? []
   const statusStyles = getWeekBlockStyles(blockStatus, jt?.color || '#6b7280')
-  const isPulsing = blockStatus === 'travelling' || blockStatus === 'on_site'
+  const isPulsing = blockStatus === 'travelling' || blockStatus === 'on_site' || blockStatus === 'return_travelling'
 
   // Calculate end time
   let timeLabel = ''
@@ -389,7 +404,7 @@ function WeekJobBlock({ job, canEdit }: { job: any; canEdit: boolean }) {
   // Actual times
   const fmt = (iso: string) => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
   const actualStart = job.travel_started_at ? fmt(job.travel_started_at) : job.arrived_at ? fmt(job.arrived_at) : null
-  const actualEnd = job.completed_at ? fmt(job.completed_at) : null
+  const actualEnd = job.return_arrived_at ? fmt(job.return_arrived_at) : job.completed_at ? fmt(job.completed_at) : null
 
   return (
     <Link
@@ -399,7 +414,7 @@ function WeekJobBlock({ job, canEdit }: { job: any; canEdit: boolean }) {
       {...listeners}
       className={`block rounded px-1.5 py-1 text-[10px] font-medium text-white no-underline transition-opacity ${
         isDragging ? 'opacity-50' : 'hover:opacity-90'
-      } ${canEdit && job.status !== 'completed' ? 'cursor-grab' : 'cursor-pointer'}${
+      } ${canEdit && !['completed', 'return_travelling', 'closed'].includes(job.status) ? 'cursor-grab' : 'cursor-pointer'}${
         isPulsing ? ' animate-pulse' : ''
       }`}
       style={{

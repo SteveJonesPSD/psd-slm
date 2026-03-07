@@ -64,7 +64,7 @@ export function MobileJobDetail({ job }: { job: any }) {
     }
     setChanging(true)
     const gps = await captureWithFeedback()
-    const result = await changeJobStatus(job.id, newStatus as 'travelling' | 'on_site', { gps })
+    const result = await changeJobStatus(job.id, newStatus as 'travelling' | 'on_site' | 'return_travelling' | 'closed', { gps })
     if (!result.error) {
       await new Promise(r => setTimeout(r, 800))
       router.refresh()
@@ -130,18 +130,46 @@ export function MobileJobDetail({ job }: { job: any }) {
             Complete Job
           </button>
         )}
-        {job.status === 'completed' && !job.validated_at && (
-          <div className="rounded-xl bg-green-50 border border-green-200 p-4 text-center">
-            <p className="text-sm font-semibold text-green-700">Job Completed — Awaiting Validation</p>
-            {job.completed_at && (
-              <p className="text-xs text-green-600 mt-1">{new Date(job.completed_at).toLocaleString('en-GB')}</p>
-            )}
+        {job.status === 'completed' && (
+          <div className="space-y-3">
+            <div className="rounded-xl bg-green-50 border border-green-200 p-4 text-center">
+              <p className="text-sm font-semibold text-green-700">Job Completed</p>
+              {job.completed_at && (
+                <p className="text-xs text-green-600 mt-1">{new Date(job.completed_at).toLocaleString('en-GB')}</p>
+              )}
+            </div>
+            <button
+              onClick={() => handleStatusAction('return_travelling')}
+              disabled={changing}
+              className="w-full rounded-xl bg-amber-500 py-4 text-base font-bold text-white shadow-sm hover:bg-amber-600 active:bg-amber-700 disabled:opacity-50"
+            >
+              {changing ? 'Updating...' : 'Start Return Travel'}
+            </button>
           </div>
         )}
-        {job.status === 'completed' && job.validated_at && (
+        {job.status === 'return_travelling' && (
+          <div className="space-y-3">
+            <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-center">
+              <p className="text-sm font-semibold text-amber-700">Returning from site</p>
+              {job.departed_at && (
+                <p className="text-xs text-amber-600 mt-1">Left site: {new Date(job.departed_at).toLocaleString('en-GB')}</p>
+              )}
+            </div>
+            <button
+              onClick={() => handleStatusAction('closed')}
+              disabled={changing}
+              className="w-full rounded-xl bg-blue-600 py-4 text-base font-bold text-white shadow-sm hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50"
+            >
+              {changing ? 'Updating...' : 'End Travel'}
+            </button>
+          </div>
+        )}
+        {job.status === 'closed' && (
           <div className="rounded-xl bg-blue-50 border border-blue-200 p-4 text-center">
-            <p className="text-sm font-semibold text-blue-700">Job Validated</p>
-            <p className="text-xs text-blue-600 mt-1">{new Date(job.validated_at).toLocaleString('en-GB')}</p>
+            <p className="text-sm font-semibold text-blue-700">Job Closed</p>
+            {job.return_arrived_at && (
+              <p className="text-xs text-blue-600 mt-1">Travel ended: {new Date(job.return_arrived_at).toLocaleString('en-GB')}</p>
+            )}
           </div>
         )}
         {/* GPS feedback */}

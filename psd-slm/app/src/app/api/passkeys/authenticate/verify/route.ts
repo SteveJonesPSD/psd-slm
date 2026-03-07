@@ -32,29 +32,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Session creation failed' }, { status: 500 })
   }
 
-  // Use hashed_token directly from properties (more reliable than URL parsing)
+  // Return the OTP token so the client can call verifyOtp with email + token.
+  // Using email_otp avoids token_hash format mismatches between generateLink
+  // and the GoTrue /verify endpoint.
+  const emailOtp = linkData.properties.email_otp
   const tokenHash = linkData.properties.hashed_token
 
-  if (!tokenHash) {
-    // Fallback: parse from action_link URL
-    const url = new URL(linkData.properties.action_link)
-    const fallbackHash = url.searchParams.get('token_hash') || url.searchParams.get('token')
-    if (!fallbackHash) {
-      console.error('[passkey-auth] no token hash in generateLink response')
-      return NextResponse.json({ error: 'Session creation failed' }, { status: 500 })
-    }
-    return NextResponse.json({
-      success: true,
-      tokenHash: fallbackHash,
-      type: 'magiclink',
-      email: authUser.email,
-    })
+  if (!emailOtp && !tokenHash) {
+    console.error('[passkey-auth] no token data in generateLink response')
+    return NextResponse.json({ error: 'Session creation failed' }, { status: 500 })
   }
 
   return NextResponse.json({
     success: true,
-    tokenHash,
-    type: 'magiclink',
+    ...(emailOtp
+      ? { emailOtp, verifyMethod: 'otp' }
+      : { tokenHash, verifyMethod: 'token_hash' }),
     email: authUser.email,
   })
 }

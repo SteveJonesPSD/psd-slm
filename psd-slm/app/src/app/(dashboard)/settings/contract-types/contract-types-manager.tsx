@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation'
 import { PageHeader } from '@/components/ui/page-header'
 import { Badge, CONTRACT_CATEGORY_CONFIG } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { createContractType, updateContractType, getActiveContractCountForType } from '../../contracts/actions'
-import type { ContractType, InvoiceFrequency } from '@/lib/contracts/types'
-import { CONTRACT_CATEGORIES, VISIT_FREQUENCIES } from '@/lib/contracts/types'
+import { createContractType, updateContractType, getActiveContractCountForType, getPricebookLines, savePricebookLines } from '../../contracts/actions'
+import type { ContractType, InvoiceFrequency, BillingCycleType, PricebookLine } from '@/lib/contracts/types'
+import { CONTRACT_CATEGORIES, VISIT_FREQUENCIES, BILLING_CYCLE_LABELS, BILLING_MONTH_OPTIONS } from '@/lib/contracts/types'
 
 interface SlaPlanOption {
   id: string
@@ -187,11 +187,18 @@ function ContractTypeModal({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  const [tab, setTab] = useState<'general' | 'pricebook'>('general')
+  const [pricebookLines, setPricebookLines] = useState<Array<PricebookLine & { _new?: boolean }>>([])
+  const [pricebookLoaded, setPricebookLoaded] = useState(false)
+  const [savingPricebook, setSavingPricebook] = useState(false)
+
   const [form, setForm] = useState({
     name: type?.name || '',
     code: type?.code || '',
     description: type?.description || '',
     category: type?.category || 'support',
+    billing_cycle_type: (type?.billing_cycle_type || 'go_live_date') as BillingCycleType,
+    default_billing_month: type?.default_billing_month ? String(type.default_billing_month) : '',
     default_visit_frequency: type?.default_visit_frequency || '',
     default_visit_length_hours: type?.default_visit_length_hours ? String(type.default_visit_length_hours) : '',
     default_visits_per_year: type?.default_visits_per_year ? String(type.default_visits_per_year) : '',
@@ -210,7 +217,16 @@ function ContractTypeModal({
     secondary_alert_days: type?.secondary_alert_days ? String(type.secondary_alert_days) : '90',
   })
 
+  const isSupport = form.category === 'support'
   const isServiceOrLicensing = form.category === 'service' || form.category === 'licensing'
+
+  // Load pricebook lines when switching to pricebook tab
+  const loadPricebook = async () => {
+    if (!type?.id || pricebookLoaded) return
+    const lines = await getPricebookLines(type.id)
+    setPricebookLines(lines as Array<PricebookLine & { _new?: boolean }>)
+    setPricebookLoaded(true)
+  }
 
   const upd = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [field]: e.target.value }))
@@ -230,6 +246,8 @@ function ContractTypeModal({
     fd.append('code', form.code.trim().toLowerCase())
     fd.append('description', form.description)
     fd.append('category', form.category)
+    fd.append('billing_cycle_type', form.billing_cycle_type)
+    fd.append('default_billing_month', form.default_billing_month)
     fd.append('default_visit_frequency', form.default_visit_frequency)
     fd.append('default_visit_length_hours', form.default_visit_length_hours)
     fd.append('default_visits_per_year', form.default_visits_per_year)
@@ -268,6 +286,54 @@ function ContractTypeModal({
 
         {error && <div className="mb-3 rounded-lg bg-red-50 border border-red-200 p-2 text-sm text-red-700">{error}</div>}
 
+        {/* Tabs — only show Pricebook tab for support category */}
+        {isEdit && isSupport && (
+          <div className="flex border-b border-slate-200 mb-4">
+            <button
+              onClick={() => setTab('general')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${tab === 'general' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+            >
+              General
+            </button>
+            <button
+              onClick={() => { setTab('pricebook'); loadPricebook() }}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${tab === 'pricebook' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+            >
+              Pricebook
+            </button>
+          </div>
+        )}
+
+        {/* Pricebook tab content */}
+        {tab === 'pricebook' ? (
+          <PricebookEditor
+            lines={pricebookLines}
+            onChange={setPricebookLines}
+            onSave={async () => {
+              if (!type?.id) return
+              setSavingPricebook(true)
+              const result = await savePricebookLines(
+                type.id,
+                pricebookLines.map((l, i) => ({
+                  id: l._new ? undefined : l.id,
+                  description: l.description,
+                  annual_price: l.annual_price,
+                  vat_rate: l.vat_rate,
+                  sort_order: i,
+                  is_active: l.is_active,
+                }))
+              )
+              setSavingPricebook(false)
+              if (result.error) setError(result.error)
+              else {
+                // Reload pricebook
+                setPricebookLoaded(false)
+                loadPricebook()
+              }
+            }}
+            saving={savingPricebook}
+          />
+        ) : (
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -318,6 +384,46 @@ function ContractTypeModal({
               <input type="number" min="0" value={form.sort_order} onChange={upd('sort_order')} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none" />
             </div>
           </div>
+
+          {/* Billing cycle — support only */}
+          {isSupport && (
+            <div className="border-t border-slate-200 pt-3 mt-1">
+              <p className="text-sm font-medium text-slate-700 mb-3">Billing Cycle</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Billing Cycle Type</label>
+                  <select
+                    value={form.billing_cycle_type}
+                    onChange={(e) => setForm((f) => ({ ...f, billing_cycle_type: e.target.value as BillingCycleType }))}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
+                  >
+                    <option value="fixed_date">{BILLING_CYCLE_LABELS.fixed_date}</option>
+                    <option value="start_date">{BILLING_CYCLE_LABELS.start_date}</option>
+                  </select>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {form.billing_cycle_type === 'fixed_date'
+                      ? 'Bills on a fixed date each year (e.g. 1 Apr or 1 Sep). Year 1 is pro-rata.'
+                      : 'Bills on the anniversary of the contract start date.'}
+                  </p>
+                </div>
+                {form.billing_cycle_type === 'fixed_date' && (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Default Billing Month</label>
+                    <select
+                      value={form.default_billing_month}
+                      onChange={(e) => setForm((f) => ({ ...f, default_billing_month: e.target.value }))}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
+                    >
+                      <option value="">Not set</option>
+                      {BILLING_MONTH_OPTIONS.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-3 gap-3">
             <div>
@@ -422,6 +528,9 @@ function ContractTypeModal({
           {isServiceOrLicensing && (
             <div className="border-t border-slate-200 pt-3 mt-1">
               <p className="text-sm font-medium text-slate-700 mb-3">Billing & Term Defaults</p>
+              <div className="mb-3 rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-sm text-slate-500">
+                Billing cycle: <strong>Go-Live Date</strong> (Year 1 invoiced via Sales Order)
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Default Term</label>
@@ -488,13 +597,137 @@ function ContractTypeModal({
             </div>
           )}
         </div>
+        )}
 
         <div className="flex justify-end gap-2 mt-6">
           <button onClick={onClose} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Cancel</button>
-          <Button variant="primary" onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving...' : isEdit ? 'Update' : 'Create'}
-          </Button>
+          {tab === 'general' && (
+            <Button variant="primary" onClick={handleSave} disabled={saving}>
+              {saving ? 'Saving...' : isEdit ? 'Update' : 'Create'}
+            </Button>
+          )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// PricebookEditor Component
+// ============================================================
+
+function PricebookEditor({
+  lines,
+  onChange,
+  onSave,
+  saving,
+}: {
+  lines: Array<PricebookLine & { _new?: boolean }>
+  onChange: (lines: Array<PricebookLine & { _new?: boolean }>) => void
+  onSave: () => void
+  saving: boolean
+}) {
+  const addLine = () => {
+    onChange([
+      ...lines,
+      {
+        id: `new-${Date.now()}`,
+        org_id: '',
+        contract_type_id: '',
+        description: '',
+        annual_price: 0,
+        vat_rate: 20,
+        sort_order: lines.length,
+        is_active: true,
+        _new: true,
+      },
+    ])
+  }
+
+  const updateLine = (index: number, field: string, value: unknown) => {
+    const updated = [...lines]
+    updated[index] = { ...updated[index], [field]: value }
+    onChange(updated)
+  }
+
+  const removeLine = (index: number) => {
+    onChange(lines.filter((_, i) => i !== index))
+  }
+
+  const total = lines.filter(l => l.is_active).reduce((s, l) => s + Number(l.annual_price), 0)
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-slate-400">
+        Default prices copied into each new contract. Existing contracts are not affected by changes here.
+      </p>
+
+      {lines.length === 0 ? (
+        <div className="py-8 text-center text-sm text-slate-400">
+          No pricebook lines yet.
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {lines.map((line, idx) => (
+            <div key={line.id} className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${line.is_active ? 'border-gray-200 bg-white' : 'border-slate-200 bg-slate-50 opacity-60'}`}>
+              <input
+                type="text"
+                value={line.description}
+                onChange={(e) => updateLine(idx, 'description', e.target.value)}
+                placeholder="Description"
+                className="flex-1 rounded border border-gray-200 px-2 py-1.5 text-sm focus:border-indigo-400 focus:outline-none"
+              />
+              <input
+                type="number"
+                step="0.01"
+                value={line.annual_price || ''}
+                onChange={(e) => updateLine(idx, 'annual_price', Number(e.target.value))}
+                placeholder="Annual"
+                className="w-28 rounded border border-gray-200 px-2 py-1.5 text-sm text-right focus:border-indigo-400 focus:outline-none"
+              />
+              <select
+                value={line.vat_rate}
+                onChange={(e) => updateLine(idx, 'vat_rate', Number(e.target.value))}
+                className="w-20 rounded border border-gray-200 px-1 py-1.5 text-sm focus:border-indigo-400 focus:outline-none"
+              >
+                <option value="20">20%</option>
+                <option value="0">0%</option>
+                <option value="5">5%</option>
+              </select>
+              <button
+                onClick={() => updateLine(idx, 'is_active', !line.is_active)}
+                className={`text-xs px-2 py-1 rounded ${line.is_active ? 'text-green-600 hover:text-amber-600' : 'text-slate-400 hover:text-green-600'}`}
+                title={line.is_active ? 'Deactivate' : 'Activate'}
+              >
+                {line.is_active ? 'Active' : 'Inactive'}
+              </button>
+              <button
+                onClick={() => removeLine(idx)}
+                className="text-xs text-red-400 hover:text-red-600"
+                title="Remove"
+              >
+                &times;
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {lines.length > 0 && (
+        <div className="flex justify-end text-sm text-slate-500">
+          Total (active): <span className="font-semibold text-slate-700 ml-1">
+            {new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(total)}
+          </span>
+        </div>
+      )}
+
+      <div className="flex items-center gap-2">
+        <Button variant="default" size="sm" onClick={addLine}>
+          + Add Line
+        </Button>
+        <Button variant="primary" size="sm" onClick={onSave} disabled={saving}>
+          {saving ? 'Saving...' : 'Save Pricebook'}
+        </Button>
       </div>
     </div>
   )

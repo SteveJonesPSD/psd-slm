@@ -15,8 +15,8 @@ export function TodayJobs({ jobs }: { jobs: any[] }) {
   // Status summary
   const scheduled = jobs.filter(j => j.status === 'scheduled').length
   const onSite = jobs.filter(j => j.status === 'on_site').length
-  const travelling = jobs.filter(j => j.status === 'travelling').length
-  const completed = jobs.filter(j => j.status === 'completed').length
+  const travelling = jobs.filter(j => j.status === 'travelling' || j.status === 'return_travelling').length
+  const completed = jobs.filter(j => j.status === 'completed' || j.status === 'closed').length
 
   if (jobs.length === 0) {
     return (

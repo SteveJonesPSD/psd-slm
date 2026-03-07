@@ -1049,15 +1049,23 @@ export async function changeJobStatus(id: string, newStatus: JobStatus, extra?: 
     if (extra?.completion_notes) updates.completion_notes = extra.completion_notes
     if (extra?.follow_up_required !== undefined) updates.follow_up_required = extra.follow_up_required
   }
+  if (newStatus === 'return_travelling') {
+    updates.departed_at = new Date().toISOString()
+  }
+  if (newStatus === 'closed') {
+    updates.return_arrived_at = new Date().toISOString()
+  }
   if (newStatus === 'cancelled') {
     updates.cancelled_at = new Date().toISOString()
     if (extra?.cancel_reason) updates.cancel_reason = extra.cancel_reason
   }
   // Reopen: back to scheduled
-  if (newStatus === 'scheduled' && oldStatus === 'completed') {
+  if (newStatus === 'scheduled' && (oldStatus === 'completed' || oldStatus === 'closed')) {
     updates.completed_at = null
     updates.completion_notes = null
     updates.follow_up_required = false
+    updates.departed_at = null
+    updates.return_arrived_at = null
   }
   // Unschedule: back to pool
   if (newStatus === 'unscheduled') {
@@ -1066,6 +1074,8 @@ export async function changeJobStatus(id: string, newStatus: JobStatus, extra?: 
     updates.scheduled_time = null
     updates.travel_started_at = null
     updates.arrived_at = null
+    updates.departed_at = null
+    updates.return_arrived_at = null
   }
 
   const { error } = await supabase
@@ -1088,6 +1098,8 @@ export async function changeJobStatus(id: string, newStatus: JobStatus, extra?: 
     travelling: 'travel_started',
     on_site: 'arrived',
     completed: 'completed',
+    return_travelling: 'departed',
+    closed: 'return_arrived',
   }
   const gpsEvent = gpsEventMap[newStatus] || 'status_changed'
   logGpsEvent(supabase, user, id, gpsEvent, extra?.gps, { from: oldStatus, to: newStatus })
@@ -1456,6 +1468,7 @@ export async function completeJob(jobId: string, formData: FormData) {
   revalidatePath('/scheduling')
   revalidatePath(`/scheduling/jobs/${jobId}`)
   revalidatePath('/field')
+  revalidatePath(`/field/job/${jobId}`)
   return { success: true }
 }
 
@@ -1752,7 +1765,7 @@ export async function validateJob(jobId: string, notes?: string) {
     .single()
 
   if (!job) return { error: 'Job not found' }
-  if (job.status !== 'completed') return { error: 'Only completed jobs can be validated' }
+  if (job.status !== 'completed' && job.status !== 'closed') return { error: 'Only completed jobs can be validated' }
   if (job.validated_at) return { error: 'Job already validated' }
 
   const { error } = await supabase

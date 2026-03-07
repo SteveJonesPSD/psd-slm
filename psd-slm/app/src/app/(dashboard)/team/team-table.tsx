@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Modal } from '@/components/ui/modal'
 import { Input, Select, Checkbox } from '@/components/ui/form-fields'
 import { useAuth } from '@/components/auth-provider'
-import { inviteUser, updateUser, deactivateUser, reactivateUser, resetPassword, clearUserPasskeysAction } from './actions'
+import { inviteUser, updateUser, deactivateUser, reactivateUser, resetPassword, clearUserPasskeysAction, bulkInviteUsers, type BulkInviteResult } from './actions'
 import { disconnectMailCredential } from '@/app/(dashboard)/quotes/send-actions'
 import type { User, Role } from '@/types/database'
 import type { UserMailCredential } from '@/lib/email/types'
@@ -56,6 +56,8 @@ export function TeamTable({ users, roles, mailCredentials = [], passkeyCounts = 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [tempPassword, setTempPassword] = useState<string | null>(null)
+  const [emailStatus, setEmailStatus] = useState<{ sent: boolean; error?: string } | null>(null)
+  const [sendEmail, setSendEmail] = useState(true)
   const [resetTarget, setResetTarget] = useState<UserWithRole | null>(null)
   const [resetPwd, setResetPwd] = useState('')
   const [resetConfirm, setResetConfirm] = useState('')
@@ -67,6 +69,15 @@ export function TeamTable({ users, roles, mailCredentials = [], passkeyCounts = 
   const [clearPasskeyTarget, setClearPasskeyTarget] = useState<UserWithRole | null>(null)
   const [clearingPasskeys, setClearingPasskeys] = useState(false)
   const [localPasskeyCounts, setLocalPasskeyCounts] = useState(passkeyCounts)
+
+  // Bulk invite state
+  const [showBulkInvite, setShowBulkInvite] = useState(false)
+  const [bulkText, setBulkText] = useState('')
+  const [bulkRoleId, setBulkRoleId] = useState('')
+  const [bulkSendEmails, setBulkSendEmails] = useState(true)
+  const [bulkSaving, setBulkSaving] = useState(false)
+  const [bulkError, setBulkError] = useState('')
+  const [bulkResults, setBulkResults] = useState<BulkInviteResult[] | null>(null)
 
   const getMailCred = (userId: string) => mailCredentials.find(c => c.user_id === userId)
 
@@ -117,6 +128,8 @@ export function TeamTable({ users, roles, mailCredentials = [], passkeyCounts = 
     setForm(EMPTY_FORM)
     setError('')
     setTempPassword(null)
+    setEmailStatus(null)
+    setSendEmail(true)
     setShowForm(true)
   }
 
@@ -133,6 +146,7 @@ export function TeamTable({ users, roles, mailCredentials = [], passkeyCounts = 
     })
     setError('')
     setTempPassword(null)
+    setEmailStatus(null)
     setShowForm(true)
   }
 
@@ -197,6 +211,9 @@ export function TeamTable({ users, roles, mailCredentials = [], passkeyCounts = 
     if (form.avatar_url) {
       fd.append('avatar_url', form.avatar_url)
     }
+    if (!sendEmail) {
+      fd.append('send_email', 'false')
+    }
 
     if (editing) {
       const result = await updateUser(editing.id, fd)
@@ -215,6 +232,10 @@ export function TeamTable({ users, roles, mailCredentials = [], passkeyCounts = 
         setError(result.error)
       } else if (result.data) {
         setTempPassword(result.data.tempPassword)
+        setEmailStatus({
+          sent: result.data.emailSent ?? false,
+          error: result.data.emailError,
+        })
         router.refresh()
       }
     }
@@ -282,6 +303,126 @@ export function TeamTable({ users, roles, mailCredentials = [], passkeyCounts = 
       router.refresh()
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Bulk invite helpers
+  // ---------------------------------------------------------------------------
+
+  const openBulkInvite = () => {
+    setBulkText('')
+    setBulkRoleId('')
+    setBulkError('')
+    setBulkResults(null)
+    setBulkSendEmails(true)
+    setShowBulkInvite(true)
+  }
+
+  function parseBulkEntries(text: string): { entries: { email: string; firstName: string; lastName: string }[]; errors: string[] } {
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+    const entries: { email: string; firstName: string; lastName: string }[] = []
+    const errors: string[] = []
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      // Support formats:
+      // email@domain.com                       → derive name from email local part
+      // First Last, email@domain.com
+      // First Last <email@domain.com>
+      // email@domain.com, First Last
+
+      let email = ''
+      let firstName = ''
+      let lastName = ''
+
+      // Try "Name <email>" format
+      const angleMatch = line.match(/^(.+?)\s*<([^>]+@[^>]+)>$/)
+      if (angleMatch) {
+        const nameParts = angleMatch[1].trim().split(/\s+/)
+        email = angleMatch[2].trim()
+        firstName = nameParts[0] || ''
+        lastName = nameParts.slice(1).join(' ') || ''
+      } else {
+        // Split by comma
+        const parts = line.split(',').map(p => p.trim())
+        if (parts.length === 1) {
+          // Just an email
+          email = parts[0]
+        } else {
+          // Figure out which part is the email
+          const emailPart = parts.find(p => p.includes('@'))
+          const namePart = parts.find(p => !p.includes('@'))
+          if (emailPart) {
+            email = emailPart
+            if (namePart) {
+              const nameParts = namePart.split(/\s+/)
+              firstName = nameParts[0] || ''
+              lastName = nameParts.slice(1).join(' ') || ''
+            }
+          } else {
+            errors.push(`Line ${i + 1}: No email address found — "${line}"`)
+            continue
+          }
+        }
+      }
+
+      email = email.trim().toLowerCase()
+
+      // Derive name from email if not provided
+      if (!firstName) {
+        const local = email.split('@')[0] || ''
+        const nameParts = local.split(/[._-]/)
+        firstName = nameParts[0] ? nameParts[0].charAt(0).toUpperCase() + nameParts[0].slice(1) : ''
+        lastName = nameParts[1] ? nameParts[1].charAt(0).toUpperCase() + nameParts[1].slice(1) : ''
+      }
+
+      if (!firstName || !lastName) {
+        errors.push(`Line ${i + 1}: Could not determine first and last name — "${line}". Use format: First Last, email@domain.com`)
+        continue
+      }
+
+      if (!email.includes('@') || !email.includes('.')) {
+        errors.push(`Line ${i + 1}: Invalid email — "${email}"`)
+        continue
+      }
+
+      entries.push({ email, firstName, lastName })
+    }
+
+    // Check for duplicates
+    const seen = new Set<string>()
+    const deduped: typeof entries = []
+    for (const e of entries) {
+      if (seen.has(e.email)) {
+        errors.push(`Duplicate email: ${e.email}`)
+      } else {
+        seen.add(e.email)
+        deduped.push(e)
+      }
+    }
+
+    return { entries: deduped, errors }
+  }
+
+  const bulkParsed = bulkText.trim() ? parseBulkEntries(bulkText) : { entries: [], errors: [] }
+
+  const handleBulkInvite = async () => {
+    if (bulkParsed.entries.length === 0) {
+      setBulkError('No valid entries to invite.')
+      return
+    }
+    if (!bulkRoleId) {
+      setBulkError('Please select a role.')
+      return
+    }
+    setBulkSaving(true)
+    setBulkError('')
+    const result = await bulkInviteUsers(bulkParsed.entries, bulkRoleId, bulkSendEmails)
+    setBulkSaving(false)
+    setBulkResults(result.results)
+    router.refresh()
+  }
+
+  // ---------------------------------------------------------------------------
 
   const previewInitials = form.initials || (form.first_name && form.last_name
     ? (form.first_name[0] + form.last_name[0]).toUpperCase()
@@ -448,7 +589,7 @@ export function TeamTable({ users, roles, mailCredentials = [], passkeyCounts = 
           placeholder="Search team..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="max-w-xs w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+          className="max-w-xs w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:border-slate-400 dark:focus:border-slate-500"
         />
         <Checkbox
           label="Show inactive"
@@ -457,9 +598,14 @@ export function TeamTable({ users, roles, mailCredentials = [], passkeyCounts = 
         />
         <div className="flex-1" />
         {canCreate && (
-          <Button variant="primary" onClick={openInvite}>
-            + Invite Team Member
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="default" size="sm" onClick={openBulkInvite}>
+              Bulk Invite
+            </Button>
+            <Button variant="primary" size="sm" onClick={openInvite}>
+              + Invite Team Member
+            </Button>
+          </div>
         )}
       </div>
 
@@ -469,6 +615,7 @@ export function TeamTable({ users, roles, mailCredentials = [], passkeyCounts = 
         emptyMessage="No team members found."
       />
 
+      {/* Reset Password Modal */}
       {resetTarget && (
         <Modal
           title={`Reset Password — ${resetTarget.first_name} ${resetTarget.last_name}`}
@@ -476,11 +623,11 @@ export function TeamTable({ users, roles, mailCredentials = [], passkeyCounts = 
           width={440}
         >
           {resetError && (
-            <div className="mb-4 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+            <div className="mb-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3 text-sm text-red-700 dark:text-red-300">
               {resetError}
             </div>
           )}
-          <p className="text-sm text-slate-600 mb-4">
+          <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
             Set a new password for this user. They will be required to change it on next login.
           </p>
           <div className="space-y-3">
@@ -511,6 +658,7 @@ export function TeamTable({ users, roles, mailCredentials = [], passkeyCounts = 
         </Modal>
       )}
 
+      {/* Clear Passkeys Modal */}
       {clearPasskeyTarget && (
         <Modal
           title={`Clear Passkeys — ${clearPasskeyTarget.first_name} ${clearPasskeyTarget.last_name}`}
@@ -536,31 +684,43 @@ export function TeamTable({ users, roles, mailCredentials = [], passkeyCounts = 
         </Modal>
       )}
 
+      {/* Single Invite / Edit Modal */}
       {showForm && (
         <Modal
           title={editing ? 'Edit Team Member' : 'Invite Team Member'}
-          onClose={() => { setShowForm(false); setTempPassword(null) }}
+          onClose={() => { setShowForm(false); setTempPassword(null); setEmailStatus(null) }}
           width={520}
         >
           {tempPassword ? (
             <div>
-              <div className="mb-4 rounded-lg bg-emerald-50 border border-emerald-200 p-4">
-                <p className="text-sm font-medium text-emerald-800 mb-2">
+              <div className="mb-4 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 p-4">
+                <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300 mb-2">
                   Account created successfully!
                 </p>
-                <p className="text-sm text-emerald-700 mb-3">
-                  Share these credentials with {form.first_name}:
-                </p>
-                <div className="rounded-lg bg-white border border-emerald-200 p-3 font-mono text-sm">
+                {emailStatus?.sent ? (
+                  <p className="text-sm text-emerald-700 dark:text-emerald-400 mb-3">
+                    A welcome email with login credentials has been sent to {form.email}.
+                  </p>
+                ) : (
+                  <p className="text-sm text-emerald-700 dark:text-emerald-400 mb-3">
+                    Share these credentials with {form.first_name}:
+                  </p>
+                )}
+                <div className="rounded-lg bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800 p-3 font-mono text-sm">
                   <div><span className="text-slate-500">Email:</span> {form.email}</div>
                   <div><span className="text-slate-500">Password:</span> {tempPassword}</div>
                 </div>
-                <p className="mt-3 text-xs text-emerald-600">
-                  They should change this password after first login.
+                {emailStatus && !emailStatus.sent && emailStatus.error && (
+                  <p className="mt-3 text-xs text-amber-600 dark:text-amber-400">
+                    Welcome email could not be sent: {emailStatus.error}
+                  </p>
+                )}
+                <p className="mt-3 text-xs text-emerald-600 dark:text-emerald-500">
+                  They will be asked to change this password after first login.
                 </p>
               </div>
               <div className="flex justify-end">
-                <Button onClick={() => { setShowForm(false); setTempPassword(null) }}>
+                <Button onClick={() => { setShowForm(false); setTempPassword(null); setEmailStatus(null) }}>
                   Done
                 </Button>
               </div>
@@ -568,7 +728,7 @@ export function TeamTable({ users, roles, mailCredentials = [], passkeyCounts = 
           ) : (
             <>
               {error && (
-                <div className="mb-4 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+                <div className="mb-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3 text-sm text-red-700 dark:text-red-300">
                   {error}
                 </div>
               )}
@@ -591,7 +751,7 @@ export function TeamTable({ users, roles, mailCredentials = [], passkeyCounts = 
                   )}
                 </div>
                 <div>
-                  <div className="text-sm text-slate-500">
+                  <div className="text-sm text-slate-500 dark:text-slate-400">
                     {form.first_name || form.last_name
                       ? `${form.first_name} ${form.last_name}`.trim()
                       : 'Preview'}
@@ -664,7 +824,7 @@ export function TeamTable({ users, roles, mailCredentials = [], passkeyCounts = 
 
                 {/* Colour picker */}
                 <div className="col-span-2">
-                  <label className="mb-1 block text-xs font-medium text-slate-500">
+                  <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
                     Avatar Colour
                   </label>
                   <div className="flex flex-wrap gap-2">
@@ -675,7 +835,7 @@ export function TeamTable({ users, roles, mailCredentials = [], passkeyCounts = 
                         onClick={() => setForm((f) => ({ ...f, color: c }))}
                         className={`w-8 h-8 rounded-full cursor-pointer transition-all ${
                           form.color === c
-                            ? 'ring-2 ring-offset-2 ring-slate-900 scale-110'
+                            ? 'ring-2 ring-offset-2 ring-slate-900 dark:ring-white scale-110'
                             : 'hover:scale-105'
                         }`}
                         style={{ backgroundColor: c }}
@@ -691,6 +851,17 @@ export function TeamTable({ users, roles, mailCredentials = [], passkeyCounts = 
                     onChange={upd('initials')}
                     placeholder={(form.first_name[0] || '') + (form.last_name[0] || '')}
                   />
+                )}
+
+                {/* Send welcome email checkbox — only for new invites */}
+                {!editing && (
+                  <div className="col-span-2">
+                    <Checkbox
+                      label="Send welcome email with login credentials"
+                      checked={sendEmail}
+                      onChange={setSendEmail}
+                    />
+                  </div>
                 )}
               </div>
 
@@ -712,6 +883,186 @@ export function TeamTable({ users, roles, mailCredentials = [], passkeyCounts = 
                     : editing
                     ? 'Save Changes'
                     : 'Send Invite'}
+                </Button>
+              </div>
+            </>
+          )}
+        </Modal>
+      )}
+
+      {/* Bulk Invite Modal */}
+      {showBulkInvite && (
+        <Modal
+          title="Bulk Invite Team Members"
+          onClose={() => { setShowBulkInvite(false); setBulkResults(null) }}
+          width={600}
+        >
+          {bulkResults ? (
+            <div>
+              {/* Results summary */}
+              {(() => {
+                const succeeded = bulkResults.filter(r => r.success)
+                const failed = bulkResults.filter(r => !r.success)
+                const emailsSent = succeeded.filter(r => r.emailSent).length
+                return (
+                  <>
+                    <div className="mb-4 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 p-4">
+                      <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300">
+                        {succeeded.length} of {bulkResults.length} accounts created
+                        {emailsSent > 0 && ` — ${emailsSent} welcome email${emailsSent !== 1 ? 's' : ''} sent`}
+                      </p>
+                    </div>
+
+                    {/* Individual results */}
+                    <div className="max-h-80 overflow-y-auto space-y-2">
+                      {bulkResults.map((r, i) => (
+                        <div
+                          key={i}
+                          className={`rounded-lg border p-3 text-sm ${
+                            r.success
+                              ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-900/10'
+                              : 'border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium text-slate-800 dark:text-slate-200">{r.email}</span>
+                            {r.success ? (
+                              <div className="flex items-center gap-2">
+                                {r.emailSent && (
+                                  <span className="text-xs text-emerald-600 dark:text-emerald-400">Email sent</span>
+                                )}
+                                <Badge label="Created" color="#059669" bg="#ecfdf5" />
+                              </div>
+                            ) : (
+                              <Badge label="Failed" color="#dc2626" bg="#fef2f2" />
+                            )}
+                          </div>
+                          {r.success && r.tempPassword && !r.emailSent && (
+                            <div className="mt-2 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5 font-mono text-xs">
+                              <span className="text-slate-400">Password:</span> {r.tempPassword}
+                            </div>
+                          )}
+                          {!r.success && r.error && (
+                            <p className="mt-1 text-xs text-red-600 dark:text-red-400">{r.error}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Failed accounts — show passwords for any that succeeded without email */}
+                    {succeeded.filter(r => !r.emailSent).length > 0 && (
+                      <div className="mt-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3">
+                        <p className="text-xs text-amber-700 dark:text-amber-300">
+                          Accounts created without welcome emails are shown with their temporary passwords above. Share these credentials manually.
+                        </p>
+                      </div>
+                    )}
+
+                    {failed.length > 0 && (
+                      <div className="mt-4">
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => {
+                            // Pre-fill textarea with failed entries for retry
+                            const failedText = failed.map(r => r.email).join('\n')
+                            setBulkText(failedText)
+                            setBulkResults(null)
+                          }}
+                        >
+                          Retry {failed.length} Failed
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                )
+              })()}
+              <div className="mt-5 flex justify-end">
+                <Button onClick={() => { setShowBulkInvite(false); setBulkResults(null) }}>
+                  Done
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {bulkError && (
+                <div className="mb-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3 text-sm text-red-700 dark:text-red-300">
+                  {bulkError}
+                </div>
+              )}
+
+              <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
+                Enter one person per line. Accepted formats:
+              </p>
+              <div className="mb-4 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2.5 text-xs font-mono text-slate-600 dark:text-slate-300 space-y-1">
+                <div>First Last, email@domain.com</div>
+                <div>First Last &lt;email@domain.com&gt;</div>
+                <div>email@domain.com <span className="text-slate-400">← name derived from email</span></div>
+              </div>
+
+              <textarea
+                rows={8}
+                value={bulkText}
+                onChange={(e) => { setBulkText(e.target.value); setBulkError('') }}
+                placeholder={'Jane Smith, jane.smith@company.com\nJohn Doe <john.doe@company.com>\nbob.jones@company.com'}
+                className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
+              />
+
+              {/* Preview parsed entries */}
+              {bulkParsed.entries.length > 0 && (
+                <div className="mt-3 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                  <div className="px-3 py-2 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-500 dark:text-slate-400">
+                    {bulkParsed.entries.length} {bulkParsed.entries.length === 1 ? 'person' : 'people'} to invite
+                  </div>
+                  <div className="max-h-40 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700">
+                    {bulkParsed.entries.map((e, i) => (
+                      <div key={i} className="px-3 py-1.5 flex items-center gap-3 text-xs">
+                        <span className="font-medium text-slate-700 dark:text-slate-200">{e.firstName} {e.lastName}</span>
+                        <span className="text-slate-400">{e.email}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Parse errors */}
+              {bulkParsed.errors.length > 0 && (
+                <div className="mt-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3">
+                  <p className="text-xs font-medium text-amber-700 dark:text-amber-300 mb-1">Issues found:</p>
+                  {bulkParsed.errors.map((err, i) => (
+                    <p key={i} className="text-xs text-amber-600 dark:text-amber-400">{err}</p>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-4">
+                <Select
+                  label="Role for all invitees *"
+                  options={roleOptions}
+                  placeholder="Select role..."
+                  value={bulkRoleId}
+                  onChange={setBulkRoleId}
+                />
+              </div>
+
+              <div className="mt-4">
+                <Checkbox
+                  label="Send welcome emails with login credentials"
+                  checked={bulkSendEmails}
+                  onChange={setBulkSendEmails}
+                />
+              </div>
+
+              <div className="mt-5 flex justify-end gap-2">
+                <Button onClick={() => setShowBulkInvite(false)}>Cancel</Button>
+                <Button
+                  variant="primary"
+                  onClick={handleBulkInvite}
+                  disabled={bulkParsed.entries.length === 0 || !bulkRoleId || bulkSaving}
+                >
+                  {bulkSaving
+                    ? `Inviting ${bulkParsed.entries.length}...`
+                    : `Invite ${bulkParsed.entries.length} ${bulkParsed.entries.length === 1 ? 'Person' : 'People'}`}
                 </Button>
               </div>
             </>

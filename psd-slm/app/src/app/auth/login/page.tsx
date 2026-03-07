@@ -250,14 +250,20 @@ function LoginFlow() {
         return
       }
 
-      const { tokenHash, type: otpType, email: verifiedEmail } = await verifyRes.json()
+      const verifyData = await verifyRes.json()
 
       // Establish Supabase session using the server-generated token
       const supabase = createClient()
-      const { error: otpError } = await supabase.auth.verifyOtp({
-        token_hash: tokenHash,
-        type: otpType,
-      })
+      const { error: otpError } = verifyData.verifyMethod === 'otp'
+        ? await supabase.auth.verifyOtp({
+            email: verifyData.email,
+            token: verifyData.emailOtp,
+            type: 'magiclink',
+          })
+        : await supabase.auth.verifyOtp({
+            token_hash: verifyData.tokenHash,
+            type: 'magiclink',
+          })
 
       if (otpError) {
         setPasskeyError('Session creation failed. Please try again.')
@@ -308,7 +314,7 @@ function LoginFlow() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                placeholder="you@psdgroup.co.uk"
+                placeholder="Enter your email address"
               />
             </div>
             <button

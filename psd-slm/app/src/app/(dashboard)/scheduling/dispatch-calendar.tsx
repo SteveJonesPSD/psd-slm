@@ -96,7 +96,7 @@ export function DispatchCalendar({ allJobs, allActivities, jobTypes, engineers, 
   // Filter jobs for the current date
   const dayJobs = useMemo(() => allJobs.filter(j => j.scheduled_date === currentDate && j.status !== 'cancelled'), [allJobs, currentDate])
   const unscheduledJobs = useMemo(() => allJobs.filter(j => j.status === 'unscheduled'), [allJobs])
-  const completedToday = useMemo(() => dayJobs.filter(j => j.status === 'completed').length, [dayJobs])
+  const completedToday = useMemo(() => dayJobs.filter(j => j.status === 'completed' || j.status === 'return_travelling' || j.status === 'closed').length, [dayJobs])
   const onDutyEngineers = useMemo(() => new Set(dayJobs.map(j => j.assigned_to).filter(Boolean)).size, [dayJobs])
 
   const dateObj = new Date(currentDate + 'T12:00:00')
@@ -477,11 +477,13 @@ function getJobBlockStatus(job: { status: string; validated_at?: string | null }
 function getJobBlockStyles(status: string, jtColor: string) {
   switch (status) {
     case 'travelling':
+    case 'return_travelling':
       return { backgroundColor: jtColor, borderLeft: '3px solid #d97706' }
     case 'on_site':
       return { backgroundColor: jtColor, borderLeft: '3px solid #7c3aed' }
     case 'completed':
       return { backgroundColor: '#059669' }
+    case 'closed':
     case 'validated':
       return { backgroundColor: '#2563eb' }
     default:
@@ -506,8 +508,21 @@ function StockIcon({ collectionStatus, soNumbers }: { collectionStatus: 'none' |
 }
 
 function JobBlockStatusIcon({ status }: { status: string }) {
-  if (status === 'travelling' || status === 'on_site') {
-    return <span className="shrink-0 text-[9px]" aria-label="In progress">&#9654;</span>
+  if (status === 'travelling' || status === 'return_travelling') {
+    return (
+      <svg className="shrink-0 w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor" aria-label="Travelling">
+        <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.85 7h10.29l1.04 3H5.81l1.04-3zM19 17H5v-4.66l.12-.34h13.77l.11.34V17z" />
+        <circle cx="7.5" cy="14.5" r="1.5" />
+        <circle cx="16.5" cy="14.5" r="1.5" />
+      </svg>
+    )
+  }
+  if (status === 'on_site') {
+    return (
+      <svg className="shrink-0 w-3 h-3" viewBox="0 0 24 24" fill="currentColor" aria-label="On site">
+        <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z" />
+      </svg>
+    )
   }
   if (status === 'completed') {
     return <span className="shrink-0 text-[9px]" aria-label="Completed">&#10003;</span>
@@ -528,7 +543,7 @@ function formatActualTime(iso: string | null): string | null {
 function JobBlock({ job, canEdit }: { job: any; canEdit: boolean }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: job.id,
-    disabled: !canEdit || job.status === 'completed' || job.status === 'cancelled',
+    disabled: !canEdit || ['completed', 'return_travelling', 'closed', 'cancelled'].includes(job.status),
   })
 
   if (!job.scheduled_time) return null
@@ -558,9 +573,9 @@ function JobBlock({ job, canEdit }: { job: any; canEdit: boolean }) {
 
   // Actual times
   const actualStart = formatActualTime(job.travel_started_at) || formatActualTime(job.arrived_at)
-  const actualEnd = formatActualTime(job.completed_at)
+  const actualEnd = formatActualTime(job.return_arrived_at) || formatActualTime(job.departed_at) || formatActualTime(job.completed_at)
 
-  const isPulsing = blockStatus === 'travelling' || blockStatus === 'on_site'
+  const isPulsing = blockStatus === 'travelling' || blockStatus === 'on_site' || blockStatus === 'return_travelling'
 
   const style = {
     position: 'absolute' as const,
@@ -581,7 +596,7 @@ function JobBlock({ job, canEdit }: { job: any; canEdit: boolean }) {
       style={style}
       className={`flex items-center gap-1 rounded-md px-2 text-[11px] font-medium text-white shadow-sm no-underline transition-opacity ${
         isDragging ? 'opacity-50 z-50' : 'hover:opacity-90'
-      } ${canEdit && job.status !== 'completed' ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}${
+      } ${canEdit && !['completed', 'return_travelling', 'closed'].includes(job.status) ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}${
         isPulsing ? ' animate-pulse' : ''
       }`}
       title={`${job.title}\n${job.company?.name}\n${startLabel}–${endLabel}\n${JOB_STATUS_CONFIG[job.status]?.label || job.status}`}

@@ -6,13 +6,39 @@ import { WeekView } from './week/week-view'
 import { MobileDetector } from '@/components/ui/mobile-detector'
 import { MobileScheduleView } from './mobile-schedule-view'
 import { SchedulingActions } from './scheduling-actions'
-import Link from 'next/link'
 
 export default async function SchedulingPage() {
   const user = await requirePermission('scheduling', 'view')
   const canCreate = user.permissions.includes('scheduling.create')
   const canEdit = user.permissions.includes('scheduling.edit')
   const isAdmin = user.permissions.includes('scheduling.admin')
+  const isFieldEngineer = user.role.name === 'field_engineer'
+
+  // Field engineers always see their own schedule (same as mobile view)
+  if (isFieldEngineer) {
+    const [mySchedule, workingDays] = await Promise.all([
+      getMyScheduleRange(),
+      getWorkingDays(),
+    ])
+
+    const myScheduleView = (
+      <div>
+        <PageHeader
+          title="My Schedule"
+          subtitle="Your upcoming jobs"
+        />
+        <MobileScheduleView
+          jobs={mySchedule.jobs}
+          activities={mySchedule.activities}
+          today={mySchedule.today}
+          canCreate={canCreate}
+          workingDays={workingDays}
+        />
+      </div>
+    )
+
+    return <MobileDetector desktop={myScheduleView} mobile={myScheduleView} />
+  }
 
   const [jobsResult, engineersResult, mySchedule, activitiesResult, activityTypesResult, workingDays, userHoursResult] = await Promise.all([
     getJobs(),

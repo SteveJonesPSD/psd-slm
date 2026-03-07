@@ -49,7 +49,7 @@ export function JobDetail({ job, canEdit }: { job: any; canEdit: boolean }) {
       setShowCancelModal(true)
       return
     }
-    const result = await changeJobStatus(job.id, newStatus as 'scheduled' | 'travelling' | 'on_site' | 'completed' | 'unscheduled')
+    const result = await changeJobStatus(job.id, newStatus as 'scheduled' | 'travelling' | 'on_site' | 'completed' | 'return_travelling' | 'closed' | 'unscheduled')
     if (!result.error) router.refresh()
   }
 
@@ -148,7 +148,7 @@ export function JobDetail({ job, canEdit }: { job: any; canEdit: boolean }) {
                 Cancel Job
               </button>
             )}
-            {job.status === 'completed' && !job.validated_at && (
+            {(job.status === 'completed' || job.status === 'closed') && !job.validated_at && (
               <Button
                 onClick={() => setShowValidateModal(true)}
                 variant="success"
@@ -157,7 +157,7 @@ export function JobDetail({ job, canEdit }: { job: any; canEdit: boolean }) {
                 Validate
               </Button>
             )}
-            {job.status === 'completed' && job.validated_at && (
+            {(job.status === 'completed' || job.status === 'closed') && job.validated_at && (
               <a
                 href={`/api/jobs/${job.id}/report`}
                 target="_blank"
@@ -167,7 +167,7 @@ export function JobDetail({ job, canEdit }: { job: any; canEdit: boolean }) {
                 Download Report
               </a>
             )}
-            {job.status === 'completed' && (
+            {(job.status === 'completed' || job.status === 'closed') && (
               <button onClick={() => handleStatusChange('scheduled')} className="rounded-lg border border-amber-300 px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-50">
                 Reopen
               </button>
@@ -250,6 +250,16 @@ export function JobDetail({ job, canEdit }: { job: any; canEdit: boolean }) {
             {job.completed_at && (
               <p className="text-xs text-green-600">
                 Completed {new Date(job.completed_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+              </p>
+            )}
+            {job.departed_at && (
+              <p className="text-xs text-amber-600">
+                Left site {new Date(job.departed_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+              </p>
+            )}
+            {job.return_arrived_at && (
+              <p className="text-xs text-blue-600">
+                Travel ended {new Date(job.return_arrived_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
               </p>
             )}
             {engineer && (
@@ -754,6 +764,8 @@ const GPS_EVENT_LABELS: Record<string, { label: string; color: string; bg: strin
   travel_started: { label: 'Travel Started', color: '#d97706', bg: '#fffbeb' },
   arrived: { label: 'Arrived', color: '#7c3aed', bg: '#f5f3ff' },
   completed: { label: 'Completed', color: '#059669', bg: '#ecfdf5' },
+  departed: { label: 'Left Site', color: '#d97706', bg: '#fffbeb' },
+  return_arrived: { label: 'Travel Ended', color: '#2563eb', bg: '#eff6ff' },
   note_added: { label: 'Note Added', color: '#2563eb', bg: '#eff6ff' },
   task_toggled: { label: 'Task Toggled', color: '#6366f1', bg: '#eef2ff' },
   photo_added: { label: 'Photo Added', color: '#0891b2', bg: '#ecfeff' },

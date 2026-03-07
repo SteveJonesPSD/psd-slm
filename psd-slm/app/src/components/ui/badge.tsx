@@ -198,6 +198,8 @@ export const JOB_STATUS_CONFIG: Record<string, { label: string; color: string; b
   travelling: { label: 'Travelling', color: '#d97706', bg: '#fffbeb' },
   on_site: { label: 'On Site', color: '#7c3aed', bg: '#f5f3ff' },
   completed: { label: 'Completed', color: '#059669', bg: '#ecfdf5' },
+  return_travelling: { label: 'Returning', color: '#d97706', bg: '#fffbeb' },
+  closed: { label: 'Closed', color: '#2563eb', bg: '#eff6ff' },
   cancelled: { label: 'Cancelled', color: '#dc2626', bg: '#fef2f2' },
 }
 

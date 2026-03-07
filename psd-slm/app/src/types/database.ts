@@ -1606,7 +1606,7 @@ export interface SlaCompliance {
 
 // --- Onsite Scheduling ---
 
-export type JobStatus = 'unscheduled' | 'scheduled' | 'travelling' | 'on_site' | 'completed' | 'cancelled'
+export type JobStatus = 'unscheduled' | 'scheduled' | 'travelling' | 'on_site' | 'completed' | 'return_travelling' | 'closed' | 'cancelled'
 export type JobPriority = 'low' | 'normal' | 'high' | 'urgent'
 
 export interface JobType {
@@ -2053,6 +2053,8 @@ export type GpsEventType =
   | 'task_toggled'
   | 'photo_added'
   | 'status_changed'
+  | 'departed'
+  | 'return_arrived'
 
 export interface JobGpsLog {
   id: string

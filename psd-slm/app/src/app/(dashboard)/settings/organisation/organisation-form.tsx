@@ -39,6 +39,13 @@ const MONTH_OPTIONS = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ].map((m) => ({ value: m, label: m }))
 
+function parseDomains(raw: string): string[] {
+  return raw
+    .split(',')
+    .map((d) => d.trim().toLowerCase().replace(/^@/, ''))
+    .filter(Boolean)
+}
+
 export function OrganisationForm({ initialSettings }: OrganisationFormProps) {
   const [settings, setSettings] = useState({
     org_name: initialSettings.org_name || 'PSD Group',
@@ -54,6 +61,21 @@ export function OrganisationForm({ initialSettings }: OrganisationFormProps) {
   })
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  // Accepted email domains — stored as JSON array, edited as comma-separated string
+  const initialDomains: string[] = (() => {
+    try {
+      const raw = initialSettings.accepted_email_domains
+      if (!raw) return []
+      // JSONB may come back already parsed as array or as a JSON string
+      if (Array.isArray(raw)) return raw
+      const parsed = JSON.parse(raw)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  })()
+  const [domainsInput, setDomainsInput] = useState(initialDomains.join(', '))
 
   // Portal logo state
   const [portalLogoUrl, setPortalLogoUrl] = useState(initialSettings.portal_logo_url || '')
@@ -239,6 +261,13 @@ export function OrganisationForm({ initialSettings }: OrganisationFormProps) {
         setting_value: value,
       }))
 
+      // Include accepted email domains as JSON array
+      allSettings.push({
+        category: 'general',
+        setting_key: 'accepted_email_domains',
+        setting_value: JSON.stringify(parseDomains(domainsInput)),
+      })
+
       // Include portal logo URL in the save
       allSettings.push({
         category: 'general',
@@ -286,6 +315,30 @@ export function OrganisationForm({ initialSettings }: OrganisationFormProps) {
           onChange={(v) => update('org_name', v)}
           placeholder="PSD Group"
         />
+
+        <div>
+          <Input
+            label="Accepted Email Domains"
+            value={domainsInput}
+            onChange={(v) => { setDomainsInput(v); setMessage(null) }}
+            placeholder="example.co.uk, example.com"
+          />
+          <p className="mt-1 text-xs text-slate-500">
+            Comma-separated list of allowed domains for system user accounts. Leave blank to allow any domain.
+          </p>
+          {domainsInput.trim() && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {parseDomains(domainsInput).map((d) => (
+                <span
+                  key={d}
+                  className="inline-flex items-center rounded-full bg-indigo-50 dark:bg-indigo-900/30 px-2.5 py-0.5 text-xs font-medium text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800"
+                >
+                  @{d}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Select

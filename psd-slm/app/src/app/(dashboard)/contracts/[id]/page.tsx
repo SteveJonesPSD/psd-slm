@@ -182,14 +182,12 @@ export default async function ContractDetailPage({ params }: PageProps) {
         editable={isEditable}
       />
 
-      {/* Invoice Schedule (service/licensing only) */}
-      {['service', 'licensing'].includes(contract.category) && (
-        <InvoiceScheduleSection
-          contractId={id}
-          schedule={invoiceSchedule}
-          editable={isEditable}
-        />
-      )}
+      {/* Invoice Schedule (all contract categories) */}
+      <InvoiceScheduleSection
+        contractId={id}
+        schedule={invoiceSchedule}
+        editable={isEditable}
+      />
 
       {/* Upgrade Section (service contracts only, active/rolling) */}
       {contract.category === 'service' && ['active', 'alert_180', 'alert_90', 'rolling'].includes(contract.renewal_status) && canEdit && (

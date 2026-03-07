@@ -123,6 +123,7 @@ export function InvoiceScheduleSection({ contractId, schedule, editable }: Invoi
               <tr className="border-b border-gray-100 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
                 <th className="py-3 px-4">Period</th>
                 <th className="py-3 px-4">Scheduled Date</th>
+                <th className="py-3 px-4 text-center">Pro-rata</th>
                 <th className="py-3 px-4 text-right">Base Amount</th>
                 <th className="py-3 px-4 text-right">Override</th>
                 <th className="py-3 px-4 text-right">Effective</th>
@@ -142,6 +143,15 @@ export function InvoiceScheduleSection({ contractId, schedule, editable }: Invoi
                     <td className="py-3 px-4 text-slate-700">{row.period_label}</td>
                     <td className="py-3 px-4 text-slate-500">
                       {new Date(row.scheduled_date).toLocaleDateString('en-GB')}
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      {row.is_prorata && (
+                        <span className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700"
+                          title={row.prorata_days != null ? `${row.prorata_days} of ${row.prorata_total_days} days` : undefined}
+                        >
+                          Pro-rata
+                        </span>
+                      )}
                     </td>
                     <td className="py-3 px-4 text-right text-slate-500">
                       {formatCurrency(Number(row.base_amount))}
@@ -242,9 +252,11 @@ export function InvoiceScheduleSection({ contractId, schedule, editable }: Invoi
         </div>
       )}
 
-      {/* Year 1 note */}
+      {/* Billing cycle note */}
       <div className="px-5 py-3 border-t border-gray-100 text-xs text-slate-400">
-        Year 1 is invoiced via the Sales Order. This schedule covers Year 2 onwards.
+        {schedule.some(r => r.is_prorata)
+          ? 'Year 1 is pro-rata from activation date to the next billing date.'
+          : 'Year 1 is invoiced via the Sales Order. This schedule covers Year 2 onwards.'}
       </div>
 
       {/* Skip modal */}

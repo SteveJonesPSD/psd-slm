@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { createCustomerContract, getContactsByCustomer } from './actions'
+import { createCustomerContract, createSupportContract, getContactsByCustomer, getPricebookLines } from './actions'
 import { Button } from '@/components/ui/button'
 import { formatCurrency } from '@/lib/utils'
-import type { ContractType } from '@/lib/contracts/types'
-import { CONTRACT_CATEGORIES, VISIT_FREQUENCIES, BILLING_FREQUENCIES, RENEWAL_PERIODS } from '@/lib/contracts/types'
+import type { ContractType, PricebookLine, BillingCycleType } from '@/lib/contracts/types'
+import { CONTRACT_CATEGORIES, VISIT_FREQUENCIES, BILLING_FREQUENCIES, RENEWAL_PERIODS, BILLING_CYCLE_LABELS, BILLING_MONTH_OPTIONS } from '@/lib/contracts/types'
 import { CONTRACT_CATEGORY_CONFIG } from '@/components/ui/badge'
 import { SearchableSelect } from '@/components/ui/form-fields'
 
@@ -47,6 +47,26 @@ export function ContractForm({ customers, contractTypes, opportunities, calendar
   })
 
   const [contacts, setContacts] = useState<{ id: string; first_name: string; last_name: string }[]>([])
+  const [pricebookLines, setPricebookLines] = useState<Array<PricebookLine & { included: boolean }>>([])
+
+  // Load pricebook lines when support contract type is selected
+  useEffect(() => {
+    if (selectedType?.category === 'support' && form.contract_type_id) {
+      getPricebookLines(form.contract_type_id).then(lines => {
+        setPricebookLines(lines.filter(l => l.is_active).map(l => ({ ...l, included: true })))
+      })
+    } else {
+      setPricebookLines([])
+    }
+  }, [form.contract_type_id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-calculate annual value from pricebook lines
+  useEffect(() => {
+    if (pricebookLines.length > 0) {
+      const total = pricebookLines.filter(l => l.included).reduce((s, l) => s + Number(l.annual_price), 0)
+      setForm(f => ({ ...f, annual_value: String(total) }))
+    }
+  }, [pricebookLines])
 
   // Auto-calculate end date when start date changes
   useEffect(() => {
@@ -120,26 +140,65 @@ export function ContractForm({ customers, contractTypes, opportunities, calendar
   }
 
   const handleSave = async () => {
-    if (!form.customer_id || !form.contract_type_id || !form.start_date || !form.end_date || !form.renewal_period) {
+    if (!form.customer_id || !form.contract_type_id || !form.start_date) {
       setError('Please fill in all required fields')
       return
+    }
+
+    // For non-support contracts, end_date and renewal_period are required
+    if (selectedType?.category !== 'support' || !selectedType) {
+      if (!form.end_date || !form.renewal_period) {
+        setError('Please fill in all required fields')
+        return
+      }
     }
 
     setSaving(true)
     setError('')
 
-    const fd = new FormData()
-    Object.entries(form).forEach(([k, v]) => {
-      if (v !== '' && v !== null && v !== undefined) fd.append(k, String(v))
-    })
+    let result: { error?: string; data?: unknown & { id: string } }
 
-    const result = await createCustomerContract(fd)
+    // Use createSupportContract for support contracts with pricebook lines
+    if (selectedType?.category === 'support' && pricebookLines.length > 0) {
+      result = await createSupportContract({
+        customer_id: form.customer_id,
+        contract_type_id: form.contract_type_id,
+        contact_id: form.contact_id || null,
+        start_date: form.start_date,
+        end_date: form.end_date || null,
+        billing_cycle_type: selectedType.billing_cycle_type || 'fixed_date',
+        billing_month: form.renewal_period === 'april' ? 4 : form.renewal_period === 'september' ? 9 : undefined,
+        annual_value: Number(form.annual_value) || 0,
+        lines: pricebookLines
+          .filter(l => l.included)
+          .map((l, i) => ({
+            description: l.description,
+            annual_price: Number(l.annual_price),
+            vat_rate: Number(l.vat_rate),
+            sort_order: i,
+          })),
+        notes: form.notes || null,
+        calendar_id: form.calendar_id || null,
+        sla_plan_id: form.sla_plan_id || null,
+        monthly_hours: form.monthly_hours ? Number(form.monthly_hours) : null,
+        visit_frequency: form.visit_frequency || null,
+        visit_length_hours: form.visit_length_hours ? Number(form.visit_length_hours) : null,
+        visits_per_year: form.visits_per_year ? Number(form.visits_per_year) : null,
+      })
+    } else {
+      const fd = new FormData()
+      Object.entries(form).forEach(([k, v]) => {
+        if (v !== '' && v !== null && v !== undefined) fd.append(k, String(v))
+      })
+      result = await createCustomerContract(fd)
+    }
+
     setSaving(false)
 
     if (result.error) {
       setError(result.error)
     } else if (result.data) {
-      router.push(`/contracts/${result.data.id}`)
+      router.push(`/contracts/${(result.data as { id: string }).id}`)
     }
   }
 
@@ -215,6 +274,90 @@ export function ContractForm({ customers, contractTypes, opportunities, calendar
           disabled={!form.customer_id}
         />
 
+        {/* Billing Cycle — support contracts only */}
+        {selectedType?.category === 'support' && (
+          <div className="sm:col-span-2 rounded-lg border border-slate-200 bg-slate-50/50 p-4">
+            <p className="text-sm font-medium text-slate-700 mb-3">Billing Cycle</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Type</label>
+                <div className="rounded-lg bg-white border border-gray-200 px-3 py-2 text-sm text-slate-600">
+                  {BILLING_CYCLE_LABELS[selectedType.billing_cycle_type || 'fixed_date']}
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  {selectedType.billing_cycle_type === 'fixed_date'
+                    ? 'Year 1 is pro-rata from start date to billing date.'
+                    : 'Bills annually on the contract start date.'}
+                </p>
+              </div>
+              {selectedType.billing_cycle_type === 'fixed_date' && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Billing Month</label>
+                  <select
+                    value={form.renewal_period === 'april' ? '4' : form.renewal_period === 'september' ? '9' : ''}
+                    onChange={(e) => {
+                      const month = e.target.value
+                      const period = month === '4' ? 'april' : month === '9' ? 'september' : 'custom'
+                      setForm(f => ({ ...f, renewal_period: period }))
+                    }}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
+                  >
+                    {BILLING_MONTH_OPTIONS.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Pricebook Lines — support contracts only */}
+        {selectedType?.category === 'support' && pricebookLines.length > 0 && (
+          <div className="sm:col-span-2 rounded-lg border border-slate-200 bg-white p-4">
+            <p className="text-sm font-medium text-slate-700 mb-3">
+              Contract Lines (from pricebook)
+            </p>
+            <div className="space-y-2">
+              {pricebookLines.map((line, idx) => (
+                <div key={line.id} className="flex items-center gap-3 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={line.included}
+                    onChange={(e) => {
+                      const updated = [...pricebookLines]
+                      updated[idx] = { ...updated[idx], included: e.target.checked }
+                      setPricebookLines(updated)
+                    }}
+                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-400"
+                  />
+                  <span className="flex-1 text-slate-700">{line.description}</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={line.annual_price}
+                    onChange={(e) => {
+                      const updated = [...pricebookLines]
+                      updated[idx] = { ...updated[idx], annual_price: Number(e.target.value) }
+                      setPricebookLines(updated)
+                    }}
+                    className="w-28 rounded border border-gray-200 px-2 py-1 text-sm text-right focus:border-indigo-400 focus:outline-none"
+                  />
+                  <span className="text-xs text-slate-400 w-12">VAT {line.vat_rate}%</span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 pt-2 border-t border-slate-100 flex justify-end text-sm text-slate-500">
+              Total: <span className="font-semibold text-slate-700 ml-1">
+                {formatCurrency(pricebookLines.filter(l => l.included).reduce((s, l) => s + Number(l.annual_price), 0))}
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mt-2">
+              Prices are editable per contract. Changes here do not affect the pricebook.
+            </p>
+          </div>
+        )}
+
         {/* Annual Value */}
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -229,6 +372,9 @@ export function ContractForm({ customers, contractTypes, opportunities, calendar
             placeholder="0.00"
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
           />
+          {pricebookLines.length > 0 && (
+            <p className="text-xs text-slate-400 mt-1">Auto-calculated from lines above. Override if needed.</p>
+          )}
         </div>
 
         {/* Renewal Period */}

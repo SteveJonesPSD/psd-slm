@@ -98,6 +98,8 @@ export async function createContractType(formData: FormData): Promise<{ error?: 
     code: code.trim().toLowerCase(),
     description: (formData.get('description') as string) || null,
     category: (formData.get('category') as string) || 'support',
+    billing_cycle_type: (formData.get('billing_cycle_type') as string) || 'go_live_date',
+    default_billing_month: formData.get('default_billing_month') ? Number(formData.get('default_billing_month')) : null,
     default_visit_frequency: (formData.get('default_visit_frequency') as string) || null,
     default_visit_length_hours: formData.get('default_visit_length_hours') ? Number(formData.get('default_visit_length_hours')) : null,
     default_visits_per_year: formData.get('default_visits_per_year') ? Number(formData.get('default_visits_per_year')) : null,
@@ -138,12 +140,12 @@ export async function updateContractType(id: string, formData: FormData): Promis
   const supabase = await createClient()
 
   const payload: Record<string, unknown> = { updated_at: new Date().toISOString() }
-  const fields = ['name', 'code', 'description', 'category', 'default_visit_frequency'] as const
+  const fields = ['name', 'code', 'description', 'category', 'billing_cycle_type', 'default_visit_frequency'] as const
   for (const f of fields) {
     const v = formData.get(f) as string | null
     if (v !== null) payload[f] = v || null
   }
-  const numFields = ['default_visit_length_hours', 'default_visits_per_year', 'default_monthly_hours', 'sort_order', 'default_term_months', 'default_notice_alert_days', 'secondary_alert_days'] as const
+  const numFields = ['default_visit_length_hours', 'default_visits_per_year', 'default_monthly_hours', 'sort_order', 'default_term_months', 'default_notice_alert_days', 'secondary_alert_days', 'default_billing_month'] as const
   for (const f of numFields) {
     const v = formData.get(f) as string | null
     if (v !== null) payload[f] = v ? Number(v) : null
@@ -187,6 +189,104 @@ export async function getActiveContractCountForType(typeId: string): Promise<num
 
   if (error) return 0
   return count || 0
+}
+
+// ============================================================
+// Pricebook Lines
+// ============================================================
+
+export async function getPricebookLines(contractTypeId: string): Promise<import('@/lib/contracts/types').PricebookLine[]> {
+  await requirePermission('contracts', 'view')
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('contract_type_pricebook_lines')
+    .select('*')
+    .eq('contract_type_id', contractTypeId)
+    .order('sort_order')
+
+  if (error) {
+    console.error('[contracts] getPricebookLines:', error.message)
+    return []
+  }
+  return data || []
+}
+
+export async function savePricebookLines(
+  contractTypeId: string,
+  lines: Array<{
+    id?: string
+    description: string
+    annual_price: number
+    vat_rate: number
+    sort_order: number
+    is_active: boolean
+  }>
+): Promise<{ error?: string }> {
+  const user = await requirePermission('contracts', 'edit')
+  if (!['super_admin', 'admin'].includes(user.role.name)) {
+    return { error: 'Only admins can manage pricebook lines' }
+  }
+  const supabase = await createClient()
+
+  // Get existing lines to determine what to insert vs update vs delete
+  const { data: existing } = await supabase
+    .from('contract_type_pricebook_lines')
+    .select('id')
+    .eq('contract_type_id', contractTypeId)
+
+  const existingIds = new Set((existing || []).map(e => e.id))
+  const incomingIds = new Set(lines.filter(l => l.id).map(l => l.id!))
+
+  // Delete lines that were removed
+  const toDelete = [...existingIds].filter(id => !incomingIds.has(id))
+  if (toDelete.length > 0) {
+    await supabase
+      .from('contract_type_pricebook_lines')
+      .delete()
+      .in('id', toDelete)
+  }
+
+  // Upsert remaining lines
+  for (const line of lines) {
+    if (line.id && existingIds.has(line.id)) {
+      // Update
+      await supabase
+        .from('contract_type_pricebook_lines')
+        .update({
+          description: line.description,
+          annual_price: line.annual_price,
+          vat_rate: line.vat_rate,
+          sort_order: line.sort_order,
+          is_active: line.is_active,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', line.id)
+    } else {
+      // Insert
+      await supabase
+        .from('contract_type_pricebook_lines')
+        .insert({
+          org_id: user.orgId,
+          contract_type_id: contractTypeId,
+          description: line.description,
+          annual_price: line.annual_price,
+          vat_rate: line.vat_rate,
+          sort_order: line.sort_order,
+          is_active: line.is_active,
+        })
+    }
+  }
+
+  logActivity({
+    supabase, user,
+    entityType: 'contract_type',
+    entityId: contractTypeId,
+    action: 'pricebook_updated',
+    details: { line_count: lines.length },
+  })
+  revalidatePath('/settings/contract-types')
+  return {}
 }
 
 // ============================================================
@@ -522,6 +622,89 @@ export async function createCustomerContract(formData: FormData): Promise<{ erro
   if (error) return { error: error.message }
 
   logActivity({ supabase, user, entityType: 'contract', entityId: data.id, action: 'created', details: { contract_number: data.contract_number, customer_id } })
+  revalidatePath('/contracts')
+  return { data }
+}
+
+export async function createSupportContract(payload: import('@/lib/contracts/types').CreateSupportContractPayload): Promise<{ error?: string; data?: CustomerContract }> {
+  const user = await requirePermission('contracts', 'create')
+  const supabase = await createClient()
+
+  if (!payload.customer_id || !payload.contract_type_id || !payload.start_date) {
+    return { error: 'Required fields are missing' }
+  }
+
+  const contract_number = await generateContractNumber(supabase, user.orgId)
+
+  // Resolve billing month from billing cycle type
+  let billing_month: number | null = null
+  if (payload.billing_cycle_type === 'fixed_date') {
+    billing_month = payload.billing_month || 4 // default April
+  }
+
+  const { data, error } = await supabase
+    .from('customer_contracts')
+    .insert({
+      org_id: user.orgId,
+      customer_id: payload.customer_id,
+      contract_type_id: payload.contract_type_id,
+      contact_id: payload.contact_id || null,
+      contract_number,
+      status: 'draft',
+      esign_status: 'not_required',
+      version: 1,
+      start_date: payload.start_date,
+      end_date: payload.end_date || null,
+      renewal_period: billing_month === 4 ? 'april' : billing_month === 9 ? 'september' : 'custom',
+      auto_renew: true,
+      annual_value: payload.annual_value,
+      billing_frequency: 'annually',
+      billing_cycle_type: payload.billing_cycle_type,
+      billing_month,
+      billing_day: 1,
+      source_quote_id: payload.source_quote_id || null,
+      notes: payload.notes || null,
+      calendar_id: payload.calendar_id || null,
+      sla_plan_id: payload.sla_plan_id || null,
+      monthly_hours: payload.monthly_hours ?? null,
+      visit_frequency: payload.visit_frequency || null,
+      visit_length_hours: payload.visit_length_hours ?? null,
+      visits_per_year: payload.visits_per_year ?? null,
+      created_by: user.id,
+    })
+    .select()
+    .single()
+
+  if (error) return { error: error.message }
+
+  // Insert contract lines from pricebook
+  if (payload.lines && payload.lines.length > 0) {
+    const lineRows = payload.lines.map((l, i) => ({
+      customer_contract_id: data.id,
+      description: l.description,
+      unit_type: null as string | null,
+      quantity: 1,
+      unit_price_annual: l.annual_price,
+      sort_order: l.sort_order ?? i,
+      notes: null as string | null,
+    }))
+    await supabase.from('contract_lines').insert(lineRows)
+  }
+
+  logActivity({
+    supabase, user,
+    entityType: 'contract',
+    entityId: data.id,
+    action: 'created',
+    details: {
+      contract_number: data.contract_number,
+      customer_id: payload.customer_id,
+      billing_cycle_type: payload.billing_cycle_type,
+      line_count: payload.lines?.length || 0,
+      source: 'direct_support',
+    },
+  })
+
   revalidatePath('/contracts')
   return { data }
 }
@@ -1448,35 +1631,25 @@ export async function generateInvoiceSchedule(contractId: string): Promise<{ cou
   if (fetchErr || !contract) return { count: 0, error: fetchErr?.message || 'Contract not found' }
 
   const ct = (Array.isArray(contract.contract_types) ? contract.contract_types[0] : contract.contract_types) as Record<string, unknown> | null
+  const ctCategory = (ct?.category as string) || 'support'
+
+  // Resolve billing cycle type: contract override → contract_type → default based on category
+  const billingCycleType = contract.billing_cycle_type
+    ?? (ct?.billing_cycle_type as string)
+    ?? (ctCategory === 'support' ? 'fixed_date' : 'go_live_date')
 
   const effectiveAutoInvoice = contract.auto_invoice ?? (ct?.auto_invoice as boolean) ?? false
   const effectiveFrequency = contract.invoice_frequency ?? (ct?.invoice_frequency as string) ?? 'annual'
 
-  // If auto_invoice off, or open-ended without auto_invoice, do nothing
-  if (!effectiveAutoInvoice) return { count: 0 }
-
-  const goLive = contract.go_live_date ? new Date(contract.go_live_date) : new Date(contract.start_date)
-  const scheduleStart = contract.invoice_schedule_start
-    ? new Date(contract.invoice_schedule_start)
-    : new Date(goLive.getTime())
-
-  // For annual: schedule starts at go_live + 12 months (Year 2 onwards)
-  if (effectiveFrequency === 'annual' && !contract.invoice_schedule_start) {
-    scheduleStart.setMonth(scheduleStart.getMonth() + 12)
-  }
-
-  // Determine end boundary
-  let endBoundary: Date
-  if (contract.end_date) {
-    endBoundary = new Date(contract.end_date)
-  } else {
-    // Open-ended: generate 3 years forward from go-live
-    endBoundary = new Date(goLive.getTime())
-    endBoundary.setFullYear(endBoundary.getFullYear() + 4)
-  }
+  // For go_live_date type: skip if auto_invoice off
+  if (billingCycleType === 'go_live_date' && !effectiveAutoInvoice) return { count: 0 }
 
   const baseAmount = Number(contract.annual_value) || 0
-  const rows: Array<{
+  const fmtDate = (d: Date) => d.toISOString().split('T')[0]
+  const fmtLabel = (d: Date) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  const round2dp = (n: number) => Math.round(n * 100) / 100
+
+  interface ScheduleRow {
     org_id: string
     contract_id: string
     scheduled_date: string
@@ -1484,89 +1657,205 @@ export async function generateInvoiceSchedule(contractId: string): Promise<{ cou
     period_start: string
     period_end: string
     base_amount: number
+    is_prorata: boolean
+    prorata_days: number | null
+    prorata_total_days: number | null
     status: string
-  }> = []
+  }
 
-  const fmtDate = (d: Date) => d.toISOString().split('T')[0]
-  const fmtLabel = (d: Date) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  const rows: ScheduleRow[] = []
 
-  if (effectiveFrequency === 'annual') {
+  // Determine end boundary
+  const getEndBoundary = (startDate: Date): Date => {
+    if (contract.end_date) return new Date(contract.end_date)
+    const end = new Date(startDate.getTime())
+    end.setFullYear(end.getFullYear() + 3)
+    return end
+  }
+
+  if (billingCycleType === 'fixed_date') {
+    // ICT/ProFlex: pro-rata Year 1 from activation to next billing date, then full annual rows
+    const activationDate = new Date(contract.start_date)
+    const billingMonth = contract.billing_month ?? (ct?.default_billing_month as number) ?? 4
+    const billingDay = contract.billing_day ?? 1
+
+    // Calculate next billing date
+    const year = activationDate.getFullYear()
+    let nextBillingDate = new Date(year, billingMonth - 1, billingDay)
+    if (nextBillingDate <= activationDate) {
+      nextBillingDate = new Date(year + 1, billingMonth - 1, billingDay)
+    }
+
+    const daysRemaining = Math.floor((nextBillingDate.getTime() - activationDate.getTime()) / (1000 * 60 * 60 * 24))
+    const isLeap = (y: number) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0
+    const daysInYear = isLeap(activationDate.getFullYear()) ? 366 : 365
+    const proRataAmount = round2dp((daysRemaining / daysInYear) * baseAmount)
+
+    // Row 1 — pro-rata
+    const proRataEnd = new Date(nextBillingDate.getTime())
+    proRataEnd.setDate(proRataEnd.getDate() - 1)
+    rows.push({
+      org_id: user.orgId,
+      contract_id: contractId,
+      scheduled_date: fmtDate(activationDate),
+      period_start: fmtDate(activationDate),
+      period_end: fmtDate(proRataEnd),
+      base_amount: proRataAmount,
+      is_prorata: true,
+      prorata_days: daysRemaining,
+      prorata_total_days: daysInYear,
+      period_label: `Year 1 (pro-rata) — ${fmtLabel(activationDate)} to ${fmtLabel(proRataEnd)}`,
+      status: 'pending',
+    })
+
+    // Full annual rows from next billing date onwards
+    let currentDate = new Date(nextBillingDate.getTime())
     let yearNum = 2
-    const periodStart = new Date(goLive.getTime())
-    periodStart.setMonth(periodStart.getMonth() + 12)
+    const endBoundary = getEndBoundary(activationDate)
 
-    while (periodStart < endBoundary) {
-      const periodEnd = new Date(periodStart.getTime())
+    while (currentDate < endBoundary) {
+      const periodEnd = new Date(currentDate.getTime())
       periodEnd.setFullYear(periodEnd.getFullYear() + 1)
       periodEnd.setDate(periodEnd.getDate() - 1)
 
-      const scheduledDate = new Date(periodStart.getTime())
-
       rows.push({
         org_id: user.orgId,
         contract_id: contractId,
-        scheduled_date: fmtDate(scheduledDate),
-        period_label: `Year ${yearNum} (${fmtLabel(periodStart)} – ${fmtLabel(periodEnd)})`,
-        period_start: fmtDate(periodStart),
+        scheduled_date: fmtDate(currentDate),
+        period_start: fmtDate(currentDate),
         period_end: fmtDate(periodEnd),
         base_amount: baseAmount,
+        is_prorata: false,
+        prorata_days: null,
+        prorata_total_days: null,
+        period_label: `Year ${yearNum} — ${fmtLabel(currentDate)} to ${fmtLabel(periodEnd)}`,
         status: 'pending',
       })
 
-      periodStart.setFullYear(periodStart.getFullYear() + 1)
+      currentDate = new Date(currentDate.getTime())
+      currentDate.setFullYear(currentDate.getFullYear() + 1)
       yearNum++
     }
-  } else if (effectiveFrequency === 'monthly') {
-    const monthlyAmount = baseAmount / 12
-    let monthNum = 2
-    const periodStart = new Date(goLive.getTime())
-    periodStart.setMonth(periodStart.getMonth() + 1)
+  } else if (billingCycleType === 'start_date') {
+    // AC/CCTV: Year 1 full amount on start_date, then annual anniversaries
+    const startDate = new Date(contract.start_date)
+    let currentDate = new Date(startDate.getTime())
+    let yearNum = 1
+    const endBoundary = getEndBoundary(startDate)
 
-    while (periodStart < endBoundary) {
-      const periodEnd = new Date(periodStart.getTime())
-      periodEnd.setMonth(periodEnd.getMonth() + 1)
+    while (currentDate < endBoundary) {
+      const periodEnd = new Date(currentDate.getTime())
+      periodEnd.setFullYear(periodEnd.getFullYear() + 1)
       periodEnd.setDate(periodEnd.getDate() - 1)
-
-      const monthLabel = periodStart.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
 
       rows.push({
         org_id: user.orgId,
         contract_id: contractId,
-        scheduled_date: fmtDate(periodStart),
-        period_label: `Month ${monthNum} — ${monthLabel}`,
-        period_start: fmtDate(periodStart),
+        scheduled_date: fmtDate(currentDate),
+        period_start: fmtDate(currentDate),
         period_end: fmtDate(periodEnd),
-        base_amount: monthlyAmount,
+        base_amount: baseAmount,
+        is_prorata: false,
+        prorata_days: null,
+        prorata_total_days: null,
+        period_label: `Year ${yearNum} — ${fmtLabel(currentDate)} to ${fmtLabel(periodEnd)}`,
         status: 'pending',
       })
 
-      periodStart.setMonth(periodStart.getMonth() + 1)
-      monthNum++
+      currentDate = new Date(currentDate.getTime())
+      currentDate.setFullYear(currentDate.getFullYear() + 1)
+      yearNum++
     }
-  } else if (effectiveFrequency === 'quarterly') {
-    const quarterlyAmount = baseAmount / 4
-    let qNum = 1
-    const periodStart = new Date(goLive.getTime())
-    periodStart.setMonth(periodStart.getMonth() + 12) // Year 2 onwards
+  } else {
+    // go_live_date: Year 1 on SO, Year 2+ from invoice_schedule_start or go_live + 12m
+    const goLive = contract.go_live_date ? new Date(contract.go_live_date) : new Date(contract.start_date)
+    const endBoundary = getEndBoundary(goLive)
 
-    while (periodStart < endBoundary) {
-      const periodEnd = new Date(periodStart.getTime())
-      periodEnd.setMonth(periodEnd.getMonth() + 3)
-      periodEnd.setDate(periodEnd.getDate() - 1)
+    if (effectiveFrequency === 'annual') {
+      let yearNum = 2
+      const periodStart = new Date(goLive.getTime())
+      periodStart.setMonth(periodStart.getMonth() + 12)
 
-      rows.push({
-        org_id: user.orgId,
-        contract_id: contractId,
-        scheduled_date: fmtDate(periodStart),
-        period_label: `Q${qNum} (${fmtLabel(periodStart)} – ${fmtLabel(periodEnd)})`,
-        period_start: fmtDate(periodStart),
-        period_end: fmtDate(periodEnd),
-        base_amount: quarterlyAmount,
-        status: 'pending',
-      })
+      while (periodStart < endBoundary) {
+        const periodEnd = new Date(periodStart.getTime())
+        periodEnd.setFullYear(periodEnd.getFullYear() + 1)
+        periodEnd.setDate(periodEnd.getDate() - 1)
 
-      periodStart.setMonth(periodStart.getMonth() + 3)
-      qNum++
+        rows.push({
+          org_id: user.orgId,
+          contract_id: contractId,
+          scheduled_date: fmtDate(periodStart),
+          period_label: `Year ${yearNum} (${fmtLabel(periodStart)} – ${fmtLabel(periodEnd)})`,
+          period_start: fmtDate(periodStart),
+          period_end: fmtDate(periodEnd),
+          base_amount: baseAmount,
+          is_prorata: false,
+          prorata_days: null,
+          prorata_total_days: null,
+          status: 'pending',
+        })
+
+        periodStart.setFullYear(periodStart.getFullYear() + 1)
+        yearNum++
+      }
+    } else if (effectiveFrequency === 'monthly') {
+      const monthlyAmount = round2dp(baseAmount / 12)
+      let monthNum = 2
+      const periodStart = new Date(goLive.getTime())
+      periodStart.setMonth(periodStart.getMonth() + 1)
+
+      while (periodStart < endBoundary) {
+        const periodEnd = new Date(periodStart.getTime())
+        periodEnd.setMonth(periodEnd.getMonth() + 1)
+        periodEnd.setDate(periodEnd.getDate() - 1)
+
+        const monthLabel = periodStart.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
+
+        rows.push({
+          org_id: user.orgId,
+          contract_id: contractId,
+          scheduled_date: fmtDate(periodStart),
+          period_label: `Month ${monthNum} — ${monthLabel}`,
+          period_start: fmtDate(periodStart),
+          period_end: fmtDate(periodEnd),
+          base_amount: monthlyAmount,
+          is_prorata: false,
+          prorata_days: null,
+          prorata_total_days: null,
+          status: 'pending',
+        })
+
+        periodStart.setMonth(periodStart.getMonth() + 1)
+        monthNum++
+      }
+    } else if (effectiveFrequency === 'quarterly') {
+      const quarterlyAmount = round2dp(baseAmount / 4)
+      let qNum = 1
+      const periodStart = new Date(goLive.getTime())
+      periodStart.setMonth(periodStart.getMonth() + 12)
+
+      while (periodStart < endBoundary) {
+        const periodEnd = new Date(periodStart.getTime())
+        periodEnd.setMonth(periodEnd.getMonth() + 3)
+        periodEnd.setDate(periodEnd.getDate() - 1)
+
+        rows.push({
+          org_id: user.orgId,
+          contract_id: contractId,
+          scheduled_date: fmtDate(periodStart),
+          period_label: `Q${qNum} (${fmtLabel(periodStart)} – ${fmtLabel(periodEnd)})`,
+          period_start: fmtDate(periodStart),
+          period_end: fmtDate(periodEnd),
+          base_amount: quarterlyAmount,
+          is_prorata: false,
+          prorata_days: null,
+          prorata_total_days: null,
+          status: 'pending',
+        })
+
+        periodStart.setMonth(periodStart.getMonth() + 3)
+        qNum++
+      }
     }
   }
 
@@ -1590,7 +1879,7 @@ export async function generateInvoiceSchedule(contractId: string): Promise<{ cou
     entityType: 'contract',
     entityId: contractId,
     action: 'invoice_schedule_generated',
-    details: { periods: rows.length },
+    details: { periods: rows.length, billing_cycle: billingCycleType },
   })
 
   return { count: rows.length }
