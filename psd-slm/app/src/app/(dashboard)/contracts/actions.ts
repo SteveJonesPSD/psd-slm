@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, requirePermission, hasPermission } from '@/lib/auth'
 import { logActivity } from '@/lib/activity-log'
+import { generateInvoiceNumber } from '@/lib/invoicing'
 import type {
   ContractType,
   CustomerContract,
@@ -13,6 +14,7 @@ import type {
   ContractRenewal,
   ContractVisitSlot,
   ContractVisitSlotWithDetails,
+  ContractInvoiceSchedule,
   FieldEngineer,
 } from '@/lib/contracts/types'
 
@@ -1275,6 +1277,9 @@ export async function signContract(contractId: string): Promise<{ error?: string
 
   if (updateError) return { error: updateError.message }
 
+  // Generate invoice schedule on activation
+  await generateInvoiceSchedule(contractId).catch(() => {})
+
   logActivity({
     supabase, user,
     entityType: 'contract',
@@ -1319,6 +1324,9 @@ export async function waiveEsign(contractId: string): Promise<{ error?: string }
 
   if (updateError) return { error: updateError.message }
 
+  // Generate invoice schedule on activation
+  await generateInvoiceSchedule(contractId).catch(() => {})
+
   logActivity({
     supabase, user,
     entityType: 'contract',
@@ -1332,6 +1340,387 @@ export async function waiveEsign(contractId: string): Promise<{ error?: string }
   const { data: cc } = await supabase.from('customer_contracts').select('source_quote_id').eq('id', contractId).single()
   if (cc?.source_quote_id) revalidatePath(`/quotes/${cc.source_quote_id}`)
 
+  return {}
+}
+
+// ============================================================
+// Invoice Schedule Engine (Phase 4)
+// ============================================================
+
+export async function generateInvoiceSchedule(contractId: string): Promise<{ count: number; error?: string }> {
+  const user = await requirePermission('contracts', 'edit')
+  const supabase = await createClient()
+
+  const { data: contract, error: fetchErr } = await supabase
+    .from('customer_contracts')
+    .select('*, contract_types(*)')
+    .eq('id', contractId)
+    .single()
+
+  if (fetchErr || !contract) return { count: 0, error: fetchErr?.message || 'Contract not found' }
+
+  const ct = (Array.isArray(contract.contract_types) ? contract.contract_types[0] : contract.contract_types) as Record<string, unknown> | null
+
+  const effectiveAutoInvoice = contract.auto_invoice ?? (ct?.auto_invoice as boolean) ?? false
+  const effectiveFrequency = contract.invoice_frequency ?? (ct?.invoice_frequency as string) ?? 'annual'
+
+  // If auto_invoice off, or open-ended without auto_invoice, do nothing
+  if (!effectiveAutoInvoice) return { count: 0 }
+
+  const goLive = contract.go_live_date ? new Date(contract.go_live_date) : new Date(contract.start_date)
+  const scheduleStart = contract.invoice_schedule_start
+    ? new Date(contract.invoice_schedule_start)
+    : new Date(goLive.getTime())
+
+  // For annual: schedule starts at go_live + 12 months (Year 2 onwards)
+  if (effectiveFrequency === 'annual' && !contract.invoice_schedule_start) {
+    scheduleStart.setMonth(scheduleStart.getMonth() + 12)
+  }
+
+  // Determine end boundary
+  let endBoundary: Date
+  if (contract.end_date) {
+    endBoundary = new Date(contract.end_date)
+  } else {
+    // Open-ended: generate 3 years forward from go-live
+    endBoundary = new Date(goLive.getTime())
+    endBoundary.setFullYear(endBoundary.getFullYear() + 4)
+  }
+
+  const baseAmount = Number(contract.annual_value) || 0
+  const rows: Array<{
+    org_id: string
+    contract_id: string
+    scheduled_date: string
+    period_label: string
+    period_start: string
+    period_end: string
+    base_amount: number
+    status: string
+  }> = []
+
+  const fmtDate = (d: Date) => d.toISOString().split('T')[0]
+  const fmtLabel = (d: Date) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+
+  if (effectiveFrequency === 'annual') {
+    let yearNum = 2
+    const periodStart = new Date(goLive.getTime())
+    periodStart.setMonth(periodStart.getMonth() + 12)
+
+    while (periodStart < endBoundary) {
+      const periodEnd = new Date(periodStart.getTime())
+      periodEnd.setFullYear(periodEnd.getFullYear() + 1)
+      periodEnd.setDate(periodEnd.getDate() - 1)
+
+      const scheduledDate = new Date(periodStart.getTime())
+
+      rows.push({
+        org_id: user.orgId,
+        contract_id: contractId,
+        scheduled_date: fmtDate(scheduledDate),
+        period_label: `Year ${yearNum} (${fmtLabel(periodStart)} – ${fmtLabel(periodEnd)})`,
+        period_start: fmtDate(periodStart),
+        period_end: fmtDate(periodEnd),
+        base_amount: baseAmount,
+        status: 'pending',
+      })
+
+      periodStart.setFullYear(periodStart.getFullYear() + 1)
+      yearNum++
+    }
+  } else if (effectiveFrequency === 'monthly') {
+    const monthlyAmount = baseAmount / 12
+    let monthNum = 2
+    const periodStart = new Date(goLive.getTime())
+    periodStart.setMonth(periodStart.getMonth() + 1)
+
+    while (periodStart < endBoundary) {
+      const periodEnd = new Date(periodStart.getTime())
+      periodEnd.setMonth(periodEnd.getMonth() + 1)
+      periodEnd.setDate(periodEnd.getDate() - 1)
+
+      const monthLabel = periodStart.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
+
+      rows.push({
+        org_id: user.orgId,
+        contract_id: contractId,
+        scheduled_date: fmtDate(periodStart),
+        period_label: `Month ${monthNum} — ${monthLabel}`,
+        period_start: fmtDate(periodStart),
+        period_end: fmtDate(periodEnd),
+        base_amount: monthlyAmount,
+        status: 'pending',
+      })
+
+      periodStart.setMonth(periodStart.getMonth() + 1)
+      monthNum++
+    }
+  } else if (effectiveFrequency === 'quarterly') {
+    const quarterlyAmount = baseAmount / 4
+    let qNum = 1
+    const periodStart = new Date(goLive.getTime())
+    periodStart.setMonth(periodStart.getMonth() + 12) // Year 2 onwards
+
+    while (periodStart < endBoundary) {
+      const periodEnd = new Date(periodStart.getTime())
+      periodEnd.setMonth(periodEnd.getMonth() + 3)
+      periodEnd.setDate(periodEnd.getDate() - 1)
+
+      rows.push({
+        org_id: user.orgId,
+        contract_id: contractId,
+        scheduled_date: fmtDate(periodStart),
+        period_label: `Q${qNum} (${fmtLabel(periodStart)} – ${fmtLabel(periodEnd)})`,
+        period_start: fmtDate(periodStart),
+        period_end: fmtDate(periodEnd),
+        base_amount: quarterlyAmount,
+        status: 'pending',
+      })
+
+      periodStart.setMonth(periodStart.getMonth() + 3)
+      qNum++
+    }
+  }
+
+  if (rows.length === 0) return { count: 0 }
+
+  // Delete any existing pending rows to regenerate cleanly
+  await supabase
+    .from('contract_invoice_schedule')
+    .delete()
+    .eq('contract_id', contractId)
+    .eq('status', 'pending')
+
+  const { error: insertErr } = await supabase
+    .from('contract_invoice_schedule')
+    .insert(rows)
+
+  if (insertErr) return { count: 0, error: insertErr.message }
+
+  logActivity({
+    supabase, user,
+    entityType: 'contract',
+    entityId: contractId,
+    action: 'invoice_schedule_generated',
+    details: { periods: rows.length },
+  })
+
+  return { count: rows.length }
+}
+
+export async function getInvoiceSchedule(contractId: string): Promise<ContractInvoiceSchedule[]> {
+  await requirePermission('contracts', 'view')
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('contract_invoice_schedule')
+    .select('*, invoices(invoice_number)')
+    .eq('contract_id', contractId)
+    .order('scheduled_date')
+
+  if (error || !data) return []
+
+  return data.map(row => ({
+    ...row,
+    invoice_number: (row.invoices as { invoice_number: string } | null)?.invoice_number || null,
+    effective_amount: row.amount_override ?? row.base_amount,
+  })) as ContractInvoiceSchedule[]
+}
+
+export async function processPendingContractInvoices(
+  contractId?: string
+): Promise<{ processed: number; errors: string[] }> {
+  const user = await requirePermission('invoices', 'create')
+  const supabase = await createClient()
+
+  let query = supabase
+    .from('contract_invoice_schedule')
+    .select('*, customer_contracts(*, contract_types(*))')
+    .eq('org_id', user.orgId)
+    .eq('status', 'pending')
+    .lte('scheduled_date', new Date().toISOString().split('T')[0])
+    .is('invoice_id', null)
+
+  if (contractId) query = query.eq('contract_id', contractId)
+
+  const { data: pendingRows, error } = await query
+  if (error || !pendingRows || pendingRows.length === 0) return { processed: 0, errors: [] }
+
+  let processed = 0
+  const errors: string[] = []
+
+  for (const row of pendingRows) {
+    try {
+      const cc = (Array.isArray(row.customer_contracts) ? row.customer_contracts[0] : row.customer_contracts) as Record<string, unknown> | null
+      if (!cc) { errors.push(`Row ${row.id}: no contract found`); continue }
+
+      const customerId = cc.customer_id as string
+
+      // Fetch contract lines for recurring items
+      const { data: contractLines } = await supabase
+        .from('contract_lines')
+        .select('*')
+        .eq('customer_contract_id', row.contract_id)
+        .eq('line_type', 'recurring')
+        .order('sort_order')
+
+      const effectiveAmount = row.amount_override ?? row.base_amount
+      const invoiceNumber = await generateInvoiceNumber(supabase, user.orgId, 'INV')
+
+      const subtotal = contractLines && contractLines.length > 0
+        ? contractLines.reduce((sum: number, l: Record<string, unknown>) => sum + (Number(l.quantity) || 1) * (Number(l.unit_price) || 0), 0)
+        : Number(effectiveAmount)
+
+      const vatRate = 20
+      const vatAmount = subtotal * (vatRate / 100)
+      const total = subtotal + vatAmount
+
+      const dueDate = new Date()
+      dueDate.setDate(dueDate.getDate() + 30)
+
+      const { data: invoice, error: invErr } = await supabase
+        .from('invoices')
+        .insert({
+          org_id: user.orgId,
+          customer_id: customerId,
+          invoice_number: invoiceNumber,
+          status: 'draft',
+          invoice_type: 'standard',
+          subtotal,
+          vat_amount: vatAmount,
+          total,
+          vat_rate: vatRate,
+          due_date: dueDate.toISOString().split('T')[0],
+          internal_notes: `Auto-generated from contract ${cc.contract_number} — ${row.period_label}`,
+          payment_terms: 30,
+        })
+        .select('id')
+        .single()
+
+      if (invErr || !invoice) {
+        errors.push(`Row ${row.id}: ${invErr?.message || 'Failed to create invoice'}`)
+        continue
+      }
+
+      // Insert invoice lines
+      if (contractLines && contractLines.length > 0) {
+        const lineInserts = contractLines.map((cl: Record<string, unknown>, idx: number) => ({
+          invoice_id: invoice.id,
+          description: `${cl.description} — ${row.period_label}`,
+          quantity: Number(cl.quantity) || 1,
+          unit_price: Number(cl.unit_price) || 0,
+          unit_cost: Number(cl.buy_price) || 0,
+          vat_rate: vatRate,
+          sort_order: idx + 1,
+          product_id: cl.product_id || null,
+        }))
+        await supabase.from('invoice_lines').insert(lineInserts)
+      } else {
+        await supabase.from('invoice_lines').insert({
+          invoice_id: invoice.id,
+          description: `Contract Renewal — ${row.period_label}`,
+          quantity: 1,
+          unit_price: Number(effectiveAmount),
+          unit_cost: 0,
+          vat_rate: vatRate,
+          sort_order: 1,
+        })
+      }
+
+      // Update schedule row
+      await supabase
+        .from('contract_invoice_schedule')
+        .update({ invoice_id: invoice.id, status: 'draft_created', updated_at: new Date().toISOString() })
+        .eq('id', row.id)
+
+      logActivity({
+        supabase, user,
+        entityType: 'contract',
+        entityId: row.contract_id,
+        action: 'contract_invoice_created',
+        details: { period_label: row.period_label, invoice_number: invoiceNumber },
+      })
+
+      processed++
+    } catch (e) {
+      errors.push(`Row ${row.id}: ${e instanceof Error ? e.message : 'Unknown error'}`)
+    }
+  }
+
+  if (processed > 0 && contractId) {
+    revalidatePath(`/contracts/${contractId}`)
+  }
+
+  return { processed, errors }
+}
+
+export async function updateScheduleAmountOverride(
+  scheduleId: string,
+  amountOverride: number | null
+): Promise<{ error?: string }> {
+  const user = await requirePermission('contracts', 'edit')
+  const supabase = await createClient()
+
+  const { data: row } = await supabase
+    .from('contract_invoice_schedule')
+    .select('id, contract_id, status, period_label')
+    .eq('id', scheduleId)
+    .single()
+
+  if (!row) return { error: 'Schedule row not found' }
+  if (row.status !== 'pending') return { error: 'Can only override pending schedule rows' }
+
+  const { error } = await supabase
+    .from('contract_invoice_schedule')
+    .update({ amount_override: amountOverride, updated_at: new Date().toISOString() })
+    .eq('id', scheduleId)
+
+  if (error) return { error: error.message }
+
+  logActivity({
+    supabase, user,
+    entityType: 'contract',
+    entityId: row.contract_id,
+    action: 'schedule_amount_override',
+    details: { period_label: row.period_label, amount_override: amountOverride },
+  })
+
+  revalidatePath(`/contracts/${row.contract_id}`)
+  return {}
+}
+
+export async function skipScheduleRow(
+  scheduleId: string,
+  notes: string
+): Promise<{ error?: string }> {
+  const user = await requirePermission('contracts', 'edit')
+  const supabase = await createClient()
+
+  const { data: row } = await supabase
+    .from('contract_invoice_schedule')
+    .select('id, contract_id, status, period_label')
+    .eq('id', scheduleId)
+    .single()
+
+  if (!row) return { error: 'Schedule row not found' }
+  if (row.status !== 'pending') return { error: 'Can only skip pending schedule rows' }
+
+  const { error } = await supabase
+    .from('contract_invoice_schedule')
+    .update({ status: 'skipped', notes, updated_at: new Date().toISOString() })
+    .eq('id', scheduleId)
+
+  if (error) return { error: error.message }
+
+  logActivity({
+    supabase, user,
+    entityType: 'contract',
+    entityId: row.contract_id,
+    action: 'schedule_row_skipped',
+    details: { period_label: row.period_label, notes },
+  })
+
+  revalidatePath(`/contracts/${row.contract_id}`)
   return {}
 }
 

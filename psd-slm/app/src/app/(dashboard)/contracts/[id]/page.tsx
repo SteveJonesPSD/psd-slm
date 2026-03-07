@@ -3,10 +3,11 @@ import Link from 'next/link'
 import { formatCurrency } from '@/lib/utils'
 import { requireAuth, hasPermission } from '@/lib/auth'
 import { Badge, CONTRACT_STATUS_CONFIG, CONTRACT_CATEGORY_CONFIG, RENEWAL_PERIOD_CONFIG } from '@/components/ui/badge'
-import { getCustomerContract, getFieldEngineers } from '../actions'
+import { getCustomerContract, getFieldEngineers, getInvoiceSchedule } from '../actions'
 import { ContractActions } from './contract-actions'
 import { EsignBanner } from './esign-banner'
 import { ContractLinesSection } from './contract-lines-section'
+import { InvoiceScheduleSection } from './invoice-schedule-section'
 import { ContractEntitlementsSection } from './contract-entitlements-section'
 import { VisitScheduleSection } from './visit-schedule-section'
 import { RenewalHistorySection } from './renewal-history-section'
@@ -24,10 +25,11 @@ function formatFrequency(f: string | null): string {
 
 export default async function ContractDetailPage({ params }: PageProps) {
   const { id } = await params
-  const [user, contract, engineers] = await Promise.all([
+  const [user, contract, engineers, invoiceSchedule] = await Promise.all([
     requireAuth(),
     getCustomerContract(id),
     getFieldEngineers(),
+    getInvoiceSchedule(id),
   ])
 
   if (!contract) notFound()
@@ -165,6 +167,15 @@ export default async function ContractDetailPage({ params }: PageProps) {
         lines={contract.lines || []}
         editable={isEditable}
       />
+
+      {/* Invoice Schedule (service/licensing only) */}
+      {['service', 'licensing'].includes(contract.category) && (
+        <InvoiceScheduleSection
+          contractId={id}
+          schedule={invoiceSchedule}
+          editable={isEditable}
+        />
+      )}
 
       {/* Entitlements */}
       <ContractEntitlementsSection
