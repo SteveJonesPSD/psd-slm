@@ -1813,6 +1813,168 @@ export async function skipScheduleRow(
 }
 
 // ============================================================
+// Upgrade & Credit Note Flow (Phase 6)
+// ============================================================
+
+export async function getUpgradeCalculation(contractId: string, goLiveDate: string): Promise<{
+  invoiceId?: string
+  invoiceNumber?: string
+  periodStart?: string
+  periodEnd?: string
+  invoiceAmount?: number
+  daysRemaining?: number
+  daysInPeriod?: number
+  creditAmount?: number
+  error?: string
+}> {
+  await requirePermission('contracts', 'view')
+  const supabase = await createClient()
+
+  // Find the most recent sent/paid invoice from the schedule
+  const { data: scheduleRows } = await supabase
+    .from('contract_invoice_schedule')
+    .select('*, invoices(id, invoice_number, status, total)')
+    .eq('contract_id', contractId)
+    .in('status', ['draft_created', 'sent'])
+    .not('invoice_id', 'is', null)
+    .order('period_end', { ascending: false })
+    .limit(1)
+
+  if (!scheduleRows || scheduleRows.length === 0) {
+    return { error: 'No invoice found for credit calculation. Has Year 1 been invoiced via Sales Order?' }
+  }
+
+  const row = scheduleRows[0]
+  const inv = (Array.isArray(row.invoices) ? row.invoices[0] : row.invoices) as { id: string; invoice_number: string; total: number } | null
+  if (!inv) return { error: 'Invoice data not found' }
+
+  const periodStart = new Date(row.period_start)
+  const periodEnd = new Date(row.period_end)
+  const goLive = new Date(goLiveDate)
+
+  const daysRemaining = Math.max(0, Math.floor((periodEnd.getTime() - goLive.getTime()) / (1000 * 60 * 60 * 24)))
+  const daysInPeriod = Math.floor((periodEnd.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24)) + 1
+  const effectiveAmount = row.amount_override ?? row.base_amount
+  const creditAmount = Math.round((daysRemaining / daysInPeriod) * Number(effectiveAmount) * 100) / 100
+
+  return {
+    invoiceId: inv.id,
+    invoiceNumber: inv.invoice_number,
+    periodStart: row.period_start,
+    periodEnd: row.period_end,
+    invoiceAmount: Number(effectiveAmount),
+    daysRemaining,
+    daysInPeriod,
+    creditAmount,
+  }
+}
+
+export async function upgradeContract(
+  contractId: string,
+  upgradeGoLiveDate: string
+): Promise<{ success: boolean; creditNoteId?: string; creditNoteNumber?: string; creditAmount?: number; error?: string }> {
+  const user = await requirePermission('contracts', 'edit')
+  const supabase = await createClient()
+
+  // Fetch contract
+  const { data: contract } = await supabase
+    .from('customer_contracts')
+    .select('*, contract_types(category)')
+    .eq('id', contractId)
+    .single()
+
+  if (!contract) return { success: false, error: 'Contract not found' }
+
+  const ct = (Array.isArray(contract.contract_types) ? contract.contract_types[0] : contract.contract_types) as Record<string, unknown> | null
+  if ((ct?.category as string) !== 'service') return { success: false, error: 'Upgrades only apply to service contracts' }
+
+  // Calculate credit
+  const calc = await getUpgradeCalculation(contractId, upgradeGoLiveDate)
+  if (calc.error) return { success: false, error: calc.error }
+
+  // Create credit note
+  const creditNoteNumber = await generateInvoiceNumber(supabase, user.orgId, 'CN')
+
+  const creditAmount = calc.creditAmount || 0
+  const vatRate = 20
+  const subtotal = -creditAmount
+  const vatAmount = subtotal * (vatRate / 100)
+  const total = subtotal + vatAmount
+
+  const dueDate = new Date()
+  dueDate.setDate(dueDate.getDate() + 30)
+
+  const { data: creditNote, error: cnErr } = await supabase
+    .from('invoices')
+    .insert({
+      org_id: user.orgId,
+      customer_id: contract.customer_id,
+      invoice_number: creditNoteNumber,
+      status: 'draft',
+      invoice_type: 'credit_note',
+      parent_invoice_id: calc.invoiceId,
+      subtotal,
+      vat_amount: vatAmount,
+      total,
+      vat_rate: vatRate,
+      due_date: dueDate.toISOString().split('T')[0],
+      internal_notes: `Pro-rata credit: ${calc.daysRemaining} days remaining of ${calc.daysInPeriod} day period. Auto-calculated on contract upgrade.`,
+      payment_terms: 30,
+    })
+    .select('id')
+    .single()
+
+  if (cnErr || !creditNote) return { success: false, error: cnErr?.message || 'Failed to create credit note' }
+
+  // Insert credit note line
+  const goLiveFormatted = new Date(upgradeGoLiveDate).toLocaleDateString('en-GB')
+  await supabase.from('invoice_lines').insert({
+    invoice_id: creditNote.id,
+    description: `Service Credit — ${contract.contract_number} — Go-live ${goLiveFormatted}`,
+    quantity: 1,
+    unit_price: -creditAmount,
+    unit_cost: 0,
+    vat_rate: vatRate,
+    sort_order: 1,
+  })
+
+  // Cancel remaining pending schedule rows
+  await supabase
+    .from('contract_invoice_schedule')
+    .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+    .eq('contract_id', contractId)
+    .eq('status', 'pending')
+
+  // Supersede the contract
+  await supabase
+    .from('customer_contracts')
+    .update({
+      renewal_status: 'superseded',
+      upgrade_go_live_date: upgradeGoLiveDate,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', contractId)
+
+  logActivity({
+    supabase, user,
+    entityType: 'contract',
+    entityId: contractId,
+    action: 'contract_upgraded',
+    details: {
+      contract_number: contract.contract_number,
+      upgrade_go_live_date: upgradeGoLiveDate,
+      credit_note_number: creditNoteNumber,
+      credit_amount: creditAmount,
+    },
+  })
+
+  revalidatePath(`/contracts/${contractId}`)
+  revalidatePath('/contracts')
+
+  return { success: true, creditNoteId: creditNote.id, creditNoteNumber, creditAmount }
+}
+
+// ============================================================
 // Contract Creation from Quote Lines (Phase 2)
 // ============================================================
 

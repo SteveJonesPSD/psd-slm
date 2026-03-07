@@ -9,6 +9,7 @@ import { ContractActions } from './contract-actions'
 import { EsignBanner } from './esign-banner'
 import { ContractLinesSection } from './contract-lines-section'
 import { InvoiceScheduleSection } from './invoice-schedule-section'
+import { UpgradeSection } from './upgrade-section'
 import { ContractEntitlementsSection } from './contract-entitlements-section'
 import { VisitScheduleSection } from './visit-schedule-section'
 import { RenewalHistorySection } from './renewal-history-section'
@@ -186,6 +187,11 @@ export default async function ContractDetailPage({ params }: PageProps) {
           schedule={invoiceSchedule}
           editable={isEditable}
         />
+      )}
+
+      {/* Upgrade Section (service contracts only, active/rolling) */}
+      {contract.category === 'service' && ['active', 'alert_180', 'alert_90', 'rolling'].includes(contract.renewal_status) && canEdit && (
+        <UpgradeSection contractId={id} contractNumber={contract.contract_number} />
       )}
 
       {/* Entitlements */}
