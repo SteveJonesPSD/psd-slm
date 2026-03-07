@@ -143,7 +143,7 @@ export function MobileHome({ agentAvatars }: MobileHomeProps) {
     .filter((section) => section.items.length > 0)
 
   return (
-    <div className="space-y-6 pb-20">
+    <div className="space-y-6 pb-20 max-w-full overflow-hidden">
       <div>
         <h1 className="text-lg font-bold text-slate-900 dark:text-white">
           Welcome, {user.firstName}
@@ -165,10 +165,10 @@ export function MobileHome({ agentAvatars }: MobileHomeProps) {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 no-underline text-slate-700 dark:text-slate-200 active:scale-95 active:bg-slate-50 dark:active:bg-slate-700 transition-transform ${
+                className={`flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 no-underline text-slate-700 dark:text-slate-200 active:scale-95 active:bg-slate-50 dark:active:bg-slate-700 transition-transform min-w-0 ${
                   section.label === ''
                     ? 'flex-row p-3.5'
-                    : 'flex-col p-4 min-h-[88px]'
+                    : 'flex-col p-3 min-h-[80px]'
                 }`}
               >
                 {item.agentKey ? (

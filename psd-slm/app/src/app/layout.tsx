@@ -22,6 +22,9 @@ export default function RootLayout({
       <head>
         <link rel="manifest" href="/api/manifest" />
         <link rel="apple-touch-icon" href="/api/app-icon" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/api/app-icon" />
+        <link rel="apple-touch-icon" sizes="152x152" href="/api/app-icon" />
+        <link rel="apple-touch-icon" sizes="120x120" href="/api/app-icon" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="mobile-web-app-capable" content="yes" />

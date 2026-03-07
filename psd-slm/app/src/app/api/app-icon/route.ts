@@ -13,12 +13,24 @@ export async function GET(request: Request) {
       .maybeSingle()
 
     if (data?.setting_value) {
-      return NextResponse.redirect(data.setting_value)
+      // Proxy the image directly — iOS apple-touch-icon doesn't follow redirects
+      const imgRes = await fetch(data.setting_value)
+      if (imgRes.ok) {
+        const contentType = imgRes.headers.get('content-type') || 'image/png'
+        const body = await imgRes.arrayBuffer()
+        return new NextResponse(body, {
+          headers: {
+            'Content-Type': contentType,
+            'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
+          },
+        })
+      }
     }
   } catch {
     // Fall back to default
   }
 
+  // Fallback: serve favicon.ico
   const url = new URL('/favicon.ico', request.url)
   return NextResponse.redirect(url)
 }

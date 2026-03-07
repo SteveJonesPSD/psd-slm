@@ -23,8 +23,9 @@ export async function GET() {
 
   const icons = iconUrl
     ? [
-        { src: iconUrl, sizes: '192x192', type: 'image/png' },
-        { src: iconUrl, sizes: '512x512', type: 'image/png' },
+        { src: iconUrl, sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: iconUrl, sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: iconUrl, sizes: '192x192', type: 'image/png', purpose: 'maskable' },
       ]
     : [
         { src: '/favicon.ico', sizes: '64x64', type: 'image/x-icon' },

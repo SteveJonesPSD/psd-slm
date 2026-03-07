@@ -31,7 +31,7 @@ export default async function DashboardLayout({
             <Sidebar agentAvatars={agentAvatars} portalLogoUrl={portalLogoUrl} />
             <div className="flex-1 flex flex-col overflow-hidden">
               <MobileHeader portalLogoUrl={portalLogoUrl} />
-              <main className="flex-1 overflow-auto px-6 py-8 md:px-10 md:py-10 lg:px-12 lg:py-12">
+              <main className="flex-1 overflow-auto px-4 py-6 md:px-10 md:py-10 lg:px-12 lg:py-12">
                 {children}
               </main>
             </div>
