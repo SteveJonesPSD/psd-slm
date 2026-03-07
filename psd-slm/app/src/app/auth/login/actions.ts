@@ -10,10 +10,11 @@ import { headers } from 'next/headers'
 export async function resolveLoginMethod(email: string): Promise<{
   method: LoginMethod
   hasPassword: boolean
+  hasPasskey: boolean
   error?: string
 }> {
   if (!email || !email.includes('@')) {
-    return { method: 'password', hasPassword: false, error: 'Please enter a valid email address' }
+    return { method: 'password', hasPassword: false, hasPasskey: false, error: 'Please enter a valid email address' }
   }
 
   const result = await getLoginMethodForEmail(email)
@@ -72,6 +73,14 @@ export async function signInWithPassword(email: string, password: string): Promi
     }
 
     return { mfaRequired: true, factorId: mfaStatus.factorId! }
+  }
+
+  // For password_passkey, check if TOTP is available as fallback
+  if (result.method === 'password_passkey') {
+    const mfaStatus = await getUserMfaStatus()
+    if (mfaStatus.enrolled && mfaStatus.factorId) {
+      return { factorId: mfaStatus.factorId }
+    }
   }
 
   return {}

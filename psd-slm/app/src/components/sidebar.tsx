@@ -64,8 +64,14 @@ const NAV_SECTIONS: NavSection[] = [
     label: 'Support',
     items: [
       { href: '/helpdesk', label: 'Service Desk', icon: '🎫', permission: { module: 'helpdesk', action: 'view' }, badgeKey: 'helpdesk' },
+    ],
+  },
+  {
+    key: 'scheduling',
+    label: 'Scheduling',
+    items: [
       { href: '/scheduling', label: 'Scheduling', icon: '📅', permission: { module: 'scheduling', action: 'view' } },
-      { href: '/visit-scheduling', label: 'Visit Calendar', icon: '🗓️', permission: { module: 'visit_scheduling', action: 'view' } },
+      { href: '/visit-scheduling', label: 'Schedule Planner', icon: '🗓️', permission: { module: 'visit_scheduling', action: 'view' } },
     ],
   },
   {
@@ -77,13 +83,24 @@ const NAV_SECTIONS: NavSection[] = [
       { href: '/agents/lucia', label: 'Lucia', icon: '💚' },
     ],
   },
+  {
+    key: 'portal',
+    label: 'Customer Portal',
+    items: [
+      { href: '/portal-preview', label: 'Customer Portal', icon: '🌐', adminOnly: true },
+    ],
+  },
+  {
+    key: 'settings',
+    label: 'Settings',
+    items: [
+      { href: '/team', label: 'Team', icon: '👥', permission: { module: 'team', action: 'view' } },
+      { href: '/settings', label: 'System Settings', icon: '⚙️', adminOnly: true },
+    ],
+  },
 ]
 
-const BOTTOM_ITEMS: NavLink[] = [
-  { href: '/portal-preview', label: 'Portal Preview', icon: '🌐', adminOnly: true },
-  { href: '/team', label: 'Team', icon: '👥', permission: { module: 'team', action: 'view' } },
-  { href: '/settings', label: 'Settings', icon: '⚙️', adminOnly: true },
-]
+const BOTTOM_ITEMS: NavLink[] = []
 
 function usePolledCount(enabled: boolean, fetcher: () => Promise<number>) {
   const [count, setCount] = useState(0)
@@ -314,30 +331,33 @@ export function Sidebar({ agentAvatars, portalLogoUrl }: { agentAvatars?: AgentA
         {/* Footer — User + Sign Out */}
         <div className="border-t border-slate-800 p-3">
           {!effectiveCollapsed ? (
-            <div className="flex items-center gap-2.5">
-              <Link href="/profile" className="flex items-center gap-2.5 min-w-0 flex-1 no-underline group">
-                <UserAvatar user={user} size={32} />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-xs font-medium text-slate-300 group-hover:text-slate-100 transition-colors">
-                    {user.firstName} {user.lastName}
+            <>
+              <div className="flex items-center gap-2.5">
+                <Link href="/profile" className="flex items-center gap-2.5 min-w-0 flex-1 no-underline group">
+                  <UserAvatar user={user} size={32} />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-xs font-medium text-slate-300 group-hover:text-slate-100 transition-colors">
+                      {user.firstName} {user.lastName}
+                    </div>
+                    <div className="truncate text-[10px] text-slate-600">
+                      {user.role.displayName}
+                    </div>
                   </div>
-                  <div className="truncate text-[10px] text-slate-600">
-                    {user.role.displayName}
-                  </div>
-                </div>
-              </Link>
-              <form action={signOut}>
-                <button
-                  type="submit"
-                  className="text-slate-600 hover:text-slate-300 transition-colors"
-                  title="Sign out"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                  </svg>
-                </button>
-              </form>
-            </div>
+                </Link>
+                <form action={signOut}>
+                  <button
+                    type="submit"
+                    className="text-slate-600 hover:text-slate-300 transition-colors"
+                    title="Sign out"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                  </button>
+                </form>
+              </div>
+              <PasskeyNudge />
+            </>
           ) : (
             <form action={signOut} className="flex justify-center">
               <button
@@ -511,6 +531,52 @@ function SidebarAgentAvatar({ url, name, fallbackIcon }: { url: string; name: st
       className="w-5 h-5 rounded-full object-cover"
       onError={() => setImgError(true)}
     />
+  )
+}
+
+function PasskeyNudge() {
+  const [show, setShow] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    // Check if user has passkeys (fires once on mount)
+    async function check() {
+      try {
+        const res = await fetch('/api/passkeys/register/options', { method: 'POST' })
+        // If we got options successfully, user is authed and we can check passkeys
+        // We actually just check localStorage dismissal and a lightweight passkey check
+        const dismissed = localStorage.getItem('passkey-nudge-dismissed')
+        if (dismissed) {
+          setShow(false)
+          return
+        }
+        // Check if user has any passkeys by looking for an existing passkey count
+        const countRes = await fetch('/api/passkeys/status')
+        if (countRes.ok) {
+          const data = await countRes.json()
+          setShow(data.count === 0)
+        } else {
+          setShow(false)
+        }
+      } catch {
+        setShow(false)
+      }
+    }
+    check()
+  }, [])
+
+  if (!show) return null
+
+  return (
+    <Link
+      href="/profile/security#passkeys"
+      className="mt-2 flex items-center gap-2 rounded-lg px-2 py-1.5 text-[11px] text-slate-500 hover:text-slate-300 hover:bg-slate-800/50 transition-colors no-underline"
+      onClick={() => localStorage.setItem('passkey-nudge-dismissed', '1')}
+    >
+      <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M7.864 4.243A7.5 7.5 0 0119.5 10.5c0 2.92-.556 5.709-1.568 8.268M5.742 6.364A7.465 7.465 0 004.5 10.5a7.464 7.464 0 01-1.15 3.993m1.989 3.559A11.209 11.209 0 008.25 10.5a3.75 3.75 0 117.5 0c0 .527-.021 1.049-.064 1.565M12 10.5a14.94 14.94 0 01-3.6 9.75m6.633-4.596a18.666 18.666 0 01-2.485 5.33" />
+      </svg>
+      Set up biometric login
+    </Link>
   )
 }
 

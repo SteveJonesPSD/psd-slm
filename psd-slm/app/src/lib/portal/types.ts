@@ -4,9 +4,12 @@ export interface PortalContext {
   orgId: string
   contactId: string
   isPortalAdmin: boolean
+  isGroupAdmin: boolean
   displayName: string
   customerName: string
   isImpersonation?: boolean
+  viewingAsCustomerId?: string | null
+  viewingAsCustomerName?: string | null
   portalLogoUrl?: string | null
   orgName?: string
   agentAvatars?: { helen: string | null; jasper: string | null; lucia: string | null }

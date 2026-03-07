@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 
-const PUBLIC_ROUTES = ['/auth/login', '/auth/callback', '/auth/change-password', '/auth/mfa-setup', '/q/', '/t/', '/portal', '/collect/', '/api/collect/', '/api/email/poll', '/api/auth/mail-callback', '/api/portal/', '/api/tickets/portal-close', '/sw-push.js']
+const PUBLIC_ROUTES = ['/auth/login', '/auth/callback', '/auth/change-password', '/auth/mfa-setup', '/q/', '/t/', '/portal', '/collect/', '/api/collect/', '/api/email/poll', '/api/auth/mail-callback', '/api/portal/', '/api/tickets/portal-close', '/api/passkeys/authenticate/', '/sw-push.js']
 
 // Portal routes that don't require a portal session cookie
 const PORTAL_PUBLIC_ROUTES = ['/portal/login', '/portal/auth/']
@@ -100,6 +100,18 @@ export async function proxy(request: NextRequest) {
         .single()
 
       const loginMethod = loginSetting?.setting_value ?? 'password'
+
+      // Passkey enrolment enforcement for password_passkey roles
+      if (loginMethod === 'password_passkey') {
+        const { hasPasskeyEnrolled } = await import('@/lib/passkeys')
+        const hasPasskey = await hasPasskeyEnrolled(user.id)
+
+        if (!hasPasskey && pathname !== '/profile/security' && pathname !== '/auth/login' && !pathname.startsWith('/api/passkeys/')) {
+          const url = request.nextUrl.clone()
+          url.pathname = '/profile/security'
+          return NextResponse.redirect(url)
+        }
+      }
 
       if (loginMethod === 'password_mfa') {
         const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()

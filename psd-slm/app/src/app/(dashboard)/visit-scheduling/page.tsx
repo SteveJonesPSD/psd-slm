@@ -44,8 +44,8 @@ export default async function VisitSchedulingPage() {
   return (
     <div>
       <PageHeader
-        title="ICT Visit Calendar"
-        subtitle="Recurring visit scheduling for education contracts"
+        title="Schedule Planner"
+        subtitle="Recurring visit scheduling for contract customers"
         actions={
           <div className="flex items-center gap-2">
             <Link href="/visit-scheduling/review">

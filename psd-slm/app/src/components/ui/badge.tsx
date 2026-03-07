@@ -265,10 +265,17 @@ export const INVOICE_TYPE_CONFIG: Record<string, { label: string; color: string;
 export const CONTRACT_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   draft: { label: 'Draft', color: '#d97706', bg: '#fffbeb' },
   pending_signature: { label: 'Pending Signature', color: '#d97706', bg: '#fffbeb' },
+  declined_signature: { label: 'Signature Declined', color: '#dc2626', bg: '#fef2f2' },
+  awaiting_activation: { label: 'Awaiting Activation', color: '#2563eb', bg: '#eff6ff' },
   active: { label: 'Active', color: '#059669', bg: '#ecfdf5' },
+  renewal_flagged: { label: 'Renewal Due', color: '#d97706', bg: '#fffbeb' },
+  renewal_sent: { label: 'Renewal Sent', color: '#2563eb', bg: '#eff6ff' },
+  renewal_accepted: { label: 'Renewal Accepted', color: '#0d9488', bg: '#f0fdfa' },
+  schedule_pending: { label: 'Schedule Pending', color: '#7c3aed', bg: '#f5f3ff' },
+  not_renewing: { label: 'Not Renewing', color: '#dc2626', bg: '#fef2f2' },
   expired: { label: 'Expired', color: '#9ca3af', bg: '#f9fafb' },
   cancelled: { label: 'Cancelled', color: '#dc2626', bg: '#fef2f2' },
-  renewed: { label: 'Renewed', color: '#2563eb', bg: '#eff6ff' },
+  renewed: { label: 'Renewed', color: '#0d9488', bg: '#f0fdfa' },
 }
 
 export const CONTRACT_CATEGORY_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -293,6 +300,13 @@ export const VISIT_STATUS_CONFIG: Record<string, { label: string; color: string;
   cancelled: { label: 'Cancelled', color: '#dc2626', bg: '#fef2f2' },
   rescheduled: { label: 'Rescheduled', color: '#7c3aed', bg: '#f5f3ff' },
   bank_holiday_pending: { label: 'Bank Holiday', color: '#d97706', bg: '#fffbeb' },
+}
+
+export const GROUP_TYPE_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  group: { label: 'Group', color: '#6366f1', bg: '#eef2ff' },
+  mat: { label: 'MAT', color: '#7c3aed', bg: '#f5f3ff' },
+  franchise: { label: 'Franchise', color: '#059669', bg: '#ecfdf5' },
+  nhs_trust: { label: 'NHS Trust', color: '#2563eb', bg: '#eff6ff' },
 }
 
 export const CALENDAR_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {

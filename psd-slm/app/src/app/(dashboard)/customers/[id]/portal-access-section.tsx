@@ -214,6 +214,11 @@ export function PortalAccessSection({ customerId, contacts, canEdit }: {
                       Admin
                     </span>
                   )}
+                  {(pu as PortalUser & { isGroupAdmin?: boolean }).isGroupAdmin && (
+                    <span className="inline-block rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 px-2 py-0.5 text-[11px] font-medium">
+                      Group Admin
+                    </span>
+                  )}
                 </div>
                 {pu.contactEmail && <p className="text-xs text-slate-400">{pu.contactEmail}</p>}
                 {pu.lastLoginAt && <p className="text-xs text-slate-400">Last login: {formatRelativeTime(pu.lastLoginAt)}</p>}

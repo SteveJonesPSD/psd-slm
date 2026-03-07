@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Modal } from '@/components/ui/modal'
 import { Input, Select, Checkbox } from '@/components/ui/form-fields'
 import { useAuth } from '@/components/auth-provider'
-import { inviteUser, updateUser, deactivateUser, reactivateUser, resetPassword } from './actions'
+import { inviteUser, updateUser, deactivateUser, reactivateUser, resetPassword, clearUserPasskeysAction } from './actions'
 import { disconnectMailCredential } from '@/app/(dashboard)/quotes/send-actions'
 import type { User, Role } from '@/types/database'
 import type { UserMailCredential } from '@/lib/email/types'
@@ -20,6 +20,7 @@ interface TeamTableProps {
   users: UserWithRole[]
   roles: Pick<Role, 'id' | 'name' | 'display_name'>[]
   mailCredentials?: UserMailCredential[]
+  passkeyCounts?: Record<string, number>
 }
 
 const PRESET_COLOURS = [
@@ -38,7 +39,7 @@ const EMPTY_FORM = {
   avatar_url: '' as string | null,
 }
 
-export function TeamTable({ users, roles, mailCredentials = [] }: TeamTableProps) {
+export function TeamTable({ users, roles, mailCredentials = [], passkeyCounts = {} }: TeamTableProps) {
   const router = useRouter()
   const { user: currentUser, hasPermission } = useAuth()
 
@@ -63,6 +64,9 @@ export function TeamTable({ users, roles, mailCredentials = [] }: TeamTableProps
   const [avatarUploading, setAvatarUploading] = useState(false)
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const [connectingMailFor, setConnectingMailFor] = useState<string | null>(null)
+  const [clearPasskeyTarget, setClearPasskeyTarget] = useState<UserWithRole | null>(null)
+  const [clearingPasskeys, setClearingPasskeys] = useState(false)
+  const [localPasskeyCounts, setLocalPasskeyCounts] = useState(passkeyCounts)
 
   const getMailCred = (userId: string) => mailCredentials.find(c => c.user_id === userId)
 
@@ -265,6 +269,20 @@ export function TeamTable({ users, roles, mailCredentials = [] }: TeamTableProps
     }
   }
 
+  const handleClearPasskeys = async () => {
+    if (!clearPasskeyTarget) return
+    setClearingPasskeys(true)
+    const result = await clearUserPasskeysAction(clearPasskeyTarget.id)
+    setClearingPasskeys(false)
+    if (result.error) {
+      alert(result.error)
+    } else {
+      setLocalPasskeyCounts(prev => ({ ...prev, [clearPasskeyTarget.id]: 0 }))
+      setClearPasskeyTarget(null)
+      router.refresh()
+    }
+  }
+
   const previewInitials = form.initials || (form.first_name && form.last_name
     ? (form.first_name[0] + form.last_name[0]).toUpperCase()
     : '??')
@@ -389,6 +407,15 @@ export function TeamTable({ users, roles, mailCredentials = [] }: TeamTableProps
                 Reset Password
               </Button>
             )}
+            {canEdit && !isSelf && r.is_active && (localPasskeyCounts[r.id] ?? 0) > 0 && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={(e) => { e.stopPropagation(); setClearPasskeyTarget(r) }}
+              >
+                Clear Passkeys ({localPasskeyCounts[r.id]})
+              </Button>
+            )}
             {canDelete && !isSelf && r.is_active && (
               <Button
                 size="sm"
@@ -479,6 +506,31 @@ export function TeamTable({ users, roles, mailCredentials = [] }: TeamTableProps
               disabled={!resetPwd || !resetConfirm || resetting}
             >
               {resetting ? 'Resetting...' : 'Reset Password'}
+            </Button>
+          </div>
+        </Modal>
+      )}
+
+      {clearPasskeyTarget && (
+        <Modal
+          title={`Clear Passkeys — ${clearPasskeyTarget.first_name} ${clearPasskeyTarget.last_name}`}
+          onClose={() => setClearPasskeyTarget(null)}
+          width={440}
+        >
+          <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
+            Clear all passkeys for this user? They will need to use an alternative sign-in method (magic link or password) and can re-register passkeys from Settings.
+          </p>
+          <p className="text-xs text-slate-400 mb-5">
+            {localPasskeyCounts[clearPasskeyTarget.id] ?? 0} passkey{(localPasskeyCounts[clearPasskeyTarget.id] ?? 0) !== 1 ? 's' : ''} registered
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button onClick={() => setClearPasskeyTarget(null)}>Cancel</Button>
+            <Button
+              variant="danger"
+              onClick={handleClearPasskeys}
+              disabled={clearingPasskeys}
+            >
+              {clearingPasskeys ? 'Clearing...' : 'Clear Passkeys'}
             </Button>
           </div>
         </Modal>

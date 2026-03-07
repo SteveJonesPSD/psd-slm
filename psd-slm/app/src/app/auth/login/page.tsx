@@ -11,6 +11,8 @@ import {
   trustCurrentDevice,
 } from '@/app/auth/login/actions'
 import { signOut } from '@/app/auth/actions'
+import { startAuthentication } from '@simplewebauthn/browser'
+import { createClient } from '@/lib/supabase/client'
 import type { LoginMethod } from '@/lib/login-methods'
 
 type Step =
@@ -19,7 +21,10 @@ type Step =
   | 'magic_link_sent'
   | 'password'
   | 'password_mfa'
+  | 'password_passkey'
   | 'totp'
+  | 'passkey'
+  | 'passkey_verify'
   | 'remember_device'
 
 function LoginFlow() {
@@ -36,14 +41,17 @@ function LoginFlow() {
   const [loading, setLoading] = useState(false)
   const [method, setMethod] = useState<LoginMethod>('password')
   const [hasPassword, setHasPassword] = useState(false)
+  const [hasPasskey, setHasPasskey] = useState(false)
   const [factorId, setFactorId] = useState<string | null>(null)
+  const [passkeyLoading, setPasskeyLoading] = useState(false)
+  const [passkeyError, setPasskeyError] = useState<string | null>(null)
 
   const passwordRef = useRef<HTMLInputElement>(null)
   const totpRef = useRef<HTMLInputElement>(null)
 
   // Auto-focus password/totp when step changes
   useEffect(() => {
-    if (step === 'password' || step === 'password_mfa') {
+    if (step === 'password' || step === 'password_mfa' || step === 'password_passkey') {
       passwordRef.current?.focus()
     } else if (step === 'totp') {
       totpRef.current?.focus()
@@ -57,6 +65,7 @@ function LoginFlow() {
     setTotpCode('')
     setError(null)
     setFactorId(null)
+    setPasskeyError(null)
   }
 
   async function handleEmailSubmit(e: React.FormEvent) {
@@ -74,11 +83,21 @@ function LoginFlow() {
 
     setMethod(result.method)
     setHasPassword(result.hasPassword)
+    setHasPasskey(result.hasPasskey)
 
     if (result.method === 'magic_link') {
       setStep('magic_link')
     } else if (result.method === 'password_mfa') {
       setStep('password_mfa')
+    } else if (result.method === 'passkey') {
+      if (result.hasPasskey) {
+        setStep('passkey')
+      } else {
+        // No passkey enrolled — fall back to magic link
+        setStep('magic_link')
+      }
+    } else if (result.method === 'password_passkey') {
+      setStep('password_passkey')
     } else {
       setStep('password')
     }
@@ -126,6 +145,23 @@ function LoginFlow() {
       return
     }
 
+    // password_passkey: after password success, challenge passkey as 2FA
+    if (method === 'password_passkey') {
+      if (hasPasskey) {
+        setStep('passkey_verify')
+        return
+      }
+      // No passkey enrolled — fall back to TOTP if available
+      if (result.factorId) {
+        setFactorId(result.factorId)
+        setStep('totp')
+        return
+      }
+      // Neither passkey nor TOTP — redirect to security settings
+      router.push('/profile/security')
+      return
+    }
+
     router.push(redirectTo)
   }
 
@@ -154,6 +190,73 @@ function LoginFlow() {
 
   async function handleSkipTrust() {
     router.push(redirectTo)
+  }
+
+  async function handlePasskeyLogin() {
+    setPasskeyError(null)
+    setPasskeyLoading(true)
+
+    try {
+      // Get authentication options
+      const optionsRes = await fetch('/api/passkeys/authenticate/options', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+
+      if (!optionsRes.ok) {
+        const data = await optionsRes.json()
+        setPasskeyError(data.error || 'Failed to start passkey authentication')
+        setPasskeyLoading(false)
+        return
+      }
+
+      const { options, challengeId } = await optionsRes.json()
+
+      // Trigger biometric prompt
+      const authResponse = await startAuthentication({ optionsJSON: options })
+
+      // Verify with server
+      const verifyRes = await fetch('/api/passkeys/authenticate/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ challengeId, response: authResponse }),
+      })
+
+      if (!verifyRes.ok) {
+        const data = await verifyRes.json()
+        setPasskeyError(data.error || 'Passkey verification failed')
+        setPasskeyLoading(false)
+        return
+      }
+
+      const { tokenHash, type: otpType, email: verifiedEmail } = await verifyRes.json()
+
+      // Establish Supabase session using the server-generated token
+      const supabase = createClient()
+      const { error: otpError } = await supabase.auth.verifyOtp({
+        token_hash: tokenHash,
+        type: otpType,
+      })
+
+      if (otpError) {
+        setPasskeyError('Session creation failed. Please try again.')
+        setPasskeyLoading(false)
+        return
+      }
+
+      router.push(redirectTo)
+    } catch (err) {
+      const error = err as Error
+      if (error.name === 'NotAllowedError') {
+        setPasskeyError('Authentication cancelled. You can try again anytime.')
+      } else if (error.name === 'SecurityError') {
+        setPasskeyError('Passkeys require a secure connection.')
+      } else {
+        setPasskeyError(error.message || 'Passkey authentication failed')
+      }
+      setPasskeyLoading(false)
+    }
   }
 
   async function handleBackToEmail() {
@@ -260,7 +363,7 @@ function LoginFlow() {
       )}
 
       {/* Step 2c/2d: Password */}
-      {(step === 'password' || step === 'password_mfa') && (
+      {(step === 'password' || step === 'password_mfa' || step === 'password_passkey') && (
         <>
           <h2 className="mb-2 text-lg font-semibold text-slate-900 dark:text-white">Enter your password</h2>
           <EmailReadonly email={email} onReset={resetToEmail} />
@@ -296,6 +399,72 @@ function LoginFlow() {
               className="mt-3 w-full text-center text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
             >
               Use sign-in link instead
+            </button>
+          )}
+        </>
+      )}
+
+      {/* Step 2e: Passkey Login (passwordless) */}
+      {step === 'passkey' && (
+        <>
+          <h2 className="mb-2 text-lg font-semibold text-slate-900 dark:text-white">Sign in with passkey</h2>
+          <EmailReadonly email={email} onReset={resetToEmail} />
+          {passkeyError && <ErrorBanner message={passkeyError} />}
+          <div className="py-4 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-indigo-50 dark:bg-indigo-900/30">
+              <svg className="h-7 w-7 text-indigo-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7.864 4.243A7.5 7.5 0 0119.5 10.5c0 2.92-.556 5.709-1.568 8.268M5.742 6.364A7.465 7.465 0 004.5 10.5a7.464 7.464 0 01-1.15 3.993m1.989 3.559A11.209 11.209 0 008.25 10.5a3.75 3.75 0 117.5 0c0 .527-.021 1.049-.064 1.565M12 10.5a14.94 14.94 0 01-3.6 9.75m6.633-4.596a18.666 18.666 0 01-2.485 5.33" />
+              </svg>
+            </div>
+            <p className="mb-5 text-sm text-slate-500 dark:text-slate-400">
+              Use Face ID, Touch ID, or Windows Hello to sign in.
+            </p>
+            <button
+              onClick={handlePasskeyLogin}
+              disabled={passkeyLoading}
+              className="w-full rounded-lg bg-gradient-to-r from-indigo-500 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              {passkeyLoading ? 'Verifying...' : 'Sign in with Passkey'}
+            </button>
+          </div>
+          <button
+            onClick={() => { setStep('magic_link'); setPasskeyError(null) }}
+            className="w-full text-center text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+          >
+            Use sign-in link instead
+          </button>
+        </>
+      )}
+
+      {/* Step 2f: Passkey Verify (2FA after password) */}
+      {step === 'passkey_verify' && (
+        <>
+          <h2 className="mb-2 text-lg font-semibold text-slate-900 dark:text-white">Verify your identity</h2>
+          <EmailReadonly email={email} onReset={handleBackToEmail} />
+          {passkeyError && <ErrorBanner message={passkeyError} />}
+          <div className="py-4 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-indigo-50 dark:bg-indigo-900/30">
+              <svg className="h-7 w-7 text-indigo-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7.864 4.243A7.5 7.5 0 0119.5 10.5c0 2.92-.556 5.709-1.568 8.268M5.742 6.364A7.465 7.465 0 004.5 10.5a7.464 7.464 0 01-1.15 3.993m1.989 3.559A11.209 11.209 0 008.25 10.5a3.75 3.75 0 117.5 0c0 .527-.021 1.049-.064 1.565M12 10.5a14.94 14.94 0 01-3.6 9.75m6.633-4.596a18.666 18.666 0 01-2.485 5.33" />
+              </svg>
+            </div>
+            <p className="mb-5 text-sm text-slate-500 dark:text-slate-400">
+              Confirm your identity with Face ID, Touch ID, or Windows Hello.
+            </p>
+            <button
+              onClick={handlePasskeyLogin}
+              disabled={passkeyLoading}
+              className="w-full rounded-lg bg-gradient-to-r from-indigo-500 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              {passkeyLoading ? 'Verifying...' : 'Verify with Passkey'}
+            </button>
+          </div>
+          {factorId && (
+            <button
+              onClick={() => { setStep('totp'); setPasskeyError(null) }}
+              className="w-full text-center text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+            >
+              Use authenticator app instead
             </button>
           )}
         </>

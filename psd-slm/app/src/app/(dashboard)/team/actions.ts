@@ -225,6 +225,58 @@ export async function resetPassword(id: string, newPassword: string) {
   return { success: true }
 }
 
+export async function clearUserPasskeysAction(userId: string) {
+  const user = await requirePermission('team', 'edit_all')
+  const supabase = await createClient()
+
+  if (userId === user.id) {
+    return { error: 'Use the security settings page to manage your own passkeys.' }
+  }
+
+  // Get target user's auth_id
+  const { data: target } = await supabase
+    .from('users')
+    .select('auth_id, first_name, last_name, email')
+    .eq('id', userId)
+    .single()
+
+  if (!target || !target.auth_id) {
+    return { error: 'User not found.' }
+  }
+
+  const { clearUserPasskeys } = await import('@/lib/passkeys')
+  const count = await clearUserPasskeys(target.auth_id)
+
+  logActivity({
+    supabase,
+    user,
+    entityType: 'user',
+    entityId: userId,
+    action: 'passkeys_cleared',
+    details: { cleared_count: count, email: target.email, name: `${target.first_name} ${target.last_name}` },
+  })
+
+  revalidatePath('/team')
+  return { success: true, count }
+}
+
+export async function getPasskeyCountForUser(userId: string): Promise<number> {
+  await requireAuth()
+  const supabase = await createClient()
+
+  // Get auth_id for this user
+  const { data: target } = await supabase
+    .from('users')
+    .select('auth_id')
+    .eq('id', userId)
+    .single()
+
+  if (!target?.auth_id) return 0
+
+  const { getPasskeyCount } = await import('@/lib/passkeys')
+  return getPasskeyCount(target.auth_id)
+}
+
 export async function reactivateUser(id: string) {
   const user = await requirePermission('team', 'edit_all')
   const adminClient = createAdminClient()

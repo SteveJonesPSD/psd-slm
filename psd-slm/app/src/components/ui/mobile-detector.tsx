@@ -1,6 +1,7 @@
 'use client'
 
 import { type ReactNode } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useSidebar } from '@/components/sidebar-provider'
 
 interface MobileDetectorProps {
@@ -10,5 +11,7 @@ interface MobileDetectorProps {
 
 export function MobileDetector({ mobile, desktop }: MobileDetectorProps) {
   const { isMobile } = useSidebar()
-  return <>{isMobile ? mobile : desktop}</>
+  const searchParams = useSearchParams()
+  const forceDesktop = searchParams.get('view') === 'dashboard'
+  return <>{isMobile && !forceDesktop ? mobile : desktop}</>
 }

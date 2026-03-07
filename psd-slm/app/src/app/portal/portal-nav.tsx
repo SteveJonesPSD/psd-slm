@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { usePortal } from './portal-context'
 
-const NAV_ITEMS = [
+const BASE_NAV_ITEMS = [
   { href: '/portal/dashboard', label: 'Dashboard' },
   { href: '/portal/quotes', label: 'Quotes' },
   { href: '/portal/orders', label: 'Orders' },
@@ -20,6 +20,10 @@ export function PortalNav() {
   const pathname = usePathname()
   const ctx = usePortal()
   const [menuOpen, setMenuOpen] = useState(false)
+
+  const NAV_ITEMS = ctx.isGroupAdmin
+    ? [...BASE_NAV_ITEMS, { href: '/portal/group', label: 'Group' }]
+    : BASE_NAV_ITEMS
 
   return (
     <header className="sticky top-0 z-30">

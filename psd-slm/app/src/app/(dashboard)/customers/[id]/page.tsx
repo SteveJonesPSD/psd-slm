@@ -17,6 +17,7 @@ import { EmailDomainsSection } from './email-domains-section'
 import { LinkedContactsSection } from './linked-contacts-section'
 import { CustomerSearch } from './customer-search'
 import { PortalAccessSection } from './portal-access-section'
+import { GroupMembershipSection } from './group-membership-section'
 import { getCompanyTickets } from '../../helpdesk/actions'
 import { getContractsByCompany } from '../../contracts/actions'
 import { getCompanyVisits } from '../../visit-scheduling/actions'
@@ -24,6 +25,7 @@ import { getCustomerDomains } from '../domain-actions'
 import { getLinkedContacts } from '../link-actions'
 import { deriveSoDisplayStatus } from '@/lib/sales-orders'
 import { getEffectiveInvoiceStatus } from '@/lib/invoicing'
+import { getUser, hasPermission } from '@/lib/auth'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -104,6 +106,16 @@ export default async function CustomerDetailPage({ params }: PageProps) {
   } catch {
     // Multi-company contacts migration may not be applied yet
   }
+
+  // Fetch all customers for group member picker
+  const { data: allCustomers } = await supabase
+    .from('customers')
+    .select('id, name')
+    .order('name')
+
+  // Check group management permission
+  const currentUser = await getUser()
+  const canManageGroups = currentUser ? hasPermission(currentUser, 'companies', 'manage_groups') : false
 
   // Fetch sales orders
   const { data: salesOrders } = await supabase
@@ -235,6 +247,14 @@ export default async function CustomerDetailPage({ params }: PageProps) {
 
       {/* Portal Access */}
       <PortalAccessSection customerId={id} contacts={(contacts || []).map(c => ({ id: c.id, first_name: c.first_name, last_name: c.last_name, email: c.email }))} canEdit={true} />
+
+      {/* Group Membership */}
+      <GroupMembershipSection
+        companyId={id}
+        companyName={customer.name}
+        customers={(allCustomers || []).map(c => ({ id: c.id, name: c.name }))}
+        canManage={canManageGroups}
+      />
 
       {/* Linked Contacts (from other companies) */}
       <LinkedContactsSection contacts={linkedContacts} customerId={id} />

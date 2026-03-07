@@ -15,6 +15,7 @@ export interface InternalPortalUser {
   contactName: string
   contactEmail: string | null
   isPortalAdmin: boolean
+  isGroupAdmin: boolean
   isActive: boolean
   lastLoginAt: string | null
   invitedAt: string | null
@@ -27,7 +28,7 @@ export async function getPortalUsersForCustomer(customerId: string): Promise<Int
   const { data } = await supabase
     .from('portal_users')
     .select(`
-      id, contact_id, is_portal_admin, is_active, last_login_at, invited_at,
+      id, contact_id, is_portal_admin, is_group_admin, is_active, last_login_at, invited_at,
       contacts(first_name, last_name, email)
     `)
     .eq('customer_id', customerId)
@@ -41,6 +42,7 @@ export async function getPortalUsersForCustomer(customerId: string): Promise<Int
       contactName: `${contact.first_name} ${contact.last_name}`,
       contactEmail: contact.email,
       isPortalAdmin: pu.is_portal_admin,
+      isGroupAdmin: (pu as Record<string, unknown>).is_group_admin as boolean ?? false,
       isActive: pu.is_active,
       lastLoginAt: pu.last_login_at,
       invitedAt: pu.invited_at,
@@ -183,4 +185,22 @@ export async function resendPortalInvite(
   })
 
   return { error: null, token }
+}
+
+export async function toggleGroupAdmin(
+  portalUserId: string,
+  customerId: string,
+  isGroupAdmin: boolean
+): Promise<{ error: string | null }> {
+  await requirePermission('companies', 'manage_groups')
+  const supabase = createAdminClient()
+
+  const { error } = await supabase
+    .from('portal_users')
+    .update({ is_group_admin: isGroupAdmin, updated_at: new Date().toISOString() })
+    .eq('id', portalUserId)
+    .eq('customer_id', customerId)
+
+  if (error) return { error: error.message }
+  return { error: null }
 }

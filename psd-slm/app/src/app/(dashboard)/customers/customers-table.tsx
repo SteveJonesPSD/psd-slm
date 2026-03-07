@@ -16,6 +16,7 @@ interface CustomersTableProps {
   customers: CustomerWithContacts[]
   showForm?: boolean
   onShowFormChange?: (show: boolean) => void
+  groupBadges?: Record<string, { type: 'parent' | 'member'; groupName: string }>
 }
 
 const CUSTOMER_TYPE_OPTIONS = [
@@ -57,7 +58,7 @@ const EMPTY_FORM = {
   contact_mobile: '',
 }
 
-export function CustomersTable({ customers, showForm: showFormProp, onShowFormChange }: CustomersTableProps) {
+export function CustomersTable({ customers, showForm: showFormProp, onShowFormChange, groupBadges }: CustomersTableProps) {
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [showFormLocal, setShowFormLocal] = useState(false)
@@ -174,7 +175,26 @@ export function CustomersTable({ customers, showForm: showFormProp, onShowFormCh
     {
       key: 'name',
       label: 'Customer',
-      render: (r) => <span className="font-semibold">{r.name}</span>,
+      render: (r) => {
+        const gb = groupBadges?.[r.id]
+        return (
+          <span className="flex items-center gap-2">
+            <span className="font-semibold">{r.name}</span>
+            {gb && (
+              <span
+                className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium leading-tight ${
+                  gb.type === 'parent'
+                    ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
+                    : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
+                }`}
+                title={gb.type === 'parent' ? `Group parent — ${gb.groupName}` : `Member of ${gb.groupName}`}
+              >
+                {gb.type === 'parent' ? `Group: ${gb.groupName}` : `↳ ${gb.groupName}`}
+              </span>
+            )}
+          </span>
+        )
+      },
     },
     {
       key: 'customer_type',

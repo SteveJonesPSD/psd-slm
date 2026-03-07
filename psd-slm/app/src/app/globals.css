@@ -355,3 +355,26 @@ body {
 .dark ::-webkit-scrollbar-thumb:hover {
   background: rgb(100 116 139);
 }
+
+/* Chat markdown — prevent horizontal overflow on mobile */
+.chat-markdown {
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.chat-markdown table {
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+  font-size: 0.75rem;
+}
+
+.chat-markdown pre {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.chat-markdown img {
+  max-width: 100%;
+  height: auto;
+}

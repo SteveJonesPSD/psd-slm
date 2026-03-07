@@ -119,7 +119,7 @@ export function AgentChat({ agentId, agentName, agentRole, agentColor, apiEndpoi
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-280px)] min-h-[400px] bg-white rounded-xl border border-slate-200 shadow-sm">
+    <div className="flex flex-col h-[calc(100vh-280px)] min-h-[400px] max-h-[calc(100vh-160px)] bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
       {/* Top bar with New Chat */}
       {messages.length > 0 && (
         <div className="flex items-center justify-end border-b border-slate-100 px-4 py-2">
@@ -137,11 +137,11 @@ export function AgentChat({ agentId, agentName, agentRole, agentColor, apiEndpoi
       )}
 
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-5" onClick={handleMarkdownClick}>
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5" onClick={handleMarkdownClick}>
         {/* Welcome card */}
         {messages.length === 0 && !loading && (
-          <div className="flex items-start gap-3 max-w-2xl">
-            <AgentAvatarCircle name={agentName} color={agentColor} url={agentAvatarUrl} size={36} />
+          <div className="flex items-start gap-2.5 sm:gap-3 max-w-full sm:max-w-2xl">
+            <AgentAvatarCircle name={agentName} color={agentColor} url={agentAvatarUrl} size={28} />
             <div
               className="rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-slate-700"
               style={{ backgroundColor: `${agentColor}10` }}
@@ -158,13 +158,13 @@ export function AgentChat({ agentId, agentName, agentRole, agentColor, apiEndpoi
         {messages.map((msg, i) => (
           <div
             key={i}
-            className={`flex items-start gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}
+            className={`flex items-start gap-2.5 sm:gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}
           >
             {msg.role === 'assistant' && (
-              <AgentAvatarCircle name={agentName} color={agentColor} url={agentAvatarUrl} size={36} />
+              <AgentAvatarCircle name={agentName} color={agentColor} url={agentAvatarUrl} size={28} />
             )}
             <div
-              className={`max-w-2xl rounded-2xl px-4 py-3 text-sm overflow-hidden ${
+              className={`max-w-[85%] sm:max-w-2xl rounded-2xl px-3 sm:px-4 py-3 text-sm overflow-hidden ${
                 msg.role === 'user'
                   ? 'rounded-tr-sm bg-slate-100 text-slate-800 whitespace-pre-wrap'
                   : 'rounded-tl-sm text-slate-700'
@@ -185,8 +185,8 @@ export function AgentChat({ agentId, agentName, agentRole, agentColor, apiEndpoi
 
         {/* Loading indicator */}
         {loading && (
-          <div className="flex items-start gap-3">
-            <AgentAvatarCircle name={agentName} color={agentColor} url={agentAvatarUrl} size={36} />
+          <div className="flex items-start gap-2.5 sm:gap-3">
+            <AgentAvatarCircle name={agentName} color={agentColor} url={agentAvatarUrl} size={28} />
             <div
               className="rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-slate-500"
               style={{ backgroundColor: `${agentColor}10` }}
@@ -209,7 +209,7 @@ export function AgentChat({ agentId, agentName, agentRole, agentColor, apiEndpoi
       </div>
 
       {/* Input bar */}
-      <div className="border-t border-slate-200 p-4">
+      <div className="border-t border-slate-200 dark:border-slate-700 p-3 sm:p-4">
         <form onSubmit={handleSubmit} className="flex items-end gap-3">
           <textarea
             ref={inputRef}

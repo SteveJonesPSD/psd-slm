@@ -4,8 +4,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 
-export type LoginMethod = 'magic_link' | 'password' | 'password_mfa'
-// FUTURE: Add 'passkey' | 'password_passkey' to LoginMethod type when WebAuthn phase is built
+export type LoginMethod = 'magic_link' | 'password' | 'password_mfa' | 'passkey' | 'password_passkey'
 // FUTURE: Add 'microsoft_sso' | 'microsoft_sso_mfa' to LoginMethod type when M365 SSO phase is built
 
 // Default fallback if no setting exists for a role.
@@ -25,6 +24,7 @@ const DEFAULT_LOGIN_METHOD: LoginMethod = 'password'
 export async function getLoginMethodForEmail(email: string): Promise<{
   method: LoginMethod
   hasPassword: boolean
+  hasPasskey: boolean
 }> {
   const supabase = createAdminClient()
 
@@ -39,7 +39,7 @@ export async function getLoginMethodForEmail(email: string): Promise<{
 
   if (!user) {
     // Don't reveal that the account doesn't exist
-    return { method: DEFAULT_LOGIN_METHOD, hasPassword: false }
+    return { method: DEFAULT_LOGIN_METHOD, hasPassword: false, hasPasskey: false }
   }
 
   // Get user's role from users table
@@ -50,7 +50,7 @@ export async function getLoginMethodForEmail(email: string): Promise<{
     .single()
 
   if (!profile) {
-    return { method: DEFAULT_LOGIN_METHOD, hasPassword: false }
+    return { method: DEFAULT_LOGIN_METHOD, hasPassword: false, hasPasskey: false }
   }
 
   const roleName = (profile.role as unknown as { name: string }).name
@@ -72,7 +72,11 @@ export async function getLoginMethodForEmail(email: string): Promise<{
     i => i.provider === 'email'
   ) ?? false
 
-  return { method, hasPassword }
+  // Check if user has any passkeys enrolled
+  const { hasPasskeyEnrolled } = await import('@/lib/passkeys')
+  const hasPasskey = await hasPasskeyEnrolled(user.id)
+
+  return { method, hasPassword, hasPasskey }
 }
 
 /**

@@ -75,7 +75,7 @@ function MfaSetupFlow() {
 
   function handleContinue() {
     if (fromSettings) {
-      router.push('/settings/security')
+      router.push('/profile/security')
     } else {
       router.push('/')
     }

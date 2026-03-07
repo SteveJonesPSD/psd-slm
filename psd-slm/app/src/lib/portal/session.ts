@@ -23,7 +23,7 @@ export async function requirePortalSession(): Promise<PortalContext> {
     .select(`
       id, portal_user_id, customer_id, org_id, expires_at, is_impersonation,
       portal_users!inner(
-        id, contact_id, is_portal_admin, is_active,
+        id, contact_id, is_portal_admin, is_group_admin, is_active,
         contacts!inner(first_name, last_name),
         customers!inner(name)
       )
@@ -38,6 +38,7 @@ export async function requirePortalSession(): Promise<PortalContext> {
     id: string
     contact_id: string
     is_portal_admin: boolean
+    is_group_admin: boolean
     is_active: boolean
     contacts: { first_name: string; last_name: string }
     customers: { name: string }
@@ -61,6 +62,7 @@ export async function requirePortalSession(): Promise<PortalContext> {
     orgId: session.org_id,
     contactId: pu.contact_id,
     isPortalAdmin: pu.is_portal_admin,
+    isGroupAdmin: pu.is_group_admin ?? false,
     displayName: `${pu.contacts.first_name} ${pu.contacts.last_name}`,
     customerName: pu.customers.name,
     isImpersonation: !!session.is_impersonation,
@@ -83,7 +85,7 @@ export async function getPortalContextFromRequest(request: Request): Promise<Por
     .select(`
       id, portal_user_id, customer_id, org_id, expires_at, is_impersonation,
       portal_users!inner(
-        id, contact_id, is_portal_admin, is_active,
+        id, contact_id, is_portal_admin, is_group_admin, is_active,
         contacts!inner(first_name, last_name),
         customers!inner(name)
       )
@@ -98,6 +100,7 @@ export async function getPortalContextFromRequest(request: Request): Promise<Por
     id: string
     contact_id: string
     is_portal_admin: boolean
+    is_group_admin: boolean
     is_active: boolean
     contacts: { first_name: string; last_name: string }
     customers: { name: string }
@@ -121,6 +124,7 @@ export async function getPortalContextFromRequest(request: Request): Promise<Por
     orgId: session.org_id,
     contactId: pu.contact_id,
     isPortalAdmin: pu.is_portal_admin,
+    isGroupAdmin: pu.is_group_admin ?? false,
     displayName: `${pu.contacts.first_name} ${pu.contacts.last_name}`,
     customerName: pu.customers.name,
     isImpersonation: !!session.is_impersonation,

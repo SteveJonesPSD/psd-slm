@@ -14,6 +14,7 @@ export interface ContractType {
   default_sla_plan_id: string | null
   default_monthly_hours: number | null
   allowed_schedule_weeks: number[]
+  requires_visit_slots: boolean
   is_active: boolean
   sort_order: number
   created_at: string
@@ -48,6 +49,9 @@ export interface CustomerContract {
   sla_plan_id: string | null
   monthly_hours: number | null
   calendar_id: string | null
+  account_manager_id: string | null
+  renewal_notice_days: number | null
+  esign_required: boolean
   notes: string | null
   created_by: string | null
   created_at: string
@@ -195,7 +199,14 @@ export const CONTRACT_CATEGORIES = [
 export const CONTRACT_STATUSES = [
   'draft',
   'pending_signature',
+  'declined_signature',
+  'awaiting_activation',
   'active',
+  'renewal_flagged',
+  'renewal_sent',
+  'renewal_accepted',
+  'schedule_pending',
+  'not_renewing',
   'expired',
   'cancelled',
   'renewed',

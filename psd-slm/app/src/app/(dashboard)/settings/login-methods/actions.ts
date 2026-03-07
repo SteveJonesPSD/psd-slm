@@ -33,6 +33,45 @@ export async function fetchLoginMethods() {
   return { settings, countsByRole }
 }
 
+export async function getOrgPasskeyStats() {
+  const user = await requireAuth()
+  if (user.role.name !== 'super_admin') {
+    return { totalPasskeys: 0, totalUsers: 0 }
+  }
+
+  const supabase = createAdminClient()
+  const { data } = await supabase
+    .from('user_passkeys')
+    .select('user_id')
+    .eq('org_id', user.orgId)
+
+  const totalPasskeys = data?.length ?? 0
+  const uniqueUsers = new Set(data?.map(d => d.user_id) ?? [])
+  return { totalPasskeys, totalUsers: uniqueUsers.size }
+}
+
+export async function clearAllOrgPasskeysAction(): Promise<{ error?: string; count?: number }> {
+  const user = await requireAuth()
+  if (user.role.name !== 'super_admin') {
+    return { error: 'Super admin only' }
+  }
+
+  const { clearAllOrgPasskeys } = await import('@/lib/passkeys')
+  const count = await clearAllOrgPasskeys(user.orgId)
+
+  const supabase = createAdminClient()
+  await supabase.from('activity_log').insert({
+    org_id: user.orgId,
+    user_id: user.id,
+    entity_type: 'organisation',
+    entity_id: user.orgId,
+    action: 'all_passkeys_cleared',
+    details: { cleared_count: count },
+  })
+
+  return { count }
+}
+
 export async function updateLoginMethod(
   role: string,
   method: LoginMethod
@@ -40,8 +79,8 @@ export async function updateLoginMethod(
   const user = await requireAuth()
   requireAdmin(user)
 
-  // Guard: super_admin cannot be set to magic_link
-  if (role === 'super_admin' && method === 'magic_link') {
+  // Guard: super_admin cannot be set to magic_link or passkey-only
+  if (role === 'super_admin' && (method === 'magic_link' || method === 'passkey')) {
     return { error: 'Super Admin requires at least password authentication' }
   }
 

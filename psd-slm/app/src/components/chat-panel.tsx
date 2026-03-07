@@ -242,7 +242,7 @@ export function ChatPanel({ agentAvatars }: { agentAvatars?: AgentAvatars }) {
 
       {/* Drawer */}
       <div
-        className={`fixed bottom-2 right-2 z-50 flex w-full flex-col rounded-xl bg-white dark:bg-slate-800 shadow-2xl transition-transform duration-300 sm:w-[420px] h-[50vh] min-h-[320px] max-h-[calc(100vh-16px)] ${
+        className={`fixed bottom-0 right-0 sm:bottom-2 sm:right-2 z-50 flex w-full flex-col rounded-none sm:rounded-xl bg-white dark:bg-slate-800 shadow-2xl transition-transform duration-300 sm:w-[420px] h-[60vh] sm:h-[50vh] min-h-[320px] max-h-[calc(100vh-16px)] ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >

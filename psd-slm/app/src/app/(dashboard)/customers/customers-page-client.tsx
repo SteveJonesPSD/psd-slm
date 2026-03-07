@@ -10,9 +10,10 @@ type CustomerWithContacts = Customer & { contacts: Pick<Contact, 'id'>[] }
 
 interface CustomersPageClientProps {
   customers: CustomerWithContacts[]
+  groupBadges?: Record<string, { type: 'parent' | 'member'; groupName: string }>
 }
 
-export function CustomersPageClient({ customers }: CustomersPageClientProps) {
+export function CustomersPageClient({ customers, groupBadges }: CustomersPageClientProps) {
   const [showForm, setShowForm] = useState(false)
 
   return (
@@ -22,7 +23,7 @@ export function CustomersPageClient({ customers }: CustomersPageClientProps) {
         subtitle={`${customers.length} accounts`}
         actions={<CustomersPageActions onNewCustomer={() => setShowForm(true)} />}
       />
-      <CustomersTable customers={customers} showForm={showForm} onShowFormChange={setShowForm} />
+      <CustomersTable customers={customers} showForm={showForm} onShowFormChange={setShowForm} groupBadges={groupBadges} />
     </div>
   )
 }

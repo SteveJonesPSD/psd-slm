@@ -23,16 +23,36 @@ export default async function TeamPage({
     supabase.from('roles').select('id, name, display_name').order('sort_order'),
   ])
 
-  // Fetch mail credentials (admin client to see all users' creds)
+  // Fetch mail credentials and passkey counts (admin client to see all users' creds)
   let mailCredentials: UserMailCredential[] = []
+  let passkeyCounts: Record<string, number> = {}
   if (user && ['super_admin', 'admin'].includes(user.role.name)) {
     const adminSupabase = createAdminClient()
-    const { data: creds } = await adminSupabase
-      .from('user_mail_credentials')
-      .select('*')
-      .eq('org_id', user.orgId)
-      .eq('is_active', true)
+    const [{ data: creds }, { data: passkeyData }] = await Promise.all([
+      adminSupabase
+        .from('user_mail_credentials')
+        .select('*')
+        .eq('org_id', user.orgId)
+        .eq('is_active', true),
+      adminSupabase
+        .from('user_passkeys')
+        .select('user_id')
+        .eq('org_id', user.orgId),
+    ])
     mailCredentials = (creds || []) as UserMailCredential[]
+
+    // Count passkeys per user (keyed by user table id, not auth_id)
+    // We need to map auth user_id to our users table id
+    const authIdCounts: Record<string, number> = {}
+    for (const row of passkeyData || []) {
+      authIdCounts[row.user_id] = (authIdCounts[row.user_id] || 0) + 1
+    }
+    // Map auth_id -> app user id
+    for (const u of (users as UserWithRole[]) || []) {
+      if (u.auth_id && authIdCounts[u.auth_id]) {
+        passkeyCounts[u.id] = authIdCounts[u.auth_id]
+      }
+    }
   }
 
   const allUsers = (users as UserWithRole[]) || []
@@ -58,6 +78,7 @@ export default async function TeamPage({
         users={allUsers}
         roles={(roles as Pick<Role, 'id' | 'name' | 'display_name'>[]) || []}
         mailCredentials={mailCredentials}
+        passkeyCounts={passkeyCounts}
       />
     </div>
   )

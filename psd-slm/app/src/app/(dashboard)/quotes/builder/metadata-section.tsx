@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { SearchableSelect } from '@/components/ui/form-fields'
 import type { QuoteFormState, QuoteAction, CustomerLookup, ContactLookup, UserLookup, BrandLookup } from './quote-builder-types'
 
@@ -13,11 +13,47 @@ interface MetadataSectionProps {
   brands: BrandLookup[]
 }
 
+interface GroupContactInfo {
+  groupName: string
+  parentCompanyId: string
+}
+
 export function MetadataSection({ state, dispatch, customers, contacts, users, brands }: MetadataSectionProps) {
   const [collapsed, setCollapsed] = useState(false)
+  const [groupContactInfo, setGroupContactInfo] = useState<GroupContactInfo | null>(null)
+
+  // Fetch group parent info when customer changes
+  useEffect(() => {
+    if (!state.customer_id) { setGroupContactInfo(null); return }
+    let cancelled = false
+    async function fetchGroupInfo() {
+      try {
+        const { getGroupForCompany } = await import('@/lib/company-groups/actions')
+        const result = await getGroupForCompany(state.customer_id)
+        if (cancelled) return
+        if (result.asMembers.length > 0 && result.asMembers[0].parent_company) {
+          setGroupContactInfo({
+            groupName: result.asMembers[0].name,
+            parentCompanyId: result.asMembers[0].parent_company_id,
+          })
+        } else {
+          setGroupContactInfo(null)
+        }
+      } catch {
+        if (!cancelled) setGroupContactInfo(null)
+      }
+    }
+    fetchGroupInfo()
+    return () => { cancelled = true }
+  }, [state.customer_id])
 
   const filteredContacts = state.customer_id
     ? contacts.filter((c) => c.customer_id === state.customer_id)
+    : []
+
+  // Add parent group contacts if the selected customer is a group member
+  const parentGroupContacts = groupContactInfo
+    ? contacts.filter((c) => c.customer_id === groupContactInfo.parentCompanyId)
     : []
 
   // Get the selected customer's type for brand filtering
@@ -93,7 +129,16 @@ export function MetadataSection({ state, dispatch, customers, contacts, users, b
             <SearchableSelect
               label="Contact"
               value={state.contact_id}
-              options={filteredContacts.map((c) => ({ value: c.id, label: `${c.first_name} ${c.last_name}${c.email ? ` (${c.email})` : ''}` }))}
+              options={[
+                ...filteredContacts.map((c) => ({
+                  value: c.id,
+                  label: `${c.first_name} ${c.last_name}${c.email ? ` (${c.email})` : ''}`,
+                })),
+                ...parentGroupContacts.map((c) => ({
+                  value: c.id,
+                  label: `${c.first_name} ${c.last_name}${c.email ? ` (${c.email})` : ''} [${groupContactInfo?.groupName}]`,
+                })),
+              ]}
               placeholder="Search contacts..."
               onChange={(val) => dispatch({ type: 'SET_FIELD', field: 'contact_id', value: val })}
               disabled={!state.customer_id}

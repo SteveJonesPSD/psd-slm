@@ -4,9 +4,26 @@ import { requireAuth } from '@/lib/auth'
 import { formatCurrency } from '@/lib/utils'
 import { StatCard } from '@/components/ui/stat-card'
 import { Badge, STAGE_CONFIG } from '@/components/ui/badge'
+import { MobileDetector } from '@/components/ui/mobile-detector'
+import { MobileHome } from '@/components/mobile-home'
+import { EngineerDashboard } from '@/components/dashboard/engineer-dashboard'
+import { getAgentAvatars } from '@/lib/agent-avatars'
 
 export default async function DashboardPage() {
   const user = await requireAuth()
+  const agentAvatars = await getAgentAvatars(user.orgId)
+
+  // Engineer dashboard — same view on all viewports
+  if (user.role.name === 'engineering' || user.role.name === 'field_engineer') {
+    return (
+      <MobileDetector
+        mobile={<MobileHome agentAvatars={agentAvatars} />}
+        desktop={<EngineerDashboard user={{ id: user.id, orgId: user.orgId, firstName: user.firstName }} />}
+      />
+    )
+  }
+
+  // Sales / admin dashboard
   const supabase = await createClient()
 
   // Fetch data — only current user's opportunities, exclude lost
@@ -129,6 +146,9 @@ export default async function DashboardPage() {
   )
 
   return (
+    <MobileDetector
+      mobile={<MobileHome agentAvatars={agentAvatars} />}
+      desktop={
     <div>
       {/* Stats row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
@@ -312,5 +332,7 @@ export default async function DashboardPage() {
         </div>
       </div>
     </div>
+      }
+    />
   )
 }
