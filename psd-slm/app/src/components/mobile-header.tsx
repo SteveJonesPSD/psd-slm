@@ -2,7 +2,7 @@
 
 import { useSidebar } from './sidebar-provider'
 
-export function MobileHeader() {
+export function MobileHeader({ portalLogoUrl }: { portalLogoUrl?: string | null }) {
   const { toggleMobileOpen } = useSidebar()
 
   return (
@@ -16,7 +16,7 @@ export function MobileHeader() {
           <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
         </svg>
       </button>
-      <img src="/innov8iv-logo.png" alt="Innov8iv" className="h-6 w-auto" />
+      <img src={portalLogoUrl || '/innov8iv-logo.png'} alt={portalLogoUrl ? 'Logo' : 'Innov8iv'} className="h-6 w-auto" />
     </div>
   )
 }

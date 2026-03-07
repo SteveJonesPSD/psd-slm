@@ -1,8 +1,11 @@
-import { getContractTypes } from '../../contracts/actions'
+import { getContractTypes, getSlaPlanOptions } from '../../contracts/actions'
 import { ContractTypesManager } from './contract-types-manager'
 
 export default async function ContractTypesPage() {
-  const types = await getContractTypes()
+  const [types, slaPlans] = await Promise.all([
+    getContractTypes(),
+    getSlaPlanOptions(),
+  ])
 
-  return <ContractTypesManager types={types} />
+  return <ContractTypesManager types={types} slaPlans={slaPlans} />
 }

@@ -37,7 +37,7 @@ export function MobileQuoteList({ quotes, marginThresholds }: MobileQuoteListPro
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
-  const [ownerFilter, setOwnerFilter] = useState<'all' | 'mine'>('all')
+  const [ownerFilter, setOwnerFilter] = useState<'all' | 'mine'>('mine')
   const [showRevised, setShowRevised] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
 

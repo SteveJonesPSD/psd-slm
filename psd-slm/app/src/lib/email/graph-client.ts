@@ -13,11 +13,13 @@ interface TokenCache {
   expiresAt: number
 }
 
+type GraphCredentials = Pick<MailConnection, 'tenant_id' | 'client_id' | 'client_secret'>
+
 export class GraphClient {
-  private connection: MailConnection
+  private connection: GraphCredentials
   private tokenCache: TokenCache | null = null
 
-  constructor(connection: MailConnection) {
+  constructor(connection: GraphCredentials) {
     this.connection = connection
   }
 
@@ -251,6 +253,61 @@ export class GraphClient {
       method: 'PATCH',
       body: JSON.stringify({ isRead: true }),
     })
+  }
+
+  // ---------------------------------------------------------------------------
+  // Test connection (verify credentials and mailbox access)
+  // ---------------------------------------------------------------------------
+
+  // ---------------------------------------------------------------------------
+  // Teams: resolve user ID from UPN
+  // ---------------------------------------------------------------------------
+
+  async getUserIdByUpn(upn: string): Promise<string | null> {
+    const res = await this.graphFetch(`/users/${encodeURIComponent(upn)}?$select=id`)
+    if (!res.ok) return null
+    const data = await res.json()
+    return data.id ?? null
+  }
+
+  // ---------------------------------------------------------------------------
+  // Teams: send a message to a channel
+  // ---------------------------------------------------------------------------
+
+  async sendChannelMessage(teamId: string, channelId: string, content: string, mentions?: { id: number; mentionText: string; mentioned: { user: { id: string; displayName: string } } }[]): Promise<boolean> {
+    const res = await this.graphFetch(
+      `/teams/${teamId}/channels/${channelId}/messages`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          body: { contentType: 'html', content },
+          ...(mentions && mentions.length > 0 ? { mentions } : {}),
+        }),
+      }
+    )
+    return res.ok
+  }
+
+  // ---------------------------------------------------------------------------
+  // Teams: list teams the app can see (for settings UI picker)
+  // ---------------------------------------------------------------------------
+
+  async listJoinedTeams(): Promise<{ id: string; displayName: string }[]> {
+    const res = await this.graphFetch('/groups?$filter=resourceProvisioningOptions/Any(x:x eq \'Team\')&$select=id,displayName')
+    if (!res.ok) return []
+    const data = await res.json()
+    return data.value ?? []
+  }
+
+  // ---------------------------------------------------------------------------
+  // Teams: list channels in a team
+  // ---------------------------------------------------------------------------
+
+  async listChannels(teamId: string): Promise<{ id: string; displayName: string }[]> {
+    const res = await this.graphFetch(`/teams/${teamId}/channels?$select=id,displayName`)
+    if (!res.ok) return []
+    const data = await res.json()
+    return data.value ?? []
   }
 
   // ---------------------------------------------------------------------------

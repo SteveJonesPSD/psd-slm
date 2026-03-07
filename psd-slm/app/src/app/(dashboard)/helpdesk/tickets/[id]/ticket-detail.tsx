@@ -64,7 +64,8 @@ export function TicketDetail({ ticket, teamMembers, categories, tags, cannedResp
   const contact = t.contacts as Record<string, unknown> | null
   const assignee = t.assignee as Record<string, unknown> | null
   const category = t.ticket_categories as Record<string, unknown> | null
-  const supportContract = t.support_contracts as Record<string, unknown> | null
+  const customerContract = t.customer_contract as Record<string, unknown> | null
+  const contractType = customerContract?.contract_types as Record<string, boolean | string> | null
   const msgs = (t.messages as Record<string, unknown>[]) || []
 
   // Resolve department name from id
@@ -156,20 +157,20 @@ export function TicketDetail({ ticket, teamMembers, categories, tags, cannedResp
             <span>Created {new Date(t.created_at as string).toLocaleString('en-GB')}</span>
           </div>
           <div className="mt-2 flex items-center gap-1.5">
-            {supportContract ? (
+            {customerContract ? (
               <>
-                <span className="text-xs text-slate-400 mr-1">{supportContract.name as string}:</span>
-                {((supportContract.contract_type as string) === 'helpdesk' || (supportContract.contract_type as string) === 'both') && (
-                  <>
-                    <Badge label="Remote Support" color="#059669" bg="#ecfdf5" />
-                    <Badge label="Telephone Support" color="#059669" bg="#ecfdf5" />
-                  </>
+                <span className="text-xs text-slate-400 mr-1">{customerContract.contract_number as string}:</span>
+                {contractType?.includes_remote_support && (
+                  <Badge label="Remote Support" color="#059669" bg="#ecfdf5" />
                 )}
-                {((supportContract.contract_type as string) === 'onsite' || (supportContract.contract_type as string) === 'both') && (
+                {contractType?.includes_telephone && (
+                  <Badge label="Telephone Support" color="#059669" bg="#ecfdf5" />
+                )}
+                {contractType?.includes_onsite && (
                   <Badge label="Onsite Support" color="#059669" bg="#ecfdf5" />
                 )}
-                {supportContract.monthly_hours && (
-                  <Badge label={`${supportContract.monthly_hours}h/month`} color="#6366f1" bg="#eef2ff" />
+                {customerContract.monthly_hours && (
+                  <Badge label={`${customerContract.monthly_hours}h/month`} color="#6366f1" bg="#eef2ff" />
                 )}
               </>
             ) : (
@@ -238,6 +239,9 @@ export function TicketDetail({ ticket, teamMembers, categories, tags, cannedResp
                 composeRef={composeRef}
                 viewers={viewers}
                 emailContext={emailContext}
+                ticketNumber={t.ticket_number as string}
+                customerName={customer?.name as string}
+                contactName={contact ? `${contact.first_name} ${contact.last_name}` : null}
               />
             </>
           )}

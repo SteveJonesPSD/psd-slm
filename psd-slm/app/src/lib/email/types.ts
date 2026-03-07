@@ -142,7 +142,7 @@ export interface ProcessedEmail {
 }
 
 export interface HandlerResult {
-  action: 'created_ticket' | 'threaded_to_ticket' | 'skipped' | 'rejected' | 'error'
+  action: 'created_ticket' | 'threaded_to_ticket' | 'skipped' | 'rejected' | 'error' | 'scenario_engine_processed'
   ticketId?: string
   ticketNumber?: string
   notes: string
@@ -155,7 +155,7 @@ export interface MessageDetail {
   sender?: string
   senderName?: string
   subject?: string
-  action: 'created_ticket' | 'threaded_to_ticket' | 'skipped' | 'rejected' | 'error'
+  action: 'created_ticket' | 'threaded_to_ticket' | 'skipped' | 'rejected' | 'error' | 'scenario_engine_processed'
   reason: string
   ticketNumber?: string
 }

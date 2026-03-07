@@ -23,9 +23,12 @@ interface ReplyBoxProps {
   composeRef?: React.MutableRefObject<((text: string) => void) | null>
   viewers?: PresenceViewer[]
   emailContext?: EmailContextInfo
+  ticketNumber?: string
+  customerName?: string
+  contactName?: string | null
 }
 
-export function ReplyBox({ ticketId, ticketStatus, cannedResponses, ticketContext, composeRef, viewers, emailContext }: ReplyBoxProps) {
+export function ReplyBox({ ticketId, ticketStatus, cannedResponses, ticketContext, composeRef, viewers, emailContext, ticketNumber, customerName, contactName }: ReplyBoxProps) {
   const router = useRouter()
   const [body, setBody] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -53,6 +56,7 @@ export function ReplyBox({ ticketId, ticketStatus, cannedResponses, ticketContex
   const [showCanned, setShowCanned] = useState(false)
   const [showAiSuggest, setShowAiSuggest] = useState(false)
   const [showPresenceConfirm, setShowPresenceConfirm] = useState(false)
+  const [nudgeLoading, setNudgeLoading] = useState(false)
 
   const isClosed = ['closed', 'cancelled'].includes(ticketStatus)
 
@@ -87,6 +91,36 @@ export function ReplyBox({ ticketId, ticketStatus, cannedResponses, ticketContex
     setShowCanned(false)
   }
 
+  async function handleAiNudge() {
+    if (!ticketContext) return
+    setNudgeLoading(true)
+    try {
+      const res = await fetch('/api/helpdesk/nudge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticketId,
+          ticketContext: {
+            ticketNumber: ticketNumber || ticketContext.ticketNumber,
+            subject: ticketContext.subject,
+            customerName: customerName || ticketContext.customerName,
+            contactName: contactName || ticketContext.contactName,
+            messages: ticketContext.messages,
+          },
+        }),
+      })
+      const data = await res.json()
+      if (data.nudge) {
+        setBody(prev => prev ? `${prev}\n\n${data.nudge}` : data.nudge)
+        setIsInternal(false)
+      }
+    } catch (err) {
+      console.error('[nudge]', err)
+    } finally {
+      setNudgeLoading(false)
+    }
+  }
+
   if (isClosed) {
     return (
       <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-center text-sm text-slate-400">
@@ -102,7 +136,7 @@ export function ReplyBox({ ticketId, ticketStatus, cannedResponses, ticketContex
         <button
           onClick={() => setIsInternal(false)}
           className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-            !isInternal ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-500 hover:text-gray-700'
+            !isInternal ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
           }`}
         >
           Reply
@@ -110,7 +144,7 @@ export function ReplyBox({ ticketId, ticketStatus, cannedResponses, ticketContex
         <button
           onClick={() => setIsInternal(true)}
           className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-            isInternal ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500 hover:text-gray-700'
+            isInternal ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/30'
           }`}
         >
           Internal Note
@@ -118,16 +152,25 @@ export function ReplyBox({ ticketId, ticketStatus, cannedResponses, ticketContex
 
         <div className="ml-auto flex items-center gap-2 relative">
           {ticketContext && (
-            <button
-              onClick={() => setShowAiSuggest(true)}
-              className="rounded-md border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-100"
-            >
-              AI Suggest
-            </button>
+            <>
+              <button
+                onClick={() => setShowAiSuggest(true)}
+                className="rounded-md border border-purple-200 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/30 px-3 py-1.5 text-xs font-medium text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50"
+              >
+                AI Suggest
+              </button>
+              <button
+                onClick={handleAiNudge}
+                disabled={nudgeLoading}
+                className="rounded-md border border-fuchsia-200 dark:border-fuchsia-700 bg-fuchsia-50 dark:bg-fuchsia-900/30 px-3 py-1.5 text-xs font-medium text-fuchsia-700 dark:text-fuchsia-300 hover:bg-fuchsia-100 dark:hover:bg-fuchsia-900/50 disabled:opacity-50"
+              >
+                {nudgeLoading ? 'Generating...' : 'AI Nudge'}
+              </button>
+            </>
           )}
           <button
             onClick={() => setShowCanned(!showCanned)}
-            className="rounded-md border border-gray-200 px-3 py-1.5 text-xs text-slate-500 hover:bg-gray-50"
+            className="rounded-md border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 px-3 py-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-600"
           >
             Canned Response
           </button>

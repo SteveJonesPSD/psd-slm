@@ -69,12 +69,13 @@ async function buildHelpdeskContext(supabase: Awaited<ReturnType<typeof createCl
       .order('period', { ascending: false })
       .limit(3),
 
-    // Active support contracts
+    // Active support contracts (from customer_contracts)
     supabase
-      .from('support_contracts')
-      .select('id, name, contract_type, monthly_hours, start_date, end_date, is_active, customers(name), sla_plans(name)')
+      .from('customer_contracts')
+      .select('id, contract_number, monthly_hours, start_date, end_date, status, customers(name), sla_plans(name), contract_types(name, includes_remote_support, includes_telephone, includes_onsite)')
       .eq('org_id', orgId)
-      .eq('is_active', true),
+      .eq('status', 'active')
+      .not('sla_plan_id', 'is', null),
 
     // Ticket categories
     supabase
@@ -229,7 +230,8 @@ async function buildHelpdeskContext(supabase: Awaited<ReturnType<typeof createCl
     for (const c of contracts) {
       const customer = (c.customers as unknown as { name: string })?.name || 'Unknown'
       const slaPlan = (c.sla_plans as unknown as { name: string })?.name || 'None'
-      ctx += `- "${c.name}" — ${customer} | type: ${c.contract_type} | ${c.monthly_hours ? c.monthly_hours + 'h/month' : 'unlimited'} | SLA: ${slaPlan} | ${c.start_date} to ${c.end_date || 'ongoing'}\n`
+      const ctName = (c.contract_types as unknown as { name: string })?.name || 'Unknown'
+      ctx += `- "${c.contract_number}" — ${customer} | type: ${ctName} | ${c.monthly_hours ? c.monthly_hours + 'h/month' : 'unlimited'} | SLA: ${slaPlan} | ${c.start_date} to ${c.end_date || 'ongoing'}\n`
     }
   }
 

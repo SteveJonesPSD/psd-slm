@@ -31,8 +31,10 @@ export function MetadataSection({ state, dispatch, customers, contacts, users, b
 
   const handleCustomerChange = (value: string) => {
     dispatch({ type: 'SET_FIELD', field: 'customer_id', value })
-    // Reset contact when customer changes
-    dispatch({ type: 'SET_FIELD', field: 'contact_id', value: '' })
+    // Auto-select primary contact, or reset if none
+    const customerContacts = contacts.filter((c) => c.customer_id === value)
+    const primaryContact = customerContacts.find((c) => c.is_primary)
+    dispatch({ type: 'SET_FIELD', field: 'contact_id', value: primaryContact?.id || '' })
 
     // Auto-populate quote_type and brand from customer type
     const customer = customers.find((c) => c.id === value)

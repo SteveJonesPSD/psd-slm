@@ -11,6 +11,7 @@ const variants = {
   ghost: 'border border-transparent bg-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-700',
   blue: 'border border-blue-500 bg-blue-500/15 text-blue-700 hover:shadow-[0_0_12px_rgba(59,130,246,0.5)] dark:border-blue-400 dark:bg-blue-400/15 dark:text-blue-300 dark:hover:shadow-[0_0_12px_rgba(96,165,250,0.4)]',
   purple: 'border border-purple-500 bg-purple-500/15 text-purple-700 hover:shadow-[0_0_12px_rgba(168,85,247,0.5)] dark:border-purple-400 dark:bg-purple-400/15 dark:text-purple-300 dark:hover:shadow-[0_0_12px_rgba(192,132,252,0.4)]',
+  orange: 'border border-orange-500 bg-orange-500/15 text-orange-700 hover:shadow-[0_0_12px_rgba(249,115,22,0.5)] dark:border-orange-400 dark:bg-orange-400/15 dark:text-orange-300 dark:hover:shadow-[0_0_12px_rgba(251,146,60,0.4)]',
 } as const
 
 const sizes = {

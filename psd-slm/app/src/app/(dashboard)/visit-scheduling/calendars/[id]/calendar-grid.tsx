@@ -51,7 +51,22 @@ export function CalendarGrid({ calendarId, calendarStatus, weeks, bankHolidays }
     startTransition(async () => {
       const res = await updateCalendarWeek(weekId, {
         is_holiday: !currentHoliday,
+        is_extra: false, // Clear extra when marking as holiday
         holiday_name: !currentHoliday ? 'School Holiday' : null,
+      })
+      if (res.error) { setError(res.error); return }
+      await recalculateCycleNumbers(calendarId)
+      router.refresh()
+    })
+  }
+
+  async function handleToggleExtra(weekId: string, currentExtra: boolean) {
+    setError(null)
+    startTransition(async () => {
+      const res = await updateCalendarWeek(weekId, {
+        is_extra: !currentExtra,
+        is_holiday: false, // Clear holiday when marking as extra
+        holiday_name: null,
       })
       if (res.error) { setError(res.error); return }
       await recalculateCycleNumbers(calendarId)
@@ -102,6 +117,15 @@ export function CalendarGrid({ calendarId, calendarStatus, weeks, bankHolidays }
             Activate Calendar
           </Button>
         )}
+        {calendarStatus === 'archived' && (
+          <Button
+            onClick={handleActivate}
+            variant="success"
+            disabled={isPending}
+          >
+            Reactivate Calendar
+          </Button>
+        )}
         {calendarStatus === 'active' && (
           <button
             onClick={handleArchive}
@@ -136,6 +160,7 @@ export function CalendarGrid({ calendarId, calendarStatus, weeks, bankHolidays }
               <th className="whitespace-nowrap border-b-2 border-gray-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 text-left">Week Commencing</th>
               <th className="whitespace-nowrap border-b-2 border-gray-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 text-center w-20">Cycle</th>
               <th className="whitespace-nowrap border-b-2 border-gray-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 text-center w-20">Holiday</th>
+              <th className="whitespace-nowrap border-b-2 border-gray-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 text-center w-20">Extra</th>
               <th className="whitespace-nowrap border-b-2 border-gray-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 text-left">Bank Holidays</th>
             </tr>
           </thead>
@@ -146,7 +171,7 @@ export function CalendarGrid({ calendarId, calendarStatus, weeks, bankHolidays }
               return (
                 <tr
                   key={week.id}
-                  className={`border-b border-slate-100 dark:border-slate-700 ${week.is_holiday ? 'bg-amber-50/50 dark:bg-amber-900/20' : ''}`}
+                  className={`border-b border-slate-100 dark:border-slate-700 ${week.is_holiday ? 'bg-amber-50/50 dark:bg-amber-900/20' : week.is_extra ? 'bg-indigo-50/50 dark:bg-indigo-900/20' : ''}`}
                 >
                   <td className="px-4 py-2 text-slate-500 dark:text-slate-400 text-center">{week.sort_order}</td>
                   <td className="px-4 py-2 whitespace-nowrap text-slate-700 dark:text-slate-200">
@@ -170,12 +195,27 @@ export function CalendarGrid({ calendarId, calendarStatus, weeks, bankHolidays }
                         type="checkbox"
                         checked={week.is_holiday}
                         onChange={() => handleToggleHoliday(week.id, week.is_holiday)}
-                        disabled={isPending}
-                        className="h-4 w-4 rounded border-slate-300 dark:border-slate-600 text-amber-600 focus:ring-amber-500"
+                        disabled={isPending || week.is_extra}
+                        className="h-4 w-4 rounded border-slate-300 dark:border-slate-600 text-amber-600 focus:ring-amber-500 disabled:opacity-30"
                       />
                     ) : (
                       week.is_holiday ? (
                         <span className="text-amber-600 dark:text-amber-400 text-xs font-medium">Holiday</span>
+                      ) : null
+                    )}
+                  </td>
+                  <td className="px-4 py-2 text-center">
+                    {isEditable ? (
+                      <input
+                        type="checkbox"
+                        checked={week.is_extra}
+                        onChange={() => handleToggleExtra(week.id, week.is_extra)}
+                        disabled={isPending || week.is_holiday}
+                        className="h-4 w-4 rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500 disabled:opacity-30"
+                      />
+                    ) : (
+                      week.is_extra ? (
+                        <span className="text-indigo-600 dark:text-indigo-400 text-xs font-medium">Extra</span>
                       ) : null
                     )}
                   </td>

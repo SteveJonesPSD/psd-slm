@@ -1,6 +1,6 @@
 import { requirePermission } from '@/lib/auth'
 import { PageHeader } from '@/components/ui/page-header'
-import { getJobs, getJobTypes, getEngineers, getActivities, getActiveActivityTypes, getWorkingDays } from '../actions'
+import { getJobs, getJobTypes, getEngineers, getActivities, getActiveActivityTypes, getWorkingDays, getAllUserWorkingHours, getSchedulingSettings } from '../actions'
 import { DispatchCalendar } from '../dispatch-calendar'
 import { SchedulingActions } from '../scheduling-actions'
 
@@ -13,13 +13,15 @@ export default async function DayViewPage() {
   const now = new Date()
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 
-  const [jobsResult, typesResult, engineersResult, activitiesResult, activityTypesResult, workingDays] = await Promise.all([
+  const [jobsResult, typesResult, engineersResult, activitiesResult, activityTypesResult, workingDays, userHoursResult, orgSettings] = await Promise.all([
     getJobs(),
     getJobTypes(),
     getEngineers(),
     getActivities(),
     getActiveActivityTypes(),
     getWorkingDays(),
+    getAllUserWorkingHours(),
+    getSchedulingSettings(),
   ])
 
   return (
@@ -44,6 +46,13 @@ export default async function DayViewPage() {
         engineers={engineersResult.data || []}
         initialDate={today}
         canEdit={canEdit}
+        allUserHours={userHoursResult.data || []}
+        orgDefaults={{
+          startTime: orgSettings.working_day_start,
+          endTime: orgSettings.working_day_end,
+          workingDays,
+        }}
+        activityTypes={activityTypesResult.data || []}
       />
     </div>
   )

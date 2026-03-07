@@ -29,7 +29,7 @@ export default async function NewQuotePage({ searchParams }: PageProps) {
     { data: validitySetting },
   ] = await Promise.all([
     supabase.from('customers').select('id, name, customer_type').eq('is_active', true).order('name'),
-    supabase.from('contacts').select('id, customer_id, first_name, last_name, email').eq('is_active', true),
+    supabase.from('contacts').select('id, customer_id, first_name, last_name, email, is_primary').eq('is_active', true),
     supabase.from('contact_customer_links').select('contact_id, customer_id'),
     supabase.from('products').select('id, sku, name, category_id, default_buy_price, default_sell_price, default_route, product_categories(name)').eq('is_active', true).order('name'),
     supabase.from('product_categories').select('id, name').order('sort_order'),

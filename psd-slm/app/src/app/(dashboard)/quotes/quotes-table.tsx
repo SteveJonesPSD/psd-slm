@@ -42,7 +42,7 @@ export function QuotesTable({ quotes, marginThresholds, defaultOwner, defaultSta
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState(defaultStatus || '')
   const [typeFilter, setTypeFilter] = useState('')
-  const [ownerFilter, setOwnerFilter] = useState<'all' | 'mine'>(defaultOwner === 'mine' ? 'mine' : 'all')
+  const [ownerFilter, setOwnerFilter] = useState<'all' | 'mine'>(defaultOwner === 'all' ? 'all' : 'mine')
   const [showRevised, setShowRevised] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [lostModal, setLostModal] = useState<{ id: string; quoteNumber: string } | null>(null)

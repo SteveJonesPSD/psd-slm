@@ -68,6 +68,7 @@ interface VisitScheduleSectionProps {
   engineers: FieldEngineer[]
   contractTypeCode: string
   visitFrequency: string | null
+  scheduleWeeks: number | null
   editable: boolean
 }
 
@@ -77,15 +78,17 @@ export function VisitScheduleSection({
   engineers,
   contractTypeCode,
   visitFrequency,
+  scheduleWeeks,
   editable,
 }: VisitScheduleSectionProps) {
   const router = useRouter()
   const [showAdd, setShowAdd] = useState(false)
   const [editingSlot, setEditingSlot] = useState<ContractVisitSlotWithDetails | null>(null)
 
-  // Calculate visit summary
+  // Calculate visit summary using calendar's schedule_weeks (default 36)
+  const weeksInYear = scheduleWeeks || 36
   const visitsPerCycle = slots.reduce((sum, s) => sum + (s.cycle_week_numbers?.length || 0), 0)
-  const visitsPerYear = Math.round(visitsPerCycle * (36 / 4))
+  const visitsPerYear = Math.round(visitsPerCycle * (weeksInYear / 4))
 
   const columns: Column<ContractVisitSlotWithDetails>[] = [
     {

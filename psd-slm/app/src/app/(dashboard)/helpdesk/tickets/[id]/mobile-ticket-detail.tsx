@@ -104,7 +104,8 @@ export function MobileTicketDetail({ ticket, teamMembers, categories, tags, cann
   const contact = t.contacts as Record<string, unknown> | null
   const assignee = t.assignee as Record<string, unknown> | null
   const category = t.ticket_categories as Record<string, unknown> | null
-  const supportContract = t.support_contracts as Record<string, unknown> | null
+  const customerContract = t.customer_contract as Record<string, unknown> | null
+  const contractType = customerContract?.contract_types as Record<string, boolean | string> | null
   const msgs = (t.messages as Record<string, unknown>[]) || []
 
   const currentDepartment = t.department_id
@@ -193,15 +194,15 @@ export function MobileTicketDetail({ ticket, teamMembers, categories, tags, cann
               )}
             </div>
             <div className="flex items-center gap-1 mt-1 flex-wrap">
-              {supportContract ? (
+              {customerContract ? (
                 <>
-                  {((supportContract.contract_type as string) === 'helpdesk' || (supportContract.contract_type as string) === 'both') && (
-                    <>
-                      <Badge label="Remote" color="#059669" bg="#ecfdf5" />
-                      <Badge label="Telephone" color="#059669" bg="#ecfdf5" />
-                    </>
+                  {contractType?.includes_remote_support && (
+                    <Badge label="Remote" color="#059669" bg="#ecfdf5" />
                   )}
-                  {((supportContract.contract_type as string) === 'onsite' || (supportContract.contract_type as string) === 'both') && (
+                  {contractType?.includes_telephone && (
+                    <Badge label="Telephone" color="#059669" bg="#ecfdf5" />
+                  )}
+                  {contractType?.includes_onsite && (
                     <Badge label="Onsite" color="#059669" bg="#ecfdf5" />
                   )}
                 </>
@@ -367,6 +368,9 @@ export function MobileTicketDetail({ ticket, teamMembers, categories, tags, cann
           cannedResponses={cannedResponses}
           ticketContext={ticketContext}
           initialBody={pendingComposeRef.current || undefined}
+          ticketNumber={t.ticket_number as string}
+          customerName={customer?.name as string}
+          contactName={contact ? `${contact.first_name} ${contact.last_name}` : null}
         />
       )}
 

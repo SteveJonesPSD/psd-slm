@@ -11,6 +11,9 @@ export interface ContractType {
   includes_remote_support: boolean
   includes_telephone: boolean
   includes_onsite: boolean
+  default_sla_plan_id: string | null
+  default_monthly_hours: number | null
+  allowed_schedule_weeks: number[]
   is_active: boolean
   sort_order: number
   created_at: string
@@ -42,6 +45,9 @@ export interface CustomerContract {
   esign_request_id: string | null
   last_signed_at: string | null
   signed_by_name: string | null
+  sla_plan_id: string | null
+  monthly_hours: number | null
+  calendar_id: string | null
   notes: string | null
   created_by: string | null
   created_at: string
@@ -49,6 +55,8 @@ export interface CustomerContract {
 }
 
 export interface CustomerContractWithDetails extends CustomerContract {
+  calendar_name: string | null
+  calendar_schedule_weeks: number | null
   customer_name: string
   contract_type_name: string
   contract_type_code: string
@@ -59,6 +67,9 @@ export interface CustomerContractWithDetails extends CustomerContract {
   includes_remote_support: boolean
   includes_telephone: boolean
   includes_onsite: boolean
+  effective_sla_plan_id: string | null
+  effective_sla_plan_name: string | null
+  effective_monthly_hours: number | null
   contact_name: string | null
   lines?: ContractLine[]
   entitlements?: ContractEntitlement[]
@@ -158,6 +169,8 @@ export interface ContractFormData {
   visit_frequency?: string | null
   visit_length_hours?: number | null
   visits_per_year?: number | null
+  sla_plan_id?: string | null
+  monthly_hours?: number | null
   opportunity_id?: string | null
   quote_id?: string | null
   notes?: string | null

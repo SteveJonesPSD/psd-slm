@@ -9,11 +9,24 @@ import { createContractType, updateContractType, getActiveContractCountForType }
 import type { ContractType } from '@/lib/contracts/types'
 import { CONTRACT_CATEGORIES, VISIT_FREQUENCIES } from '@/lib/contracts/types'
 
-interface ContractTypesManagerProps {
-  types: ContractType[]
+interface SlaPlanOption {
+  id: string
+  name: string
 }
 
-export function ContractTypesManager({ types }: ContractTypesManagerProps) {
+interface ContractTypesManagerProps {
+  types: ContractType[]
+  slaPlans: SlaPlanOption[]
+}
+
+function formatCode(code: string): string {
+  return code
+    .split('_')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
+}
+
+export function ContractTypesManager({ types, slaPlans }: ContractTypesManagerProps) {
   const router = useRouter()
   const [showModal, setShowModal] = useState(false)
   const [editingType, setEditingType] = useState<ContractType | null>(null)
@@ -59,6 +72,9 @@ export function ContractTypesManager({ types }: ContractTypesManagerProps) {
                 <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Visits/Yr</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Hours</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Support</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase">SLA Plan</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Hours/Mo</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Calendars</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase">Active</th>
                 <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase" />
               </tr>
@@ -69,7 +85,11 @@ export function ContractTypesManager({ types }: ContractTypesManagerProps) {
                 return (
                   <tr key={t.id} className="border-b border-slate-50 hover:bg-slate-50/50">
                     <td className="px-4 py-3 font-medium text-slate-900">{t.name}</td>
-                    <td className="px-4 py-3 text-slate-500 font-mono text-xs">{t.code}</td>
+                    <td className="px-4 py-3">
+                      <span className="inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600 uppercase tracking-wide">
+                        {formatCode(t.code)}
+                      </span>
+                    </td>
                     <td className="px-4 py-3">
                       {catCfg && <Badge label={catCfg.label} color={catCfg.color} bg={catCfg.bg} />}
                     </td>
@@ -90,6 +110,17 @@ export function ContractTypesManager({ types }: ContractTypesManagerProps) {
                           <span className="inline-block rounded-full bg-purple-50 px-1.5 py-0.5 text-[10px] font-medium text-purple-700" title="Onsite">O</span>
                         )}
                       </div>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-slate-500 whitespace-nowrap">
+                      {slaPlans.find(s => s.id === t.default_sla_plan_id)?.name || '\u2014'}
+                    </td>
+                    <td className="px-4 py-3 text-center text-sm text-slate-500">
+                      {t.default_monthly_hours ? `${t.default_monthly_hours}h` : '\u2014'}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className="text-xs text-slate-500">
+                        {t.allowed_schedule_weeks?.join(', ') || 'All'}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <button
@@ -119,7 +150,7 @@ export function ContractTypesManager({ types }: ContractTypesManagerProps) {
               })}
               {types.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-sm text-slate-400">
+                  <td colSpan={12} className="px-4 py-8 text-center text-sm text-slate-400">
                     No contract types yet. Click &quot;+ New Contract Type&quot; to create one.
                   </td>
                 </tr>
@@ -132,6 +163,7 @@ export function ContractTypesManager({ types }: ContractTypesManagerProps) {
       {showModal && (
         <ContractTypeModal
           type={editingType}
+          slaPlans={slaPlans}
           onClose={() => { setShowModal(false); setEditingType(null) }}
           onSaved={() => { setShowModal(false); setEditingType(null); router.refresh() }}
         />
@@ -142,10 +174,12 @@ export function ContractTypesManager({ types }: ContractTypesManagerProps) {
 
 function ContractTypeModal({
   type,
+  slaPlans,
   onClose,
   onSaved,
 }: {
   type: ContractType | null
+  slaPlans: SlaPlanOption[]
   onClose: () => void
   onSaved: () => void
 }) {
@@ -164,6 +198,9 @@ function ContractTypeModal({
     includes_remote_support: type?.includes_remote_support ?? false,
     includes_telephone: type?.includes_telephone ?? false,
     includes_onsite: type?.includes_onsite ?? false,
+    default_sla_plan_id: type?.default_sla_plan_id || '',
+    default_monthly_hours: type?.default_monthly_hours ? String(type.default_monthly_hours) : '',
+    allowed_schedule_weeks: type?.allowed_schedule_weeks ?? [36, 39],
     sort_order: type?.sort_order ? String(type.sort_order) : '0',
   })
 
@@ -191,6 +228,9 @@ function ContractTypeModal({
     fd.append('includes_remote_support', String(form.includes_remote_support))
     fd.append('includes_telephone', String(form.includes_telephone))
     fd.append('includes_onsite', String(form.includes_onsite))
+    fd.append('default_sla_plan_id', form.default_sla_plan_id)
+    fd.append('default_monthly_hours', form.default_monthly_hours)
+    fd.append('allowed_schedule_weeks', JSON.stringify(form.allowed_schedule_weeks))
     fd.append('sort_order', form.sort_order)
 
     const result = isEdit
@@ -304,6 +344,64 @@ function ContractTypeModal({
                 </label>
               ))}
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Default SLA Plan</label>
+              <select
+                value={form.default_sla_plan_id}
+                onChange={(e) => setForm((f) => ({ ...f, default_sla_plan_id: e.target.value }))}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
+              >
+                <option value="">None</option>
+                {slaPlans.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              <p className="text-xs text-slate-400 mt-1">Applied to new contracts of this type</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Default Monthly Hours</label>
+              <input
+                type="number"
+                step="0.5"
+                min="0"
+                value={form.default_monthly_hours}
+                onChange={upd('default_monthly_hours')}
+                placeholder="Unlimited"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
+              />
+              <p className="text-xs text-slate-400 mt-1">Support hours allowance per month</p>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Allowed Calendar Lengths</label>
+            <div className="flex flex-wrap gap-4">
+              {[
+                { weeks: 36, label: '36-week' },
+                { weeks: 39, label: '39-week' },
+              ].map(({ weeks, label }) => (
+                <label key={weeks} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.allowed_schedule_weeks.includes(weeks)}
+                    onChange={(e) => {
+                      setForm((f) => ({
+                        ...f,
+                        allowed_schedule_weeks: e.target.checked
+                          ? [...f.allowed_schedule_weeks, weeks].sort()
+                          : f.allowed_schedule_weeks.filter(w => w !== weeks),
+                      }))
+                    }}
+                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-400"
+                  />
+                  <span className="text-sm text-slate-700">{label}</span>
+                </label>
+              ))}
+            </div>
+            <p className="text-xs text-slate-400 mt-1">Controls which calendar types this contract can be assigned to</p>
           </div>
         </div>
 

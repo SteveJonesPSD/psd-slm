@@ -16,6 +16,9 @@ interface MobileReplySheetProps {
   cannedResponses: { id: string; title: string; body: string; category: string | null }[]
   ticketContext?: TicketContext
   initialBody?: string
+  ticketNumber?: string
+  customerName?: string
+  contactName?: string | null
 }
 
 export function MobileReplySheet({
@@ -27,6 +30,9 @@ export function MobileReplySheet({
   cannedResponses,
   ticketContext,
   initialBody,
+  ticketNumber,
+  customerName,
+  contactName,
 }: MobileReplySheetProps) {
   const router = useRouter()
   const [body, setBody] = useState(initialBody || '')
@@ -35,6 +41,7 @@ export function MobileReplySheet({
   const [showCanned, setShowCanned] = useState(false)
   const [showAiSuggest, setShowAiSuggest] = useState(false)
   const [cannedSearch, setCannedSearch] = useState('')
+  const [nudgeLoading, setNudgeLoading] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Auto-populate body from initialBody (e.g. compose-from-assist)
@@ -77,6 +84,36 @@ export function MobileReplySheet({
     setCannedSearch('')
   }
 
+  async function handleAiNudge() {
+    if (!ticketContext) return
+    setNudgeLoading(true)
+    try {
+      const res = await fetch('/api/helpdesk/nudge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticketId,
+          ticketContext: {
+            ticketNumber: ticketNumber || ticketContext.ticketNumber,
+            subject: ticketContext.subject,
+            customerName: customerName || ticketContext.customerName,
+            contactName: contactName || ticketContext.contactName,
+            messages: ticketContext.messages,
+          },
+        }),
+      })
+      const data = await res.json()
+      if (data.nudge) {
+        setBody(prev => prev ? `${prev}\n\n${data.nudge}` : data.nudge)
+        setIsInternal(false)
+      }
+    } catch (err) {
+      console.error('[nudge]', err)
+    } finally {
+      setNudgeLoading(false)
+    }
+  }
+
   const filteredCanned = cannedSearch
     ? cannedResponses.filter(cr =>
         cr.title.toLowerCase().includes(cannedSearch.toLowerCase()) ||
@@ -109,7 +146,7 @@ export function MobileReplySheet({
               className={`rounded-lg px-4 py-2 text-xs font-medium transition-colors ${
                 isInternal
                   ? 'bg-amber-600 text-white'
-                  : 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400'
+                  : 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400'
               }`}
             >
               Internal Note
@@ -132,24 +169,36 @@ export function MobileReplySheet({
           />
 
           {/* Tool buttons */}
-          <div className="mt-3 flex gap-2">
+          <div className="mt-3 flex flex-wrap gap-2">
             {ticketContext && (
-              <button
-                onClick={() => setShowAiSuggest(true)}
-                className="flex items-center gap-1.5 rounded-lg border border-purple-200 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/30 px-3 py-2.5 text-xs font-medium text-purple-700 dark:text-purple-300 active:bg-purple-100"
-              >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
-                </svg>
-                AI Suggest
-              </button>
+              <>
+                <button
+                  onClick={() => setShowAiSuggest(true)}
+                  className="flex items-center gap-1.5 rounded-lg border border-purple-200 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/30 px-3 py-2.5 text-xs font-medium text-purple-700 dark:text-purple-300 active:bg-purple-100"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
+                  </svg>
+                  AI Suggest
+                </button>
+                <button
+                  onClick={handleAiNudge}
+                  disabled={nudgeLoading}
+                  className="flex items-center gap-1.5 rounded-lg border border-fuchsia-200 dark:border-fuchsia-700 bg-fuchsia-50 dark:bg-fuchsia-900/30 px-3 py-2.5 text-xs font-medium text-fuchsia-700 dark:text-fuchsia-300 active:bg-fuchsia-100 disabled:opacity-50"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+                  </svg>
+                  {nudgeLoading ? 'Generating...' : 'AI Nudge'}
+                </button>
+              </>
             )}
             <button
               onClick={() => setShowCanned(!showCanned)}
               className={`flex items-center gap-1.5 rounded-lg border px-3 py-2.5 text-xs font-medium transition-colors ${
                 showCanned
-                  ? 'border-indigo-200 bg-indigo-50 text-indigo-600 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
-                  : 'border-gray-200 dark:border-slate-600 text-slate-500 dark:text-slate-400'
+                  ? 'border-gray-300 bg-gray-100 text-slate-700 dark:border-slate-500 dark:bg-slate-600 dark:text-slate-200'
+                  : 'border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
               }`}
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">

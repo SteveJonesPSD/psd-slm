@@ -17,6 +17,7 @@ import {
 import { Badge, JOB_STATUS_CONFIG, JOB_PRIORITY_CONFIG } from '@/components/ui/badge'
 import { StatCard } from '@/components/ui/stat-card'
 import { dragAssignJob, dragUnscheduleJob } from './actions'
+import { EditActivityModal } from './edit-activity-modal'
 
 const HOURS_START = 7
 const HOURS_END = 19
@@ -24,18 +25,69 @@ const SLOT_WIDTH = 60 // px per 30min
 const SLOTS_COUNT = (HOURS_END - HOURS_START) * 2
 const ENGINEER_ROW_HEIGHT = 56
 
+export interface UserWorkingHoursData {
+  user_id: string
+  day_of_week: number
+  is_working_day: boolean
+  start_time: string | null
+  end_time: string | null
+}
+
+interface OrgScheduleDefaults {
+  startTime: string
+  endTime: string
+  workingDays: number[]
+}
+
+function getIsoDay(dateStr: string): number {
+  const d = new Date(dateStr + 'T12:00:00')
+  const jsDay = d.getDay()
+  return jsDay === 0 ? 7 : jsDay
+}
+
+function getEffectiveHoursForEngineer(
+  engineerId: string,
+  dateStr: string,
+  allUserHours: UserWorkingHoursData[],
+  orgDefaults: OrgScheduleDefaults
+): { isWorkingDay: boolean; startTime: string; endTime: string } {
+  const isoDay = getIsoDay(dateStr)
+  const row = allUserHours.find(h => h.user_id === engineerId && h.day_of_week === isoDay)
+
+  if (row) {
+    if (!row.is_working_day) {
+      return { isWorkingDay: false, startTime: orgDefaults.startTime, endTime: orgDefaults.endTime }
+    }
+    return {
+      isWorkingDay: true,
+      startTime: row.start_time || orgDefaults.startTime,
+      endTime: row.end_time || orgDefaults.endTime,
+    }
+  }
+
+  return {
+    isWorkingDay: orgDefaults.workingDays.includes(isoDay),
+    startTime: orgDefaults.startTime,
+    endTime: orgDefaults.endTime,
+  }
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function DispatchCalendar({ allJobs, allActivities, jobTypes, engineers, initialDate, canEdit }: {
+export function DispatchCalendar({ allJobs, allActivities, jobTypes, engineers, initialDate, canEdit, allUserHours, orgDefaults, activityTypes }: {
   allJobs: any[]
   allActivities?: any[]
   jobTypes: any[]
   engineers: any[]
   initialDate: string
   canEdit: boolean
+  allUserHours?: UserWorkingHoursData[]
+  orgDefaults?: OrgScheduleDefaults
+  activityTypes?: any[]
 }) {
   const router = useRouter()
   const [currentDate, setCurrentDate] = useState(initialDate)
   const [activeJob, setActiveJob] = useState<string | null>(null)
+  const [editingActivity, setEditingActivity] = useState<any | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -94,6 +146,8 @@ export function DispatchCalendar({ allJobs, allActivities, jobTypes, engineers, 
       const minutes = (slotIndex % 2) * 30
       const time = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
 
+      // TODO: conflict check on drag-drop reschedule — call /api/scheduling/check-conflicts
+      // and show toast notification if conflicts exist before saving
       await dragAssignJob(jobId, engineerId, currentDate, time)
       router.refresh()
     }
@@ -155,15 +209,22 @@ export function DispatchCalendar({ allJobs, allActivities, jobTypes, engineers, 
             </div>
 
             {/* Engineer Rows */}
-            {engineers.length > 0 ? engineers.map(eng => (
-              <EngineerRow
-                key={eng.id}
-                engineer={eng}
-                jobs={dayJobs.filter(j => j.assigned_to === eng.id)}
-                activities={(allActivities || []).filter((a: { scheduled_date: string; engineer_id: string }) => a.scheduled_date === currentDate && a.engineer_id === eng.id)}
-                canEdit={canEdit}
-              />
-            )) : (
+            {engineers.length > 0 ? engineers.map(eng => {
+              const effective = (allUserHours && orgDefaults)
+                ? getEffectiveHoursForEngineer(eng.id, currentDate, allUserHours, orgDefaults)
+                : null
+              return (
+                <EngineerRow
+                  key={eng.id}
+                  engineer={eng}
+                  jobs={dayJobs.filter(j => j.assigned_to === eng.id)}
+                  activities={(allActivities || []).filter((a: { scheduled_date: string; engineer_id: string }) => a.scheduled_date === currentDate && a.engineer_id === eng.id)}
+                  canEdit={canEdit}
+                  effectiveHours={effective}
+                  onActivityClick={canEdit ? setEditingActivity : undefined}
+                />
+              )
+            }) : (
               <div className="px-4 py-8 text-center text-sm text-slate-400">
                 No engineers found. Users with the Engineering role will appear here.
               </div>
@@ -185,6 +246,15 @@ export function DispatchCalendar({ allJobs, allActivities, jobTypes, engineers, 
           )}
         </DragOverlay>
       </DndContext>
+
+      {editingActivity && activityTypes && (
+        <EditActivityModal
+          activity={editingActivity}
+          activityTypes={activityTypes}
+          engineers={engineers.map((e: any) => ({ id: e.id, first_name: e.first_name, last_name: e.last_name }))}
+          onClose={() => setEditingActivity(null)}
+        />
+      )}
     </div>
   )
 }
@@ -262,7 +332,7 @@ function PoolJobCard({ job, canEdit }: { job: any; canEdit: boolean }) {
 // ============================================================================
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function EngineerRow({ engineer, jobs, activities, canEdit }: { engineer: any; jobs: any[]; activities: any[]; canEdit: boolean }) {
+function EngineerRow({ engineer, jobs, activities, canEdit, effectiveHours, onActivityClick }: { engineer: any; jobs: any[]; activities: any[]; canEdit: boolean; effectiveHours?: { isWorkingDay: boolean; startTime: string; endTime: string } | null; onActivityClick?: (activity: any) => void }) {
   return (
     <div className="flex border-b border-gray-100" style={{ minHeight: ENGINEER_ROW_HEIGHT }}>
       {/* Engineer label */}
@@ -286,9 +356,12 @@ function EngineerRow({ engineer, jobs, activities, canEdit }: { engineer: any; j
           <TimeSlot key={i} slotIndex={i} engineerId={engineer.id} canEdit={canEdit} />
         ))}
 
+        {/* Unavailable blocks for non-working day or reduced hours */}
+        {effectiveHours && <UnavailableBlocks effectiveHours={effectiveHours} />}
+
         {/* Activity blocks */}
         {activities.map((act: { id: string; scheduled_time: string | null; duration_minutes: number; all_day: boolean; title: string; activity_type: { color: string; background: string } | null }) => (
-          <ActivityBlock key={act.id} activity={act} />
+          <ActivityBlock key={act.id} activity={act} onClick={onActivityClick ? () => onActivityClick(act) : undefined} />
         ))}
 
         {/* Job blocks */}
@@ -297,6 +370,87 @@ function EngineerRow({ engineer, jobs, activities, canEdit }: { engineer: any; j
         ))}
       </div>
     </div>
+  )
+}
+
+function UnavailableBlocks({ effectiveHours }: { effectiveHours: { isWorkingDay: boolean; startTime: string; endTime: string } }) {
+  if (!effectiveHours.isWorkingDay) {
+    // Full day unavailable — no override
+    return (
+      <div
+        className="absolute z-[2] flex items-center justify-center pointer-events-none"
+        style={{
+          left: 0,
+          top: 0,
+          width: SLOTS_COUNT * SLOT_WIDTH,
+          height: ENGINEER_ROW_HEIGHT,
+          background: 'repeating-linear-gradient(135deg, transparent, transparent 4px, rgba(100,116,139,0.12) 4px, rgba(100,116,139,0.12) 8px)',
+          backgroundColor: 'rgba(100,116,139,0.08)',
+        }}
+        title="Not working this day"
+      >
+        <span className="rounded bg-slate-200/80 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-slate-700/80 dark:text-slate-400">
+          Not working
+        </span>
+      </div>
+    )
+  }
+
+  // Calculate unavailable blocks for reduced/custom hours
+  const blocks: { left: number; width: number; label: string }[] = []
+  const [startH, startM] = effectiveHours.startTime.split(':').map(Number)
+  const [endH, endM] = effectiveHours.endTime.split(':').map(Number)
+
+  const startMinutes = startH * 60 + startM
+  const endMinutes = endH * 60 + endM
+  const calendarStart = HOURS_START * 60
+  const calendarEnd = HOURS_END * 60
+
+  // Block before start time
+  if (startMinutes > calendarStart) {
+    const slotsBeforeStart = (startMinutes - calendarStart) / 30
+    blocks.push({
+      left: 0,
+      width: slotsBeforeStart * SLOT_WIDTH,
+      label: `Starts ${effectiveHours.startTime}`,
+    })
+  }
+
+  // Block after end time
+  if (endMinutes < calendarEnd) {
+    const slotsAfterEnd = (calendarEnd - endMinutes) / 30
+    const leftPos = ((endMinutes - calendarStart) / 30) * SLOT_WIDTH
+    blocks.push({
+      left: leftPos,
+      width: slotsAfterEnd * SLOT_WIDTH,
+      label: `Finishes ${effectiveHours.endTime}`,
+    })
+  }
+
+  if (blocks.length === 0) return null
+
+  return (
+    <>
+      {blocks.map((block, i) => (
+        <div
+          key={i}
+          className="absolute z-[1]"
+          style={{
+            left: block.left,
+            top: 0,
+            width: block.width,
+            height: ENGINEER_ROW_HEIGHT,
+            background: 'repeating-linear-gradient(135deg, transparent, transparent 4px, rgba(251,191,36,0.10) 4px, rgba(251,191,36,0.10) 8px)',
+            backgroundColor: 'rgba(251,191,36,0.06)',
+          }}
+          title={block.label}
+        >
+          <span className="absolute bottom-1 left-1 text-[9px] text-amber-500/70 dark:text-amber-400/60">
+            {block.label}
+          </span>
+        </div>
+      ))}
+    </>
   )
 }
 
@@ -461,16 +615,17 @@ function JobBlock({ job, canEdit }: { job: any; canEdit: boolean }) {
 // ============================================================================
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function ActivityBlock({ activity }: { activity: any }) {
+function ActivityBlock({ activity, onClick }: { activity: any; onClick?: () => void }) {
   const at = activity.activity_type
   const color = at?.color || '#6b7280'
   const bg = at?.background || '#f3f4f6'
+  const clickable = !!onClick
 
   if (activity.all_day) {
     // All-day activity spans the entire timeline
     return (
       <div
-        className="absolute rounded-md px-2 flex items-center gap-1 text-[11px] font-medium border-2 border-dashed z-[1]"
+        className={`absolute rounded-md px-2 flex items-center gap-1 text-[11px] font-medium border-2 border-dashed z-[1]${clickable ? ' cursor-pointer hover:opacity-80' : ''}`}
         style={{
           left: 2,
           top: 4,
@@ -482,6 +637,7 @@ function ActivityBlock({ activity }: { activity: any }) {
           opacity: 0.85,
         }}
         title={activity.title}
+        onClick={onClick}
       >
         <span className="text-[9px]">&#9632;</span>
         <span className="truncate">{activity.title}</span>
@@ -509,7 +665,7 @@ function ActivityBlock({ activity }: { activity: any }) {
 
   return (
     <div
-      className="absolute rounded-md px-2 flex items-center gap-1 text-[11px] font-medium border-2 border-dashed z-[1]"
+      className={`absolute rounded-md px-2 flex items-center gap-1 text-[11px] font-medium border-2 border-dashed z-[1]${clickable ? ' cursor-pointer hover:opacity-80' : ''}`}
       style={{
         left: left + 2,
         top: 4,
@@ -520,6 +676,7 @@ function ActivityBlock({ activity }: { activity: any }) {
         borderColor: color,
       }}
       title={`${activity.title} (${startLabel}–${endLabel})`}
+      onClick={onClick}
     >
       <span className="text-[9px]">&#9632;</span>
       <div className="flex flex-col min-w-0 flex-1">

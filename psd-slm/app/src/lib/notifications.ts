@@ -1,4 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js'
+import { sendPushToUser, userWantsPush } from '@/lib/push'
 
 interface CreateNotificationParams {
   supabase: SupabaseClient
@@ -15,6 +16,7 @@ interface CreateNotificationParams {
 /**
  * Fire-and-forget notification creator.
  * Never blocks the response — errors are logged server-side only.
+ * Also sends Web Push if user has subscriptions and hasn't disabled the type.
  */
 export function createNotification({
   supabase,
@@ -42,11 +44,15 @@ export function createNotification({
     .then(({ error }) => {
       if (error) console.error('[notifications]', error.message)
     })
+
+  // Fire-and-forget push notification
+  sendPushForUser(supabase, userId, type, title, message, link)
 }
 
 /**
  * Fire-and-forget batch notification creator.
  * Inserts multiple notifications in a single query.
+ * Also sends Web Push to each recipient.
  */
 export function createNotifications(notifications: CreateNotificationParams[]): void {
   if (notifications.length === 0) return
@@ -71,4 +77,37 @@ export function createNotifications(notifications: CreateNotificationParams[]): 
     .then(({ error }) => {
       if (error) console.error('[notifications]', error.message)
     })
+
+  // Fire-and-forget push for each recipient
+  for (const n of notifications) {
+    sendPushForUser(n.supabase, n.userId, n.type, n.title, n.message, n.link)
+  }
+}
+
+async function sendPushForUser(
+  supabase: SupabaseClient,
+  userId: string,
+  type: string,
+  title: string,
+  message: string,
+  link?: string
+): Promise<void> {
+  try {
+    const { data: prefs } = await supabase
+      .from('users')
+      .select('notification_preferences')
+      .eq('id', userId)
+      .single()
+
+    if (!userWantsPush(prefs?.notification_preferences, type)) return
+
+    await sendPushToUser(supabase, userId, {
+      title,
+      body: message,
+      url: link,
+      icon: '/innov8iv-logo.png',
+    })
+  } catch (err) {
+    console.error('[push-notification]', err)
+  }
 }

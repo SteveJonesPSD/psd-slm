@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Badge, VISIT_STATUS_CONFIG, TIME_SLOT_CONFIG } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cancelVisit, completeVisit, rescheduleVisit, updateVisitTimes } from '../actions'
-import type { VisitInstanceWithDetails } from '@/lib/visit-scheduling/types'
+import { getVisitDisplayTimes, type VisitInstanceWithDetails } from '@/lib/visit-scheduling/types'
 
 interface VisitCardProps {
   visit: VisitInstanceWithDetails
@@ -83,11 +83,14 @@ export function VisitCard({ visit }: VisitCardProps) {
         {slotCfg && (
           <Badge label={slotCfg.label} color={slotCfg.color} bg={slotCfg.bg} className="text-[9px] px-1.5 py-0" />
         )}
-        {visit.start_time && visit.end_time && (
-          <span className="text-[10px] text-slate-500 dark:text-slate-300">
-            {visit.start_time.slice(0, 5)}–{visit.end_time.slice(0, 5)}
-          </span>
-        )}
+        {(() => {
+          const times = getVisitDisplayTimes(visit)
+          return times ? (
+            <span className="text-[10px] text-slate-500 dark:text-slate-300">
+              {times.start}–{times.end}
+            </span>
+          ) : null
+        })()}
         {visit.is_bank_holiday && (
           <span className="text-[9px] text-red-600 font-semibold">BH</span>
         )}

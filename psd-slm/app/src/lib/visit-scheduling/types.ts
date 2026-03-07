@@ -45,6 +45,7 @@ export interface VisitCalendarWeek {
   week_start_date: string
   cycle_week_number: number | null
   is_holiday: boolean
+  is_extra: boolean
   holiday_name: string | null
   sort_order: number
   created_at: string
@@ -222,6 +223,21 @@ export function getDateYear(value: string | null | undefined): number | null {
   const d = new Date(dateStr)
   if (isNaN(d.getTime())) return null
   return d.getFullYear()
+}
+
+/** Derive display times for a visit. Uses explicit times if set, otherwise falls back to slot defaults. */
+const SLOT_FALLBACK_TIMES: Record<string, { start: string; end: string }> = {
+  am: { start: '08:30', end: '12:00' },
+  pm: { start: '12:30', end: '16:00' },
+  custom: { start: '08:30', end: '16:00' },
+}
+
+export function getVisitDisplayTimes(visit: { start_time: string | null; end_time: string | null; time_slot: string }): { start: string; end: string } | null {
+  if (visit.start_time && visit.end_time) {
+    return { start: visit.start_time.slice(0, 5), end: visit.end_time.slice(0, 5) }
+  }
+  const fallback = SLOT_FALLBACK_TIMES[visit.time_slot]
+  return fallback || null
 }
 
 // ProFlex contract types and their default cycle week mappings

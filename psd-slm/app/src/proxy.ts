@@ -1,9 +1,14 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-const PUBLIC_ROUTES = ['/auth/login', '/auth/callback', '/auth/change-password', '/q/', '/t/', '/portal', '/collect/', '/api/collect/', '/api/email/poll', '/api/auth/mail-callback']
+const PUBLIC_ROUTES = ['/auth/login', '/auth/callback', '/auth/change-password', '/q/', '/t/', '/portal', '/collect/', '/api/collect/', '/api/email/poll', '/api/auth/mail-callback', '/api/portal/', '/api/tickets/portal-close', '/sw-push.js']
+
+// Portal routes that don't require a portal session cookie
+const PORTAL_PUBLIC_ROUTES = ['/portal/login', '/portal/auth/']
 
 export async function proxy(request: NextRequest) {
+  // Pass pathname to server components via request header
+  request.headers.set('x-pathname', request.nextUrl.pathname)
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -35,6 +40,18 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl
   const isPublicRoute = PUBLIC_ROUTES.some((r) => pathname.startsWith(r))
+
+  // Portal session check — lightweight cookie presence only
+  // Full validation happens in requirePortalSession() per-request
+  if (pathname.startsWith('/portal') && !PORTAL_PUBLIC_ROUTES.some((r) => pathname.startsWith(r))) {
+    const portalSid = request.cookies.get('portal_sid')?.value
+    if (!portalSid) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/portal/login'
+      return NextResponse.redirect(url)
+    }
+    return supabaseResponse
+  }
 
   // Unauthenticated user on protected route → redirect to login
   if (!user && !isPublicRoute) {

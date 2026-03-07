@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Badge, TICKET_STATUS_CONFIG, TICKET_PRIORITY_CONFIG, CONTRACT_TYPE_CONFIG } from '@/components/ui/badge'
+import { Badge, TICKET_STATUS_CONFIG, TICKET_PRIORITY_CONFIG } from '@/components/ui/badge'
 import { CollapsibleCard } from './collapsible-card'
 
 interface Ticket {
@@ -17,12 +17,12 @@ interface Ticket {
 
 interface Contract {
   id: string
-  contract_type: string
   monthly_hours: number | null
   start_date: string
   end_date: string
-  is_active: boolean
+  status: string
   sla_plans: { name: string } | null
+  contract_types: { name: string; includes_remote_support: boolean; includes_telephone: boolean; includes_onsite: boolean } | null
 }
 
 interface SupportTicketsSectionProps {
@@ -52,14 +52,13 @@ export function SupportTicketsSection({ tickets, activeCount, contract, timeUsed
         <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-slate-700">Support Contract</span>
-              {CONTRACT_TYPE_CONFIG[contract.contract_type] && (
-                <Badge
-                  label={CONTRACT_TYPE_CONFIG[contract.contract_type].label}
-                  color={CONTRACT_TYPE_CONFIG[contract.contract_type].color}
-                  bg={CONTRACT_TYPE_CONFIG[contract.contract_type].bg}
-                />
+              <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Support Contract</span>
+              {contract.contract_types && (
+                <span className="text-xs text-slate-600 dark:text-slate-400">{contract.contract_types.name}</span>
               )}
+              {contract.contract_types?.includes_remote_support && <Badge label="Remote" color="#059669" bg="#ecfdf5" />}
+              {contract.contract_types?.includes_telephone && <Badge label="Telephone" color="#059669" bg="#ecfdf5" />}
+              {contract.contract_types?.includes_onsite && <Badge label="Onsite" color="#059669" bg="#ecfdf5" />}
               {contract.sla_plans ? (
                 <span className="text-xs text-slate-500">{(contract.sla_plans as Record<string, unknown>).name as string}</span>
               ) : null}

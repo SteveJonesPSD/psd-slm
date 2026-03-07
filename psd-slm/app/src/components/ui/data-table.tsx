@@ -17,6 +17,7 @@ interface DataTableProps<T extends { id?: string }> {
   emptyMessage?: string
   defaultPageSize?: number
   pageSizeOptions?: number[]
+  striped?: boolean
 }
 
 export function DataTable<T extends { id?: string }>({
@@ -26,6 +27,7 @@ export function DataTable<T extends { id?: string }>({
   emptyMessage = 'No data found.',
   defaultPageSize = 20,
   pageSizeOptions = [20, 50, 100, 0],
+  striped = true,
 }: DataTableProps<T>) {
   const [currentPage, setCurrentPage] = useState(0)
   const [pageSize, setPageSize] = useState(defaultPageSize)
@@ -80,8 +82,8 @@ export function DataTable<T extends { id?: string }>({
                 key={row.id || startIdx + i}
                 onClick={() => onRowClick?.(row)}
                 className={`border-b border-slate-100 dark:border-slate-700 text-slate-700 dark:text-slate-300 ${
-                  onRowClick ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700' : ''
-                }`}
+                  striped ? (i % 2 === 1 ? 'bg-gray-100 dark:bg-slate-700' : 'bg-white dark:bg-slate-800') : ''
+                } ${onRowClick ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700' : ''}`}
               >
                 {columns.map((col) => (
                   <td

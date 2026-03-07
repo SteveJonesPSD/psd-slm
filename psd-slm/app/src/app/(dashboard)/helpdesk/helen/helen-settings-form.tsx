@@ -18,6 +18,23 @@ const DEFAULT_GUARDRAILS = `- Never promise specific resolution times or SLA gua
 - Always recommend contacting PSD Support directly for urgent issues
 - Do not make up technical solutions — only suggest well-known troubleshooting steps`
 
+const DEFAULT_NUDGE_GUARDRAILS = `- Keep the message to 2-4 sentences maximum
+- Never imply the customer is at fault for not responding
+- Never threaten ticket closure — only gently offer to close if resolved
+- Do not repeat the full technical detail from previous messages
+- Do not ask multiple questions — one clear call-to-action only
+- If the last agent message asked a specific question, reference it briefly
+- Always maintain a helpful, patient tone — even if this is a second nudge`
+
+const DEFAULT_NUDGE_TEMPLATE = `Hi {contact_name},
+
+I just wanted to follow up on your support ticket {ticket_number} regarding "{subject}". We haven't heard back from you and wanted to check if you still need assistance, or if the issue has been resolved.
+
+If everything is sorted, please let us know and we'll close this off. Otherwise, we're here to help.
+
+Regards,
+PSD Support`
+
 const DEFAULT_ACK_TEMPLATE = `Hi {contact_name},
 
 Thank you for contacting PSD Group support. Your ticket {ticket_number} has been logged and our team will be in touch shortly.
@@ -70,6 +87,9 @@ export function HelenSettingsForm({ initialSettings }: Props) {
     helen_draft_enabled: initialSettings.helen_draft_enabled || 'true',
     helen_auto_send_needs_detail: initialSettings.helen_auto_send_needs_detail || 'false',
     helen_create_tags: initialSettings.helen_create_tags || 'false',
+    helen_nudge_enabled: initialSettings.helen_nudge_enabled || 'false',
+    helen_nudge_guardrails: initialSettings.helen_nudge_guardrails || DEFAULT_NUDGE_GUARDRAILS,
+    helen_nudge_template: initialSettings.helen_nudge_template || DEFAULT_NUDGE_TEMPLATE,
     autogrump_enabled: initialSettings.autogrump_enabled || 'true',
   })
   const [saving, setSaving] = useState(false)
@@ -250,6 +270,67 @@ export function HelenSettingsForm({ initialSettings }: Props) {
                 checked={settings.helen_create_tags === 'true'}
                 onChange={() => toggleBool('helen_create_tags')}
               />
+            </div>
+          </div>
+
+          {/* Auto-Nudge */}
+          <div className="rounded-xl border-2 border-fuchsia-200 bg-fuchsia-50/30">
+            <div className="border-b border-fuchsia-100 px-6 py-4">
+              <div className="flex items-center gap-2">
+                <svg className="h-5 w-5 text-fuchsia-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+                </svg>
+                <h3 className="text-sm font-semibold text-slate-900">Auto-Nudge</h3>
+              </div>
+              <p className="mt-1 text-xs text-slate-500">
+                Automatically send a follow-up message to customers who haven&apos;t responded, prompting them to reply or confirm the issue is resolved.
+              </p>
+            </div>
+            <div className="space-y-4 p-6">
+              <Toggle
+                label="Enable auto-nudge"
+                description="Helen will automatically generate and send a nudge message when a ticket reaches 50% of the auto-close period without a customer response. This uses calendar time (including weekends), not business hours. Requires auto-close to be enabled."
+                checked={settings.helen_nudge_enabled === 'true'}
+                onChange={() => toggleBool('helen_nudge_enabled')}
+              />
+              <Textarea
+                label="Nudge Guardrails"
+                value={settings.helen_nudge_guardrails}
+                onChange={(v) => update('helen_nudge_guardrails', v)}
+                rows={7}
+                placeholder="Rules for AI nudge generation, one per line..."
+              />
+              <p className="text-xs text-slate-400 -mt-2">These rules are injected into the AI prompt when generating nudge messages (both manual and auto). Use them to fine-tune tone, length, and content boundaries.</p>
+              {settings.helen_nudge_enabled === 'true' && (
+                <>
+                  <Textarea
+                    label="Nudge Template (fallback)"
+                    value={settings.helen_nudge_template}
+                    onChange={(v) => update('helen_nudge_template', v)}
+                    rows={8}
+                    placeholder="Enter fallback nudge template..."
+                  />
+                  <div className="rounded-lg bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 p-3">
+                    <p className="mb-2 text-xs font-semibold text-slate-600">How it works</p>
+                    <ul className="space-y-1 text-xs text-slate-500">
+                      <li>When a ticket has been waiting for 50% of the auto-close period (calendar time), Helen generates an AI nudge message.</li>
+                      <li>The nudge is sent as a customer-facing reply, re-setting the waiting timer.</li>
+                      <li>Only one auto-nudge is sent per waiting period. If the customer still doesn&apos;t respond, the ticket proceeds to auto-close as normal.</li>
+                      <li>Tickets with &ldquo;Hold Open&rdquo; enabled are excluded.</li>
+                      <li>The template above is used as a fallback if AI generation fails.</li>
+                    </ul>
+                  </div>
+                  <div className="rounded-lg bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 p-3">
+                    <p className="mb-2 text-xs font-semibold text-slate-600">Available Placeholders (for fallback template)</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-xs text-slate-500">
+                      <span><code className="rounded bg-slate-200 px-1">{'{ticket_number}'}</code> — Ticket reference</span>
+                      <span><code className="rounded bg-slate-200 px-1">{'{customer_name}'}</code> — Company name</span>
+                      <span><code className="rounded bg-slate-200 px-1">{'{contact_name}'}</code> — Contact first name</span>
+                      <span><code className="rounded bg-slate-200 px-1">{'{subject}'}</code> — Ticket subject</span>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </>

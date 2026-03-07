@@ -7,6 +7,8 @@ const tabs = [
   { label: 'Job Types', href: '/scheduling/config/job-types' },
   { label: 'Activity Types', href: '/scheduling/config/activity-types' },
   { label: 'Task Templates', href: '/scheduling/config/task-templates' },
+  { label: 'Working Hours', href: '/scheduling/config/working-hours' },
+  { label: 'Individual Hours', href: '/scheduling/config/individual-hours' },
 ]
 
 export default function SchedulingConfigLayout({ children }: { children: React.ReactNode }) {

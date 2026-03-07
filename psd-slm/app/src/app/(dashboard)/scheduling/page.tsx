@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import { requirePermission } from '@/lib/auth'
 import { PageHeader } from '@/components/ui/page-header'
-import { getJobs, getEngineers, getMyScheduleRange, getActivities, getActiveActivityTypes, getWorkingDays } from './actions'
+import { getJobs, getEngineers, getMyScheduleRange, getActivities, getActiveActivityTypes, getWorkingDays, getAllUserWorkingHours } from './actions'
 import { WeekView } from './week/week-view'
 import { MobileDetector } from '@/components/ui/mobile-detector'
 import { MobileScheduleView } from './mobile-schedule-view'
@@ -14,13 +14,14 @@ export default async function SchedulingPage() {
   const canEdit = user.permissions.includes('scheduling.edit')
   const isAdmin = user.permissions.includes('scheduling.admin')
 
-  const [jobsResult, engineersResult, mySchedule, activitiesResult, activityTypesResult, workingDays] = await Promise.all([
+  const [jobsResult, engineersResult, mySchedule, activitiesResult, activityTypesResult, workingDays, userHoursResult] = await Promise.all([
     getJobs(),
     getEngineers(),
     getMyScheduleRange(),
     getActivities(),
     getActiveActivityTypes(),
     getWorkingDays(),
+    getAllUserWorkingHours(),
   ])
 
   // Get Monday of current week
@@ -53,6 +54,8 @@ export default async function SchedulingPage() {
           initialWeekStart={weekStart}
           canEdit={canEdit}
           workingDays={workingDays}
+          allUserHours={userHoursResult.data || []}
+          activityTypes={activityTypesResult.data || []}
         />
       </Suspense>
     </div>

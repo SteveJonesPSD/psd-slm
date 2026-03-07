@@ -85,6 +85,10 @@ export async function saveSettings(
   })
 
   revalidatePath('/settings')
+  // Revalidate layout if portal logo changed
+  if (settings.some(s => s.setting_key === 'portal_logo_url')) {
+    revalidatePath('/', 'layout')
+  }
   return { success: true }
 }
 

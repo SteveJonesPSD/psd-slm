@@ -34,7 +34,7 @@ function formatDate(d: Date): string {
 
 export function WeekReview({ engineers }: WeekReviewProps) {
   const [isPending, startTransition] = useTransition()
-  const [selectedEngineers, setSelectedEngineers] = useState<string[]>(engineers.map(e => e.id))
+  const [selectedEngineers, setSelectedEngineers] = useState<string[]>([])
   const [viewMode, setViewMode] = useState<'week' | 'month'>('week')
 
   // Week state
@@ -46,8 +46,14 @@ export function WeekReview({ engineers }: WeekReviewProps) {
   const [monthYear, setMonthYear] = useState(now.getFullYear())
   const [monthNum, setMonthNum] = useState(now.getMonth() + 1)
 
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [confirmResult, setConfirmResult] = useState<string | null>(null)
+
+  // Bulk validate state
+  const [showBulkConfirm, setShowBulkConfirm] = useState(false)
+  const [bulkValidating, setBulkValidating] = useState(false)
+  const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0, currentName: '' })
+  const [bulkResult, setBulkResult] = useState<{ totalConfirmed: number; totalJobs: number; errors: string[] } | null>(null)
 
   // Holiday data
   const [schoolHolidayDates, setSchoolHolidayDates] = useState<Map<string, string>>(new Map())
@@ -159,6 +165,50 @@ export function WeekReview({ engineers }: WeekReviewProps) {
     })
   }
 
+  // Bulk validate all visible engineers
+  const totalDraftCount = weekData.reduce(
+    (acc, eng) => acc + eng.days.reduce((a, d) => a + d.visits.filter(v => v.status === 'draft').length, 0), 0
+  )
+
+  async function handleBulkValidate() {
+    setShowBulkConfirm(false)
+    setBulkValidating(true)
+    setBulkResult(null)
+    setConfirmResult(null)
+
+    const engineersToConfirm = weekData.filter(eng =>
+      eng.days.some(d => d.visits.some(v => v.status === 'draft'))
+    )
+    const total = engineersToConfirm.length
+    setBulkProgress({ current: 0, total, currentName: '' })
+
+    let totalConfirmed = 0
+    let totalJobs = 0
+    const errors: string[] = []
+
+    for (let i = 0; i < engineersToConfirm.length; i++) {
+      const eng = engineersToConfirm[i]
+      setBulkProgress({ current: i + 1, total, currentName: eng.engineer_name })
+
+      const res = await confirmEngineerVisits(eng.engineer_id, weekStart)
+      if (res.error) {
+        errors.push(`${eng.engineer_name}: ${res.error}`)
+      } else {
+        totalConfirmed += res.count || 0
+        totalJobs += res.jobsCreated || 0
+      }
+    }
+
+    setBulkResult({ totalConfirmed, totalJobs, errors })
+    setBulkValidating(false)
+
+    // Refresh data
+    if (selectedEngineers.length > 0) {
+      const data = await getEngineerWeekView(selectedEngineers, weekStart)
+      setWeekData(data)
+    }
+  }
+
   // View switch — sync context when toggling
   function switchToWeek() {
     setViewMode('week')
@@ -239,28 +289,41 @@ export function WeekReview({ engineers }: WeekReviewProps) {
           />
         </div>
 
-        {/* Week / Month toggle */}
-        <div className="flex gap-1 rounded-lg border border-gray-300 p-0.5">
-          <button
-            onClick={switchToWeek}
-            className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
-              viewMode === 'week'
-                ? 'bg-indigo-600 text-white'
-                : 'text-slate-600 hover:bg-gray-100'
-            }`}
-          >
-            Week
-          </button>
-          <button
-            onClick={switchToMonth}
-            className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
-              viewMode === 'month'
-                ? 'bg-indigo-600 text-white'
-                : 'text-slate-600 hover:bg-gray-100'
-            }`}
-          >
-            Month
-          </button>
+        <div className="flex items-center gap-2">
+          {/* Validate All button */}
+          {viewMode === 'week' && totalDraftCount > 0 && !bulkValidating && (
+            <Button
+              onClick={() => setShowBulkConfirm(true)}
+              variant="orange"
+              size="sm"
+            >
+              Validate All Visible ({totalDraftCount})
+            </Button>
+          )}
+
+          {/* Week / Month toggle */}
+          <div className="flex gap-1 rounded-lg border border-gray-300 p-0.5">
+            <button
+              onClick={switchToWeek}
+              className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
+                viewMode === 'week'
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-slate-600 hover:bg-gray-100'
+              }`}
+            >
+              Week
+            </button>
+            <button
+              onClick={switchToMonth}
+              className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
+                viewMode === 'month'
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-slate-600 hover:bg-gray-100'
+              }`}
+            >
+              Month
+            </button>
+          </div>
         </div>
       </div>
 
@@ -289,6 +352,69 @@ export function WeekReview({ engineers }: WeekReviewProps) {
           )
         })}
       </div>
+
+      {/* Bulk validation progress */}
+      {bulkValidating && (
+        <div className="mb-6 rounded-xl border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20 p-5">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-orange-700 dark:text-orange-300">
+              Validating visits... {bulkProgress.currentName && `(${bulkProgress.currentName})`}
+            </span>
+            <span className="text-xs text-orange-500 dark:text-orange-400">
+              {bulkProgress.current} / {bulkProgress.total} engineers
+            </span>
+          </div>
+          <div className="h-2.5 rounded-full bg-orange-200 dark:bg-orange-800 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-orange-500 transition-all duration-300"
+              style={{ width: bulkProgress.total > 0 ? `${(bulkProgress.current / bulkProgress.total) * 100}%` : '0%' }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Bulk validation result */}
+      {bulkResult && !bulkValidating && (
+        <div className={`mb-6 rounded-lg border px-4 py-3 text-sm ${
+          bulkResult.errors.length > 0
+            ? 'border-amber-200 bg-amber-50 text-amber-700'
+            : 'border-green-200 bg-green-50 text-green-700'
+        }`}>
+          <div className="font-medium">
+            Validated {bulkResult.totalConfirmed} visit{bulkResult.totalConfirmed !== 1 ? 's' : ''}
+            {bulkResult.totalJobs > 0 && ` — ${bulkResult.totalJobs} job${bulkResult.totalJobs !== 1 ? 's' : ''} created`}
+          </div>
+          {bulkResult.errors.length > 0 && (
+            <ul className="mt-1 list-disc list-inside text-xs">
+              {bulkResult.errors.map((e, i) => <li key={i}>{e}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {/* Bulk confirm modal */}
+      {showBulkConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-md rounded-xl bg-white dark:bg-slate-800 p-6 shadow-xl mx-4">
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">Validate All Visible Visits</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-300 mb-3">
+              This will confirm <span className="font-semibold">{totalDraftCount} draft visit{totalDraftCount !== 1 ? 's' : ''}</span> across{' '}
+              <span className="font-semibold">{weekData.filter(e => e.days.some(d => d.visits.some(v => v.status === 'draft'))).length} engineer{weekData.filter(e => e.days.some(d => d.visits.some(v => v.status === 'draft'))).length !== 1 ? 's' : ''}</span> for the visible week and create associated jobs.
+            </p>
+            <div className="rounded-lg border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-xs text-amber-700 dark:text-amber-300 mb-4">
+              This may take some time depending on the number of visits. Please do not navigate away while validation is in progress.
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button variant="default" size="sm" onClick={() => setShowBulkConfirm(false)}>
+                Cancel
+              </Button>
+              <Button variant="orange" size="sm" onClick={handleBulkValidate}>
+                Validate All
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* View content */}
       {viewMode === 'week' ? (

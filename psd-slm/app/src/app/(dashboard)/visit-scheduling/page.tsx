@@ -5,7 +5,7 @@ import { StatCard } from '@/components/ui/stat-card'
 import { Badge, VISIT_STATUS_CONFIG, TIME_SLOT_CONFIG } from '@/components/ui/badge'
 import { requireAuth, hasPermission } from '@/lib/auth'
 import { getVisitStats, getEngineerWeekView, getFieldEngineers } from './actions'
-import { DAY_SHORT_NAMES, DAY_INDEX_TO_KEY } from '@/lib/visit-scheduling/types'
+import { DAY_SHORT_NAMES, DAY_INDEX_TO_KEY, getVisitDisplayTimes } from '@/lib/visit-scheduling/types'
 
 export default async function VisitSchedulingPage() {
   const [user, stats, engineers] = await Promise.all([
@@ -44,10 +44,13 @@ export default async function VisitSchedulingPage() {
   return (
     <div>
       <PageHeader
-        title="SchoolCare Visit Calendar"
+        title="ICT Visit Calendar"
         subtitle="Recurring visit scheduling for education contracts"
         actions={
           <div className="flex items-center gap-2">
+            <Link href="/visit-scheduling/review">
+              <Button size="sm" variant="orange">Validate ICT Visits</Button>
+            </Link>
             {canCreate && (
               <Link href="/visit-scheduling/generate">
                 <Button size="sm" variant="success">Generate Visits</Button>
@@ -86,14 +89,8 @@ export default async function VisitSchedulingPage() {
 
       {/* This week's schedule grid */}
       <div className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-        <div className="flex items-center justify-between border-b border-gray-200 dark:border-slate-700 px-5 py-4">
+        <div className="border-b border-gray-200 dark:border-slate-700 px-5 py-4">
           <h3 className="text-sm font-semibold text-slate-900 dark:text-white">This Week&apos;s Schedule</h3>
-          <Link
-            href="/visit-scheduling/review"
-            className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 no-underline"
-          >
-            Full Review →
-          </Link>
         </div>
 
         {weekView.length === 0 ? (
@@ -156,6 +153,14 @@ export default async function VisitSchedulingPage() {
                                   </div>
                                   <div className="flex items-center gap-1 mt-0.5">
                                     {slotCfg && <Badge label={slotCfg.label} color={slotCfg.color} bg={slotCfg.bg} className="text-[9px] px-1.5 py-0" />}
+                                    {(() => {
+                                      const times = getVisitDisplayTimes(visit)
+                                      return times ? (
+                                        <span className="text-[10px] text-slate-500 dark:text-slate-300">
+                                          {times.start}–{times.end}
+                                        </span>
+                                      ) : null
+                                    })()}
                                     {visit.is_bank_holiday && (
                                       <span className="text-[9px] text-red-600 font-medium">BH</span>
                                     )}
@@ -175,23 +180,6 @@ export default async function VisitSchedulingPage() {
         )}
       </div>
 
-      {/* Quick actions */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
-        <Link href="/visit-scheduling/calendars" className="no-underline">
-          <div className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 hover:border-indigo-300 dark:hover:border-indigo-600 hover:shadow-sm transition-all">
-            <div className="text-lg mb-1">📅</div>
-            <h4 className="text-sm font-semibold text-slate-900 dark:text-white">Manage Calendars</h4>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Create and configure academic year calendars with holiday weeks</p>
-          </div>
-        </Link>
-        <Link href="/visit-scheduling/review" className="no-underline">
-          <div className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 hover:border-indigo-300 dark:hover:border-indigo-600 hover:shadow-sm transition-all">
-            <div className="text-lg mb-1">✅</div>
-            <h4 className="text-sm font-semibold text-slate-900 dark:text-white">Week Review</h4>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Review and confirm upcoming visits by engineer</p>
-          </div>
-        </Link>
-      </div>
     </div>
   )
 }

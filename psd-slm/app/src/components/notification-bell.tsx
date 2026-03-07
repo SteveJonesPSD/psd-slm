@@ -11,6 +11,10 @@ const NOTIFICATION_TYPE_ICONS: Record<string, string> = {
   quote_accepted: '✅',
   quote_declined: '❌',
   change_request: '✏️',
+  ticket_status_changed: '🔄',
+  ticket_assigned: '👤',
+  ticket_reply: '💬',
+  ticket_internal_note: '📝',
 }
 
 interface NotificationBellProps {

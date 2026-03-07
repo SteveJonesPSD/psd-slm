@@ -72,6 +72,7 @@ export interface ContactLookup {
   first_name: string
   last_name: string
   email: string | null
+  is_primary: boolean
 }
 
 export interface ProductLookup {

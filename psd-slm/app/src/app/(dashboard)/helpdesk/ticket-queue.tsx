@@ -11,7 +11,7 @@ import type { PresenceViewer } from './actions'
 import { useAuth } from '@/components/auth-provider'
 import { formatTimeRemaining, getSlaStatus } from '@/lib/sla'
 import type { TicketSummary } from '@/types/database'
-import { ACTIVE_STATUSES, TICKET_STATUSES } from '@/lib/helpdesk'
+import { ACTIVE_STATUSES, CLOSED_STATUSES, TICKET_STATUSES } from '@/lib/helpdesk'
 
 interface PendingDraft {
   id: string
@@ -161,20 +161,20 @@ export function TicketQueue({ initialData, teamMembers, categories, brands, pend
     }
   }
 
-  function getSlaIndicator(ticket: TicketSummary) {
-    // Response SLA
+  function getWorstSlaStatus(ticket: TicketSummary) {
     const responseStatus = getSlaStatus(ticket.sla_response_due_at, ticket.first_responded_at, ticket.created_at)
-    // Resolution SLA
     const resolutionStatus = getSlaStatus(ticket.sla_resolution_due_at, ticket.resolved_at, ticket.created_at)
 
-    // Worst of the two
-    const worst = responseStatus === 'breached' || resolutionStatus === 'breached' ? 'breached'
+    return responseStatus === 'breached' || resolutionStatus === 'breached' ? 'breached'
       : responseStatus === 'at_risk' || resolutionStatus === 'at_risk' ? 'at_risk'
       : responseStatus === 'met' && resolutionStatus === 'met' ? 'met'
       : 'on_track'
+  }
 
+  function getSlaIndicator(ticket: TicketSummary) {
     if (!ticket.sla_response_due_at && !ticket.sla_resolution_due_at) return null
 
+    const worst = getWorstSlaStatus(ticket)
     const color = worst === 'breached' ? '#dc2626' : worst === 'at_risk' ? '#d97706' : '#059669'
     const dueAt = ticket.sla_resolution_due_at || ticket.sla_response_due_at
 
@@ -184,6 +184,17 @@ export function TicketQueue({ initialData, teamMembers, categories, brands, pend
         {worst === 'met' ? 'Met' : dueAt ? formatTimeRemaining(dueAt) : ''}
       </span>
     )
+  }
+
+  function getSlaRowClass(ticket: TicketSummary): string {
+    // Only highlight active tickets with SLA data
+    if (CLOSED_STATUSES.includes(ticket.status as typeof CLOSED_STATUSES[number])) return ''
+    if (!ticket.sla_response_due_at && !ticket.sla_resolution_due_at) return ''
+
+    const worst = getWorstSlaStatus(ticket)
+    if (worst === 'breached') return 'bg-red-100/80 dark:bg-red-900/30'
+    if (worst === 'at_risk') return 'bg-orange-50 dark:bg-orange-900/20'
+    return ''
   }
 
   return (
@@ -309,7 +320,7 @@ export function TicketQueue({ initialData, teamMembers, categories, brands, pend
                 const draft = draftMap.get(ticket.id)
                 const ticketTags = ticketTagMap[ticket.id] || []
                 return (
-                  <tr key={ticket.id} className="border-b border-slate-100 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">
+                  <tr key={ticket.id} className={`border-b border-slate-100 dark:border-slate-700 text-slate-700 dark:text-slate-300 ${getSlaRowClass(ticket) || 'hover:bg-slate-50 dark:hover:bg-slate-700'}`}>
                     <td className="w-10 px-2 py-3 text-center whitespace-nowrap">
                       <AutogrumpBadge toneScore={ticket.tone_score} toneTrend={ticket.tone_trend} toneSummary={ticket.tone_summary} />
                     </td>

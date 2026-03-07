@@ -115,6 +115,18 @@ export default async function ContractDetailPage({ params }: PageProps) {
               }
             />
           )}
+          {contract.effective_sla_plan_name && (
+            <DetailField label="SLA Plan" value={contract.effective_sla_plan_name} />
+          )}
+          {contract.effective_monthly_hours && (
+            <DetailField label="Monthly Hours" value={`${contract.effective_monthly_hours}h`} />
+          )}
+          {contract.calendar_name && (
+            <DetailField
+              label="Visit Calendar"
+              value={`${contract.calendar_name} (${contract.calendar_schedule_weeks}-week)`}
+            />
+          )}
           {contract.last_signed_at && (
             <>
               <DetailField label="Last Signed" value={new Date(contract.last_signed_at).toLocaleDateString('en-GB')} />
@@ -151,6 +163,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
         engineers={engineers}
         contractTypeCode={contract.contract_type_code}
         visitFrequency={contract.effective_frequency || null}
+        scheduleWeeks={contract.calendar_schedule_weeks}
         editable={isEditable}
       />
 

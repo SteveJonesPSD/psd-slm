@@ -410,14 +410,7 @@ export async function activateCalendar(id: string): Promise<{ error?: string }> 
   const user = await requirePermission('visit_scheduling', 'edit')
   const supabase = await createClient()
 
-  // Archive any currently active calendar for this org
-  await supabase
-    .from('visit_calendars')
-    .update({ status: 'archived', updated_at: new Date().toISOString() })
-    .eq('org_id', user.orgId)
-    .eq('status', 'active')
-
-  // Activate this one
+  // Activate this calendar (multiple active calendars are allowed)
   const { error } = await supabase
     .from('visit_calendars')
     .update({ status: 'active', updated_at: new Date().toISOString() })
@@ -477,7 +470,7 @@ export async function deleteCalendar(id: string): Promise<{ error?: string }> {
 
 export async function updateCalendarWeek(
   weekId: string,
-  updates: { is_holiday?: boolean; holiday_name?: string | null }
+  updates: { is_holiday?: boolean; is_extra?: boolean; holiday_name?: string | null }
 ): Promise<{ error?: string }> {
   const user = await requirePermission('visit_scheduling', 'edit')
   const supabase = await createClient()
@@ -532,7 +525,7 @@ export async function recalculateCycleNumbers(calendarId: string): Promise<strin
   // Get all weeks ordered
   const { data: weeks, error } = await supabase
     .from('visit_calendar_weeks')
-    .select('id, is_holiday, sort_order')
+    .select('id, is_holiday, is_extra, sort_order')
     .eq('calendar_id', calendarId)
     .order('sort_order')
 
@@ -543,7 +536,8 @@ export async function recalculateCycleNumbers(calendarId: string): Promise<strin
   const updates: { id: string; cycle_week_number: number | null }[] = []
 
   for (const week of weeks) {
-    if (week.is_holiday) {
+    if (week.is_holiday || week.is_extra) {
+      // Holiday and extra weeks don't participate in cycle rotation
       updates.push({ id: week.id, cycle_week_number: null })
     } else {
       updates.push({ id: week.id, cycle_week_number: cycleWeek })
@@ -704,10 +698,11 @@ export async function generateVisits(request: GenerationRequest): Promise<Genera
     }
   }
 
-  // Get all contract_visit_slots for this org (patterns now live on contracts)
+  // Get contract visit slots — only for contracts assigned to this calendar
   let slotsQuery = supabase
     .from('v_contract_visit_slots')
     .select('*')
+    .eq('calendar_id', request.calendar_id)
 
   if (request.engineer_id) {
     slotsQuery = slotsQuery.eq('engineer_id', request.engineer_id)
@@ -715,7 +710,7 @@ export async function generateVisits(request: GenerationRequest): Promise<Genera
 
   const { data: slotRows } = await slotsQuery
   if (!slotRows || slotRows.length === 0) {
-    result.errors.push('No contract visit slots found. Add visit slots on individual contracts first.')
+    result.errors.push('No contract visit slots found for this calendar. Assign contracts to this calendar and add visit slots first.')
     return result
   }
 
@@ -748,12 +743,18 @@ export async function generateVisits(request: GenerationRequest): Promise<Genera
 
   for (const week of weeks) {
     if (week.is_holiday) continue // Skip school holiday weeks
-    if (week.cycle_week_number === null) continue
+
+    const isExtraWeek = week.is_extra
+
+    // Normal weeks need a cycle number; extra weeks are scheduled for all slots
+    if (!isExtraWeek && week.cycle_week_number === null) continue
 
     for (const slot of slotRows) {
-      // Check if this slot applies to this cycle week
-      const cycleWeeks = slot.cycle_week_numbers as number[]
-      if (!cycleWeeks.includes(week.cycle_week_number)) continue
+      // Extra weeks: schedule all slots. Normal weeks: check cycle match.
+      if (!isExtraWeek) {
+        const cycleWeeks = slot.cycle_week_numbers as number[]
+        if (!cycleWeeks.includes(week.cycle_week_number!)) continue
+      }
 
       // Calculate the actual date from week_start_date + day_of_week
       const dayIndex = DAY_KEY_TO_INDEX[slot.day_of_week as string] || 1

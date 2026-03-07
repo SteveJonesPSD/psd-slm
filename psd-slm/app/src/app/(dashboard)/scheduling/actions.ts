@@ -5,6 +5,7 @@ import { requirePermission, requireAuth } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { logActivity } from '@/lib/activity-log'
 import type { JobStatus, JobTaskTemplate, JobTaskTemplateItem, JobTask, TaskResponseType, GpsCoords, GpsEventType } from '@/types/database'
+import { notifyTeamsJobEvent } from '@/lib/teams/teams-notifier'
 
 // ============================================================================
 // GPS EVENT LOGGING (fire-and-forget, same pattern as logActivity)
@@ -59,6 +60,69 @@ async function syncVisitFromJob(supabase: any, user: { id: string; orgId: string
       .eq('id', visitId)
       .not('status', 'in', '(completed,cancelled)')
   }
+}
+
+// ============================================================================
+// TEAMS NOTIFICATION HELPER (fire-and-forget)
+// ============================================================================
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function fireTeamsNotification(supabase: any, orgId: string, jobId: string, eventType: 'assigned' | 'rescheduled' | 'cancelled', engineerId?: string | null): void {
+  // Fetch job + engineer details then fire notification — fully async, never blocks
+  Promise.all([
+    supabase
+      .from('jobs')
+      .select('id, job_number, title, internal_notes, scheduled_date, scheduled_time, estimated_duration_minutes, site_address_line1, site_city, site_postcode, assigned_to, company:companies(name)')
+      .eq('id', jobId)
+      .single(),
+    engineerId
+      ? supabase.from('users').select('id, full_name, teams_upn').eq('id', engineerId).single()
+      : Promise.resolve({ data: null }),
+  ]).then(([jobRes, engRes]) => {
+    const job = jobRes.data
+    if (!job) return
+    const eng = engRes.data
+    if (!eng && eventType !== 'cancelled') return
+
+    const siteParts = [job.site_address_line1, job.site_city, job.site_postcode].filter(Boolean)
+    const siteAddress = siteParts.length > 0 ? siteParts.join(', ') : 'Not specified'
+
+    // Format date
+    let scheduledDate = job.scheduled_date || 'TBC'
+    if (job.scheduled_date) {
+      try {
+        scheduledDate = new Date(job.scheduled_date + 'T00:00:00').toLocaleDateString('en-GB', {
+          weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+        })
+      } catch { /* keep raw */ }
+    }
+
+    // Format time
+    let scheduledTime = job.scheduled_time || 'TBC'
+    if (job.scheduled_time && job.estimated_duration_minutes) {
+      try {
+        const [h, m] = job.scheduled_time.split(':').map(Number)
+        const endMinutes = h * 60 + m + job.estimated_duration_minutes
+        const endH = Math.floor(endMinutes / 60).toString().padStart(2, '0')
+        const endM = (endMinutes % 60).toString().padStart(2, '0')
+        scheduledTime = `${job.scheduled_time.substring(0, 5)} – ${endH}:${endM}`
+      } catch { /* keep raw */ }
+    }
+
+    notifyTeamsJobEvent(orgId, {
+      eventType,
+      jobRef: job.job_number,
+      jobId: job.id,
+      customerName: job.company?.name || 'Unknown',
+      siteAddress,
+      scheduledDate,
+      scheduledTime,
+      engineerName: eng?.full_name || 'Unassigned',
+      engineerUpn: eng?.teams_upn ?? null,
+      notes: job.internal_notes ?? undefined,
+      engageUrl: `${process.env.NEXT_PUBLIC_APP_URL || ''}/scheduling/jobs/${job.id}`,
+    }).catch(() => {})
+  }).catch(() => {})
 }
 
 // ============================================================================
@@ -831,6 +895,11 @@ export async function createJob(input: CreateJobInput) {
     details: { title: input.title, company_id: input.company_id, job_type: input.job_type_id, assigned_to: input.assigned_to },
   })
 
+  // Fire-and-forget Teams notification if job is created already assigned
+  if (input.assigned_to && input.scheduled_date) {
+    fireTeamsNotification(supabase, user.orgId, data.id, 'assigned', input.assigned_to)
+  }
+
   revalidatePath('/scheduling')
   revalidatePath('/orders')
   return { data }
@@ -957,7 +1026,7 @@ export async function changeJobStatus(id: string, newStatus: JobStatus, extra?: 
   // Get current job
   const { data: job, error: fetchError } = await supabase
     .from('jobs')
-    .select('status, source_type, source_id')
+    .select('status, source_type, source_id, assigned_to')
     .eq('id', id)
     .eq('org_id', user.orgId)
     .single()
@@ -1023,6 +1092,11 @@ export async function changeJobStatus(id: string, newStatus: JobStatus, extra?: 
   const gpsEvent = gpsEventMap[newStatus] || 'status_changed'
   logGpsEvent(supabase, user, id, gpsEvent, extra?.gps, { from: oldStatus, to: newStatus })
 
+  // Fire-and-forget Teams notification for cancellation
+  if (newStatus === 'cancelled' && job.assigned_to) {
+    fireTeamsNotification(supabase, user.orgId, id, 'cancelled', job.assigned_to)
+  }
+
   // Sync visit instance for visit-sourced jobs
   if (job.source_type === 'visit' && job.source_id) {
     await syncVisitFromJob(supabase, user, job.source_id, newStatus)
@@ -1069,6 +1143,9 @@ export async function assignJob(id: string, engineerId: string, date: string, ti
       : { engineer_id: engineerId, date, time },
   })
 
+  // Fire-and-forget Teams notification
+  fireTeamsNotification(supabase, user.orgId, id, 'assigned', engineerId)
+
   revalidatePath('/scheduling')
   revalidatePath(`/scheduling/jobs/${id}`)
   return { success: true }
@@ -1101,6 +1178,16 @@ export async function rescheduleJob(id: string, date: string, time?: string, eng
     action: 'updated',
     details: { changed_fields: ['scheduled_date', 'scheduled_time', ...(engineerId !== undefined ? ['assigned_to'] : [])] },
   })
+
+  // Fire-and-forget Teams notification — fetch current assigned_to for the notification
+  const { data: rescheduledJob } = await supabase
+    .from('jobs')
+    .select('assigned_to')
+    .eq('id', id)
+    .single()
+  if (rescheduledJob?.assigned_to) {
+    fireTeamsNotification(supabase, user.orgId, id, 'rescheduled', rescheduledJob.assigned_to)
+  }
 
   revalidatePath('/scheduling')
   revalidatePath(`/scheduling/jobs/${id}`)
@@ -1495,7 +1582,7 @@ export async function getContactsForCompany(companyId: string) {
   const user = await requireAuth()
   const supabase = await createClient()
 
-  // Direct contacts
+  // Direct contacts (primary by default)
   const { data: direct, error } = await supabase
     .from('contacts')
     .select('id, first_name, last_name, job_title, phone, email, mobile')
@@ -1508,15 +1595,23 @@ export async function getContactsForCompany(companyId: string) {
   // Linked contacts (from other companies)
   const { data: links } = await supabase
     .from('contact_customer_links')
-    .select('contacts(id, first_name, last_name, job_title, phone, email, mobile, is_active)')
+    .select('is_primary, contacts(id, first_name, last_name, job_title, phone, email, mobile, is_active)')
     .eq('customer_id', companyId)
 
   const linked = (links || [])
-    .map((l) => l.contacts as unknown as { id: string; first_name: string; last_name: string; job_title: string | null; phone: string | null; email: string | null; mobile: string | null; is_active: boolean } | null)
-    .filter((c): c is NonNullable<typeof c> => c != null && c.is_active)
-    .filter((c) => !(direct || []).some((d) => d.id === c.id))
+    .filter((l) => {
+      const c = l.contacts as unknown as { id: string; is_active: boolean } | null
+      return c != null && c.is_active && !(direct || []).some((d) => d.id === c.id)
+    })
+    .map((l) => {
+      const { is_active: _, ...c } = l.contacts as unknown as { id: string; first_name: string; last_name: string; job_title: string | null; phone: string | null; email: string | null; mobile: string | null; is_active: boolean }
+      return { ...c, is_primary: l.is_primary === true }
+    })
 
-  return { data: [...(direct || []), ...linked.map(({ is_active: _, ...c }) => c)] }
+  // Direct contacts are considered primary; linked contacts use their is_primary flag
+  const directWithPrimary = (direct || []).map(c => ({ ...c, is_primary: true }))
+
+  return { data: [...directWithPrimary, ...linked] }
 }
 
 export async function getSalesOrdersForCompany(companyId: string) {
@@ -2093,6 +2188,54 @@ export async function deleteActivity(id: string) {
   return { success: true }
 }
 
+export interface UpdateActivityInput {
+  activity_type_id?: string
+  engineer_id?: string
+  title?: string
+  description?: string | null
+  scheduled_date?: string
+  scheduled_time?: string | null
+  duration_minutes?: number
+  all_day?: boolean
+  notes?: string | null
+}
+
+export async function updateActivity(id: string, input: UpdateActivityInput) {
+  const user = await requirePermission('scheduling', 'edit')
+  const supabase = await createClient()
+
+  const updateData: Record<string, unknown> = {}
+  if (input.activity_type_id !== undefined) updateData.activity_type_id = input.activity_type_id
+  if (input.engineer_id !== undefined) updateData.engineer_id = input.engineer_id
+  if (input.title !== undefined) updateData.title = input.title
+  if (input.description !== undefined) updateData.description = input.description
+  if (input.scheduled_date !== undefined) updateData.scheduled_date = input.scheduled_date
+  if (input.scheduled_time !== undefined) updateData.scheduled_time = input.scheduled_time
+  if (input.duration_minutes !== undefined) updateData.duration_minutes = input.duration_minutes
+  if (input.all_day !== undefined) updateData.all_day = input.all_day
+  if (input.notes !== undefined) updateData.notes = input.notes
+
+  const { data, error } = await supabase
+    .from('activities')
+    .update(updateData)
+    .eq('id', id)
+    .eq('org_id', user.orgId)
+    .select()
+    .single()
+
+  if (error) return { error: error.message }
+
+  logActivity({
+    supabase, user,
+    entityType: 'activity', entityId: id,
+    action: 'updated',
+    details: { title: data.title, engineer_id: data.engineer_id, date: data.scheduled_date },
+  })
+
+  revalidatePath('/scheduling')
+  return { data }
+}
+
 export async function dragMoveActivity(activityId: string, engineerId: string, date: string, time?: string) {
   const user = await requirePermission('scheduling', 'edit')
   const supabase = await createClient()
@@ -2118,4 +2261,185 @@ export async function dragMoveActivity(activityId: string, engineerId: string, d
 
   revalidatePath('/scheduling')
   return { success: true }
+}
+
+// ============================================================================
+// SCHEDULING SETTINGS (Working Hours / Travel Buffer)
+// ============================================================================
+
+export async function getSchedulingSettings(): Promise<{
+  working_day_start: string
+  working_day_end: string
+  travel_buffer_minutes: number
+}> {
+  const user = await requireAuth()
+  const supabase = await createClient()
+
+  const { data } = await supabase
+    .from('org_settings')
+    .select('setting_key, setting_value')
+    .eq('org_id', user.orgId)
+    .eq('category', 'scheduling')
+    .in('setting_key', ['working_day_start', 'working_day_end', 'travel_buffer_minutes'])
+
+  const result = {
+    working_day_start: '08:00',
+    working_day_end: '17:30',
+    travel_buffer_minutes: 15,
+  }
+
+  if (data) {
+    for (const row of data) {
+      try {
+        const val = JSON.parse(row.setting_value)
+        if (row.setting_key === 'working_day_start') result.working_day_start = val
+        else if (row.setting_key === 'working_day_end') result.working_day_end = val
+        else if (row.setting_key === 'travel_buffer_minutes') result.travel_buffer_minutes = parseInt(val) || 15
+      } catch { /* skip malformed */ }
+    }
+  }
+
+  return result
+}
+
+export async function updateSchedulingSettings(input: {
+  working_day_start: string
+  working_day_end: string
+  travel_buffer_minutes: number
+}) {
+  const user = await requirePermission('scheduling', 'admin')
+  const supabase = await createClient()
+
+  const settings = [
+    { key: 'working_day_start', value: JSON.stringify(input.working_day_start) },
+    { key: 'working_day_end', value: JSON.stringify(input.working_day_end) },
+    { key: 'travel_buffer_minutes', value: JSON.stringify(input.travel_buffer_minutes) },
+  ]
+
+  for (const s of settings) {
+    const { error } = await supabase
+      .from('org_settings')
+      .upsert(
+        {
+          org_id: user.orgId,
+          category: 'scheduling',
+          setting_key: s.key,
+          setting_value: s.value,
+        },
+        { onConflict: 'org_id,setting_key' }
+      )
+
+    if (error) return { error: error.message }
+  }
+
+  logActivity({
+    supabase, user,
+    entityType: 'org_settings', entityId: user.orgId,
+    action: 'updated',
+    details: { category: 'scheduling', ...input },
+  })
+
+  return { success: true }
+}
+
+// ============================================================================
+// INDIVIDUAL WORKING HOURS
+// ============================================================================
+
+export interface UserWorkingHoursEntry {
+  day_of_week: number // 1=Mon ... 7=Sun
+  is_working_day: boolean
+  start_time: string | null // HH:MM or null (use org default)
+  end_time: string | null
+}
+
+export interface UserWorkingHoursRow extends UserWorkingHoursEntry {
+  id: string
+  user_id: string
+}
+
+/**
+ * Get individual working hours for a specific user.
+ * Returns only rows that exist — absence means "use org defaults".
+ */
+export async function getUserWorkingHours(userId: string): Promise<{ data?: UserWorkingHoursRow[]; error?: string }> {
+  await requirePermission('scheduling', 'view')
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('user_working_hours')
+    .select('id, user_id, day_of_week, is_working_day, start_time, end_time')
+    .eq('user_id', userId)
+    .order('day_of_week')
+
+  if (error) return { error: error.message }
+  return { data: data || [] }
+}
+
+/**
+ * Get individual working hours for ALL engineers in the org (for calendar display).
+ */
+export async function getAllUserWorkingHours(): Promise<{ data?: UserWorkingHoursRow[]; error?: string }> {
+  const user = await requireAuth()
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('user_working_hours')
+    .select('id, user_id, day_of_week, is_working_day, start_time, end_time')
+    .eq('org_id', user.orgId)
+    .order('day_of_week')
+
+  if (error) return { error: error.message }
+  return { data: data || [] }
+}
+
+/**
+ * Save individual working hours for a user.
+ * Upserts entries. Days not in the input are deleted (revert to org default).
+ */
+export async function updateUserWorkingHours(
+  userId: string,
+  entries: UserWorkingHoursEntry[]
+): Promise<{ error?: string }> {
+  const user = await requirePermission('scheduling', 'admin')
+  const supabase = await createClient()
+
+  // Delete existing rows for this user
+  const { error: delError } = await supabase
+    .from('user_working_hours')
+    .delete()
+    .eq('user_id', userId)
+    .eq('org_id', user.orgId)
+
+  if (delError) return { error: delError.message }
+
+  // Filter out entries that are just "use defaults" (working day with no custom times)
+  const rowsToInsert = entries
+    .filter(e => !e.is_working_day || e.start_time || e.end_time)
+    .map(e => ({
+      user_id: userId,
+      org_id: user.orgId,
+      day_of_week: e.day_of_week,
+      is_working_day: e.is_working_day,
+      start_time: e.is_working_day ? (e.start_time || null) : null,
+      end_time: e.is_working_day ? (e.end_time || null) : null,
+    }))
+
+  if (rowsToInsert.length > 0) {
+    const { error: insError } = await supabase
+      .from('user_working_hours')
+      .insert(rowsToInsert)
+
+    if (insError) return { error: insError.message }
+  }
+
+  logActivity({
+    supabase, user,
+    entityType: 'user_working_hours', entityId: userId,
+    action: 'updated',
+    details: { entries_count: rowsToInsert.length },
+  })
+
+  revalidatePath('/scheduling')
+  return {}
 }

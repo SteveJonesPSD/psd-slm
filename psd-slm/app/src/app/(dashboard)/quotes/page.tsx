@@ -32,7 +32,7 @@ export default async function QuotesPage() {
       desktop={
         <div>
           <PageHeader
-            title="All Quotes"
+            title="Quotes"
             subtitle={`${quotesData.length} quotes`}
             actions={<QuotesPageActions />}
           />

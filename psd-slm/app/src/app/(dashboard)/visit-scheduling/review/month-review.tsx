@@ -4,7 +4,7 @@ import { useState, useEffect, useTransition, useMemo } from 'react'
 import { getEngineerMonthView, confirmEngineerMonthVisits, getHolidaysForRange } from '../actions'
 import { Badge, VISIT_STATUS_CONFIG, TIME_SLOT_CONFIG } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import type { VisitInstanceWithDetails, EngineerMonthView } from '@/lib/visit-scheduling/types'
+import { getVisitDisplayTimes, type VisitInstanceWithDetails, type EngineerMonthView } from '@/lib/visit-scheduling/types'
 
 interface MonthReviewProps {
   engineers: { id: string; first_name: string; last_name: string; color: string | null }[]
@@ -285,6 +285,7 @@ export function MonthReview({ engineers, selectedEngineers, year, month }: Month
 function MonthVisitBlock({ visit, columnIndex }: { visit: VisitInstanceWithDetails; columnIndex: number }) {
   const statusCfg = VISIT_STATUS_CONFIG[visit.status]
   const slotCfg = TIME_SLOT_CONFIG[visit.time_slot]
+  const times = getVisitDisplayTimes(visit)
 
   // Position tooltip on left for rightmost columns (Thu=3, Fri=4) to avoid overflow
   const tooltipAlign = columnIndex >= 3 ? 'right-0' : 'left-0'
@@ -292,14 +293,19 @@ function MonthVisitBlock({ visit, columnIndex }: { visit: VisitInstanceWithDetai
   return (
     <div className="group relative">
       <div
-        className="rounded px-1 py-0.5 text-[9px] font-medium truncate cursor-default"
+        className="rounded px-1 py-0.5 text-[9px] font-medium cursor-default"
         style={{
           color: statusCfg?.color || '#6b7280',
           backgroundColor: statusCfg?.bg || '#f3f4f6',
           borderLeft: `2px solid ${statusCfg?.color || '#6b7280'}`,
         }}
       >
-        {visit.customer_name}
+        <div className="truncate">{visit.customer_name}</div>
+        {times && (
+          <div className="text-[8px] font-normal opacity-70">
+            {times.start}–{times.end}
+          </div>
+        )}
       </div>
 
       {/* Hover tooltip */}
@@ -317,8 +323,8 @@ function MonthVisitBlock({ visit, columnIndex }: { visit: VisitInstanceWithDetai
             {slotCfg && (
               <Badge label={slotCfg.label} color={slotCfg.color} bg={slotCfg.bg} className="text-[9px] px-1.5 py-0" />
             )}
-            {visit.start_time && visit.end_time && (
-              <span>{visit.start_time.slice(0, 5)}–{visit.end_time.slice(0, 5)}</span>
+            {times && (
+              <span>{times.start}–{times.end}</span>
             )}
           </div>
           {visit.contract_number && (

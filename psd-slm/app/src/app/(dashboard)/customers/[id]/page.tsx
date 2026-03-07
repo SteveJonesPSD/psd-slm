@@ -16,6 +16,7 @@ import { VisitSchedulingSection } from './visit-scheduling-section'
 import { EmailDomainsSection } from './email-domains-section'
 import { LinkedContactsSection } from './linked-contacts-section'
 import { CustomerSearch } from './customer-search'
+import { PortalAccessSection } from './portal-access-section'
 import { getCompanyTickets } from '../../helpdesk/actions'
 import { getContractsByCompany } from '../../contracts/actions'
 import { getCompanyVisits } from '../../visit-scheduling/actions'
@@ -231,6 +232,9 @@ export default async function CustomerDetailPage({ params }: PageProps) {
 
       {/* Contacts */}
       <ContactsSection contacts={contacts || []} customerId={id} />
+
+      {/* Portal Access */}
+      <PortalAccessSection customerId={id} contacts={(contacts || []).map(c => ({ id: c.id, first_name: c.first_name, last_name: c.last_name, email: c.email }))} canEdit={true} />
 
       {/* Linked Contacts (from other companies) */}
       <LinkedContactsSection contacts={linkedContacts} customerId={id} />

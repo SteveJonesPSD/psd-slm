@@ -19,13 +19,11 @@ export default async function HelpdeskLayout({
     .order('name')
 
   return (
-    <div className="flex flex-col md:flex-row gap-0 -m-4 md:-m-6 lg:-m-8 min-h-[calc(100vh-60px)]">
-      <div className="hidden md:block">
+    <div>
+      <div className="mb-6">
         <HelpdeskNav isAdmin={isAdmin} tags={tags || []} />
       </div>
-      <div className="flex-1 p-4 md:p-6 lg:p-8 overflow-auto">
-        {children}
-      </div>
+      {children}
     </div>
   )
 }

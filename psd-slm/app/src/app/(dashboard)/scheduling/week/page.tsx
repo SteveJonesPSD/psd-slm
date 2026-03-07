@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import { requirePermission } from '@/lib/auth'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
-import { getJobs, getEngineers } from '../actions'
+import { getJobs, getEngineers, getAllUserWorkingHours, getActivities, getActiveActivityTypes } from '../actions'
 import { WeekView } from './week-view'
 import Link from 'next/link'
 
@@ -10,9 +10,12 @@ export default async function WeekViewPage() {
   const user = await requirePermission('scheduling', 'view')
   const canEdit = user.permissions.includes('scheduling.edit')
 
-  const [jobsResult, engineersResult] = await Promise.all([
+  const [jobsResult, engineersResult, userHoursResult, activitiesResult, activityTypesResult] = await Promise.all([
     getJobs(),
     getEngineers(),
+    getAllUserWorkingHours(),
+    getActivities(),
+    getActiveActivityTypes(),
   ])
 
   // Get Monday of current week
@@ -36,9 +39,12 @@ export default async function WeekViewPage() {
       <Suspense fallback={null}>
         <WeekView
           allJobs={jobsResult.data || []}
+          allActivities={activitiesResult.data || []}
           engineers={engineersResult.data || []}
           initialWeekStart={weekStart}
           canEdit={canEdit}
+          allUserHours={userHoursResult.data || []}
+          activityTypes={activityTypesResult.data || []}
         />
       </Suspense>
     </div>

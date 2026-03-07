@@ -1,16 +1,20 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { requireAuth } from '@/lib/auth'
 import { formatCurrency } from '@/lib/utils'
 import { StatCard } from '@/components/ui/stat-card'
 import { Badge, STAGE_CONFIG } from '@/components/ui/badge'
 
 export default async function DashboardPage() {
+  const user = await requireAuth()
   const supabase = await createClient()
 
-  // Fetch data
+  // Fetch data — only current user's opportunities, exclude lost
   const { data: opportunities } = await supabase
     .from('opportunities')
     .select('*')
+    .eq('assigned_to', user.id)
+    .neq('stage', 'lost')
     .order('created_at', { ascending: false })
 
   const { data: quotes } = await supabase
@@ -101,10 +105,8 @@ export default async function DashboardPage() {
 
   type Opp = { id: string; title: string; customer_id: string; stage: string; estimated_value: number | null; probability: number }
   const opps: Opp[] = opportunities || []
-  const activeOpps = opps.filter((o) => !['lost', 'won'].includes(o.stage))
-  const pipelineValue = opps
-    .filter((o) => o.stage !== 'lost')
-    .reduce((sum, o) => sum + (o.estimated_value || 0), 0)
+  const activeOpps = opps.filter((o) => o.stage !== 'won')
+  const pipelineValue = opps.reduce((sum, o) => sum + (o.estimated_value || 0), 0)
   const weightedValue = activeOpps.reduce(
     (sum, o) => sum + ((o.estimated_value || 0) * o.probability) / 100,
     0

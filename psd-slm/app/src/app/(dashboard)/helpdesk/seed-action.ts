@@ -158,7 +158,7 @@ export async function seedHelpdeskData() {
   }
 
   // ======================================================================
-  // 4. SUPPORT CONTRACTS (need customers)
+  // 4. SUPPORT CONTRACTS (need customers + contract_types)
   // ======================================================================
   const { data: customers } = await supabase
     .from('customers')
@@ -171,11 +171,22 @@ export async function seedHelpdeskData() {
     customerMap[c.name] = c.id
   }
 
+  // Fetch contract types to resolve IDs
+  const { data: contractTypes } = await supabase
+    .from('contract_types')
+    .select('id, name')
+    .eq('org_id', orgId)
+
+  const contractTypeMap: Record<string, string> = {}
+  for (const ct of contractTypes || []) {
+    contractTypeMap[ct.name] = ct.id
+  }
+
   const contractData = [
-    { customerName: 'Meridian Academy', name: 'Meridian Annual Support', contract_type: 'both', sla: 'Premium', monthly_hours: 20 },
-    { customerName: 'NHS Bradford', name: 'NHS IT Support Contract', contract_type: 'helpdesk', sla: '24x7 Critical', monthly_hours: 40 },
-    { customerName: 'Hartwell Engineering', name: 'Hartwell Helpdesk', contract_type: 'helpdesk', sla: 'Standard', monthly_hours: 10 },
-    { customerName: 'Pennine Care Trust', name: 'Pennine Onsite Support', contract_type: 'onsite', sla: 'Standard', monthly_hours: 8, onsite_engineer: 'Dan Whittle', onsite_schedule: 'Every Tuesday 09:00–17:00' },
+    { customerName: 'Meridian Academy', contractNumber: 'SC-MERIDIAN-001', contractTypeName: 'ProFlex 4', sla: 'Premium', monthly_hours: 20 },
+    { customerName: 'NHS Bradford', contractNumber: 'SC-NHS-001', contractTypeName: 'ProFlex 2', sla: '24x7 Critical', monthly_hours: 40 },
+    { customerName: 'Hartwell Engineering', contractNumber: 'SC-HARTWELL-001', contractTypeName: 'ProFlex 1', sla: 'Standard', monthly_hours: 10 },
+    { customerName: 'Pennine Care Trust', contractNumber: 'SC-PENNINE-001', contractTypeName: 'ProFlex 3', sla: 'Standard', monthly_hours: 8 },
   ]
 
   const contractIds: Record<string, string> = {}
@@ -184,31 +195,31 @@ export async function seedHelpdeskData() {
     if (!customerId) continue
 
     const { data: existing } = await supabase
-      .from('support_contracts')
+      .from('customer_contracts')
       .select('id')
       .eq('org_id', orgId)
-      .eq('name', cd.name)
+      .eq('contract_number', cd.contractNumber)
       .maybeSingle()
 
     if (existing) {
-      contractIds[cd.name] = existing.id
+      contractIds[cd.contractNumber] = existing.id
     } else {
+      const contractTypeId = contractTypeMap[cd.contractTypeName] || Object.values(contractTypeMap)[0]
       const { data } = await supabase
-        .from('support_contracts')
+        .from('customer_contracts')
         .insert({
           org_id: orgId,
           customer_id: customerId,
+          contract_type_id: contractTypeId,
           sla_plan_id: slaPlanIds[cd.sla] || null,
-          name: cd.name,
-          contract_type: cd.contract_type,
+          contract_number: cd.contractNumber,
           monthly_hours: cd.monthly_hours,
           start_date: '2026-01-01',
-          onsite_engineer: cd.onsite_engineer || null,
-          onsite_schedule: cd.onsite_schedule || null,
+          status: 'active',
         })
         .select('id')
         .single()
-      if (data) contractIds[cd.name] = data.id
+      if (data) contractIds[cd.contractNumber] = data.id
     }
   }
 
@@ -255,7 +266,7 @@ export async function seedHelpdeskData() {
         ticket_type: 'helpdesk',
         category: 'Hardware',
         assigned_to: 'Dan Whittle',
-        contract: 'Meridian Annual Support',
+        contract: 'SC-MERIDIAN-001',
         tags: ['VIP'],
       },
       {
@@ -266,7 +277,7 @@ export async function seedHelpdeskData() {
         ticket_type: 'helpdesk',
         category: 'Account Access',
         assigned_to: 'Sam Hartley',
-        contract: 'Hartwell Helpdesk',
+        contract: 'SC-HARTWELL-001',
         tags: [],
       },
       {
@@ -277,7 +288,7 @@ export async function seedHelpdeskData() {
         ticket_type: 'onsite_job',
         category: 'Network',
         assigned_to: 'Dan Whittle',
-        contract: 'Pennine Onsite Support',
+        contract: 'SC-PENNINE-001',
         tags: [],
         site_location: 'Main Server Room',
         room_number: 'SR-1',
@@ -291,7 +302,7 @@ export async function seedHelpdeskData() {
         ticket_type: 'helpdesk',
         category: 'Email',
         assigned_to: null,
-        contract: 'Meridian Annual Support',
+        contract: 'SC-MERIDIAN-001',
         tags: ['Recurring'],
       },
       {
@@ -302,7 +313,7 @@ export async function seedHelpdeskData() {
         ticket_type: 'helpdesk',
         category: 'Account Access',
         assigned_to: 'Sam Hartley',
-        contract: 'NHS IT Support Contract',
+        contract: 'SC-NHS-001',
         tags: [],
       },
     ]
@@ -314,7 +325,7 @@ export async function seedHelpdeskData() {
 
       const ticketNumber = formatTicketNumber(2026, seq++)
       const contractId = td.contract ? contractIds[td.contract] : null
-      const planToUse = td.contract?.includes('Premium') || td.contract?.includes('Meridian')
+      const planToUse = td.contract?.includes('MERIDIAN')
         ? premiumPlan
         : standardPlan
 
@@ -341,7 +352,7 @@ export async function seedHelpdeskData() {
           customer_id: customerId,
           assigned_to: td.assigned_to ? memberByName[td.assigned_to] || null : null,
           category_id: categoryIds[td.category] || null,
-          contract_id: contractId,
+          customer_contract_id: contractId,
           sla_plan_id: planToUse?.id || null,
           subject: td.subject,
           description: td.description,

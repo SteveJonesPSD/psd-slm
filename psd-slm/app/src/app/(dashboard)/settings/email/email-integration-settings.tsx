@@ -71,8 +71,11 @@ export function EmailIntegrationSettings({ connections, channels, processingLog,
   }
 
   const handleDeleteChannel = async (id: string) => {
-    if (!confirm('Delete this channel?')) return
-    await deleteMailChannel(id)
+    if (!confirm('Delete this channel? Associated processing logs will also be removed.')) return
+    const result = await deleteMailChannel(id)
+    if (result.error) {
+      alert(`Failed to delete channel: ${result.error}`)
+    }
     router.refresh()
   }
 

@@ -16,6 +16,7 @@ import {
 } from '@dnd-kit/core'
 import { Badge, JOB_PRIORITY_CONFIG } from '@/components/ui/badge'
 import { dragAssignJob } from '../actions'
+import { EditActivityModal } from '../edit-activity-modal'
 
 // Use noon to avoid DST midnight shifts when doing date arithmetic
 function parseDate(dateStr: string): Date {
@@ -36,14 +37,24 @@ function getMondayOf(date: Date): string {
   return formatDateLocal(d)
 }
 
+export interface UserWorkingHoursData {
+  user_id: string
+  day_of_week: number
+  is_working_day: boolean
+  start_time: string | null
+  end_time: string | null
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function WeekView({ allJobs, allActivities, engineers, initialWeekStart, canEdit, workingDays = [1, 2, 3, 4, 5] }: {
+export function WeekView({ allJobs, allActivities, engineers, initialWeekStart, canEdit, workingDays = [1, 2, 3, 4, 5], allUserHours, activityTypes }: {
   allJobs: any[]
   allActivities?: any[]
   engineers: any[]
   initialWeekStart: string
   canEdit: boolean
   workingDays?: number[]
+  allUserHours?: UserWorkingHoursData[]
+  activityTypes?: any[]
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -53,6 +64,7 @@ export function WeekView({ allJobs, allActivities, engineers, initialWeekStart, 
   const paramWeek = searchParams.get('week')
   const [weekStart, setWeekStartState] = useState(paramWeek || initialWeekStart)
   const [activeJob, setActiveJob] = useState<string | null>(null)
+  const [editingActivity, setEditingActivity] = useState<any | null>(null)
 
   // Update URL search param when week changes (replaces history entry, no navigation)
   function setWeekStart(newWeek: string) {
@@ -201,6 +213,13 @@ export function WeekView({ allJobs, allActivities, engineers, initialWeekStart, 
                 const dayActivities = (allActivities || []).filter(
                   (a: { scheduled_date: string; engineer_id: string }) => a.scheduled_date === day.date && a.engineer_id === eng.id
                 )
+                // Check if this is a non-working day for this engineer
+                const dayDate = parseDate(day.date)
+                const jsDay = dayDate.getDay()
+                const isoDay = jsDay === 0 ? 7 : jsDay
+                const userRow = allUserHours?.find(h => h.user_id === eng.id && h.day_of_week === isoDay)
+                const isNonWorkingDay = userRow ? !userRow.is_working_day : false
+
                 return (
                   <WeekDayCell
                     key={day.date}
@@ -211,6 +230,8 @@ export function WeekView({ allJobs, allActivities, engineers, initialWeekStart, 
                     activities={dayActivities}
                     canEdit={canEdit}
                     minWidth={dayCount <= 5 ? 160 : dayCount <= 6 ? 130 : 110}
+                    isNonWorkingDay={isNonWorkingDay}
+                    onActivityClick={canEdit ? setEditingActivity : undefined}
                   />
                 )
               })}
@@ -235,14 +256,39 @@ export function WeekView({ allJobs, allActivities, engineers, initialWeekStart, 
           )}
         </DragOverlay>
       </DndContext>
+
+      {editingActivity && activityTypes && (
+        <EditActivityModal
+          activity={editingActivity}
+          activityTypes={activityTypes}
+          engineers={engineers.map((e: any) => ({ id: e.id, first_name: e.first_name, last_name: e.last_name }))}
+          onClose={() => setEditingActivity(null)}
+        />
+      )}
     </div>
   )
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function WeekDayCell({ engineerId, date, isToday, jobs, activities, canEdit, minWidth }: { engineerId: string; date: string; isToday: boolean; jobs: any[]; activities: any[]; canEdit: boolean; minWidth: number }) {
+function WeekDayCell({ engineerId, date, isToday, jobs, activities, canEdit, minWidth, isNonWorkingDay, onActivityClick }: { engineerId: string; date: string; isToday: boolean; jobs: any[]; activities: any[]; canEdit: boolean; minWidth: number; isNonWorkingDay?: boolean; onActivityClick?: (activity: any) => void }) {
   const id = `week-${engineerId}-date-${date}`
-  const { setNodeRef, isOver } = useDroppable({ id, disabled: !canEdit })
+  const { setNodeRef, isOver } = useDroppable({ id, disabled: !canEdit || isNonWorkingDay })
+
+  if (isNonWorkingDay) {
+    return (
+      <div
+        className="flex-1 border-r border-gray-200 p-1.5 min-h-[60px] relative"
+        style={{
+          minWidth,
+          background: 'repeating-linear-gradient(135deg, transparent, transparent 4px, rgba(100,116,139,0.10) 4px, rgba(100,116,139,0.10) 8px)',
+          backgroundColor: 'rgba(100,116,139,0.06)',
+        }}
+        title="Not working this day"
+      >
+        <span className="text-[10px] text-slate-400 dark:text-slate-500">Not working</span>
+      </div>
+    )
+  }
 
   return (
     <div
@@ -254,7 +300,7 @@ function WeekDayCell({ engineerId, date, isToday, jobs, activities, canEdit, min
     >
       <div className="space-y-1">
         {activities.map((act: { id: string; title: string; all_day: boolean; scheduled_time: string | null; duration_minutes: number; activity_type: { name: string; color: string; background: string } | null }) => (
-          <WeekActivityBlock key={act.id} activity={act} />
+          <WeekActivityBlock key={act.id} activity={act} onClick={onActivityClick ? () => onActivityClick(act) : undefined} />
         ))}
         {jobs.map(job => (
           <WeekJobBlock key={job.id} job={job} canEdit={canEdit} />
@@ -384,7 +430,7 @@ function WeekJobBlock({ job, canEdit }: { job: any; canEdit: boolean }) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function WeekActivityBlock({ activity }: { activity: any }) {
+function WeekActivityBlock({ activity, onClick }: { activity: any; onClick?: () => void }) {
   const at = activity.activity_type
   const color = at?.color || '#6b7280'
   const bg = at?.background || '#f3f4f6'
@@ -402,9 +448,10 @@ function WeekActivityBlock({ activity }: { activity: any }) {
 
   return (
     <div
-      className="block rounded px-1.5 py-1 text-[10px] font-medium no-underline border-2 border-dashed"
+      className={`block rounded px-1.5 py-1 text-[10px] font-medium no-underline border-2 border-dashed${onClick ? ' cursor-pointer hover:opacity-80' : ''}`}
       style={{ color, backgroundColor: bg, borderColor: color }}
       title={`${activity.title}${timeLabel ? ` (${timeLabel})` : ''}`}
+      onClick={onClick}
     >
       <div className="flex items-center gap-1">
         <span className="text-[8px]">&#9632;</span>

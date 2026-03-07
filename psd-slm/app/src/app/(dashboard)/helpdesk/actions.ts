@@ -11,6 +11,7 @@ import { triageTicket } from '@/lib/helpdesk/triage'
 import { processAutoClose } from '@/lib/helpdesk/auto-close'
 import type { TicketStatus, TicketPriority, SlaPlan, SlaPlanTarget, DepartmentMemberRole } from '@/types/database'
 import { createNotifications } from '@/lib/notifications'
+import { notifyTicketStakeholders } from '@/lib/helpdesk/ticket-notifications'
 
 // ============================================================================
 // TICKET NUMBER GENERATION
@@ -277,6 +278,19 @@ export async function getSlaPlans() {
   return { data: data || [] }
 }
 
+export async function getContractTypes(): Promise<{ id: string; name: string }[]> {
+  const user = await requirePermission('helpdesk', 'view')
+  const supabase = await createClient()
+
+  const { data } = await supabase
+    .from('contract_types')
+    .select('id, name')
+    .eq('org_id', user.orgId)
+    .order('name')
+
+  return data || []
+}
+
 export async function getSlaPlan(id: string) {
   const user = await requirePermission('helpdesk', 'view')
   const supabase = await createClient()
@@ -420,7 +434,7 @@ export async function deleteSlaPlan(id: string) {
 }
 
 // ============================================================================
-// SUPPORT CONTRACT CRUD (admin)
+// SUPPORT CONTRACT CRUD (admin) — uses customer_contracts table
 // ============================================================================
 
 export async function getContracts() {
@@ -428,10 +442,11 @@ export async function getContracts() {
   const supabase = await createClient()
 
   const { data, error } = await supabase
-    .from('support_contracts')
-    .select('*, customers(id, name), sla_plans(id, name)')
+    .from('customer_contracts')
+    .select('*, customers(id, name), sla_plans(id, name), contract_types(id, name, includes_remote_support, includes_telephone, includes_onsite)')
     .eq('org_id', user.orgId)
-    .order('name')
+    .not('sla_plan_id', 'is', null)
+    .order('contract_number')
 
   if (error) return { error: error.message }
   return { data: data || [] }
@@ -442,8 +457,8 @@ export async function getContract(id: string) {
   const supabase = await createClient()
 
   const { data, error } = await supabase
-    .from('support_contracts')
-    .select('*, customers(id, name), sla_plans(id, name, sla_plan_targets(*))')
+    .from('customer_contracts')
+    .select('*, customers(id, name), sla_plans(id, name, sla_plan_targets(*)), contract_types(id, name, includes_remote_support, includes_telephone, includes_onsite)')
     .eq('id', id)
     .eq('org_id', user.orgId)
     .single()
@@ -454,7 +469,7 @@ export async function getContract(id: string) {
   const { data: tickets } = await supabase
     .from('tickets')
     .select('id, ticket_number, subject, status, priority, created_at')
-    .eq('contract_id', id)
+    .eq('customer_contract_id', id)
     .order('created_at', { ascending: false })
     .limit(10)
 
@@ -477,39 +492,36 @@ export async function getContract(id: string) {
 export async function createContract(formData: {
   customer_id: string
   sla_plan_id?: string
-  name: string
-  contract_type: string
+  contract_type_id: string
+  contract_number: string
   monthly_hours?: number
   start_date: string
   end_date?: string
-  onsite_engineer?: string
-  onsite_schedule?: string
   notes?: string
 }) {
   const user = await requirePermission('helpdesk', 'admin')
   const supabase = await createClient()
 
   const { data, error } = await supabase
-    .from('support_contracts')
+    .from('customer_contracts')
     .insert({
       org_id: user.orgId,
       customer_id: formData.customer_id,
       sla_plan_id: formData.sla_plan_id || null,
-      name: formData.name,
-      contract_type: formData.contract_type,
+      contract_type_id: formData.contract_type_id,
+      contract_number: formData.contract_number,
       monthly_hours: formData.monthly_hours || null,
       start_date: formData.start_date,
       end_date: formData.end_date || null,
-      onsite_engineer: formData.onsite_engineer || null,
-      onsite_schedule: formData.onsite_schedule || null,
       notes: formData.notes || null,
+      status: 'active',
     })
     .select()
     .single()
 
   if (error) return { error: error.message }
 
-  logActivity({ supabase, user, entityType: 'support_contract', entityId: data.id, action: 'created', details: { name: formData.name } })
+  logActivity({ supabase, user, entityType: 'customer_contract', entityId: data.id, action: 'created', details: { contract_number: formData.contract_number } })
   revalidatePath('/helpdesk/contracts')
   return { data }
 }
@@ -517,28 +529,26 @@ export async function createContract(formData: {
 export async function updateContract(id: string, formData: {
   customer_id?: string
   sla_plan_id?: string | null
-  name?: string
-  contract_type?: string
+  contract_type_id?: string
+  contract_number?: string
   monthly_hours?: number | null
   start_date?: string
   end_date?: string | null
-  is_active?: boolean
-  onsite_engineer?: string | null
-  onsite_schedule?: string | null
+  status?: string
   notes?: string | null
 }) {
   const user = await requirePermission('helpdesk', 'admin')
   const supabase = await createClient()
 
   const { error } = await supabase
-    .from('support_contracts')
+    .from('customer_contracts')
     .update({ ...formData, updated_at: new Date().toISOString() })
     .eq('id', id)
     .eq('org_id', user.orgId)
 
   if (error) return { error: error.message }
 
-  logActivity({ supabase, user, entityType: 'support_contract', entityId: id, action: 'updated' })
+  logActivity({ supabase, user, entityType: 'customer_contract', entityId: id, action: 'updated' })
   revalidatePath('/helpdesk/contracts')
   revalidatePath(`/helpdesk/contracts/${id}`)
   return { success: true }
@@ -549,14 +559,14 @@ export async function deleteContract(id: string) {
   const supabase = await createClient()
 
   const { error } = await supabase
-    .from('support_contracts')
+    .from('customer_contracts')
     .delete()
     .eq('id', id)
     .eq('org_id', user.orgId)
 
   if (error) return { error: error.message }
 
-  logActivity({ supabase, user, entityType: 'support_contract', entityId: id, action: 'deleted' })
+  logActivity({ supabase, user, entityType: 'customer_contract', entityId: id, action: 'deleted' })
   revalidatePath('/helpdesk/contracts')
   return { success: true }
 }
@@ -619,7 +629,7 @@ export async function getTicket(id: string) {
       creator:created_by(id, first_name, last_name),
       ticket_categories(id, name),
       brands(id, name),
-      support_contracts(id, name, contract_type, monthly_hours, sla_plans(id, name)),
+      customer_contract:customer_contract_id(id, contract_number, monthly_hours, sla_plans(id, name), contract_types(id, name, includes_remote_support, includes_telephone, includes_onsite)),
       sla_plans(id, name, business_hours_start, business_hours_end, business_days, is_24x7, sla_plan_targets(*)),
       merge_target:merged_into_ticket_id(id, ticket_number)
     `)
@@ -628,6 +638,22 @@ export async function getTicket(id: string) {
     .single()
 
   if (error) return { error: error.message }
+
+  // If no contract linked but ticket has a customer, dynamically resolve active contract
+  if (!ticket.customer_contract_id && ticket.customer_id) {
+    const { data: activeContract } = await supabase
+      .from('customer_contracts')
+      .select('id, contract_number, monthly_hours, sla_plans(id, name), contract_types(id, name, includes_remote_support, includes_telephone, includes_onsite)')
+      .eq('customer_id', ticket.customer_id)
+      .eq('org_id', user.orgId)
+      .eq('status', 'active')
+      .limit(1)
+      .maybeSingle()
+
+    if (activeContract) {
+      ;(ticket as Record<string, unknown>).customer_contract = activeContract
+    }
+  }
 
   // Fetch messages
   const { data: messages } = await supabase
@@ -703,26 +729,41 @@ export async function createTicket(formData: {
 
   const ticketNumber = await generateTicketNumber(supabase, user.orgId)
 
-  // Resolve SLA plan: contract → default → null
+  // Resolve SLA plan: contract direct → contract type default → org default → null
   let slaPlanId: string | null = null
   let contractId: string | null = null
   let slaPlan: (SlaPlan & { sla_plan_targets: SlaPlanTarget[] }) | null = null
 
-  // Check for active contract
+  // Check for active contract — link contract regardless of SLA, then resolve SLA via inheritance
   const { data: contract } = await supabase
-    .from('support_contracts')
-    .select('id, sla_plan_id, sla_plans(*, sla_plan_targets(*))')
+    .from('customer_contracts')
+    .select('id, sla_plan_id, sla_plans(*, sla_plan_targets(*)), contract_types(default_sla_plan_id)')
     .eq('customer_id', formData.customer_id)
     .eq('org_id', user.orgId)
-    .eq('is_active', true)
+    .eq('status', 'active')
     .limit(1)
     .maybeSingle()
 
   if (contract) {
     contractId = contract.id
-    slaPlanId = contract.sla_plan_id
-    if (contract.sla_plans) {
+    const directSlaId = contract.sla_plan_id
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const typeSlaId = ((contract as any).contract_types?.default_sla_plan_id as string) || null
+
+    if (directSlaId && contract.sla_plans) {
+      slaPlanId = directSlaId
       slaPlan = contract.sla_plans as unknown as SlaPlan & { sla_plan_targets: SlaPlanTarget[] }
+    } else if (typeSlaId) {
+      // Inherit from contract type — need to fetch the plan
+      const { data: typePlan } = await supabase
+        .from('sla_plans')
+        .select('*, sla_plan_targets(*)')
+        .eq('id', typeSlaId)
+        .single()
+      if (typePlan) {
+        slaPlanId = typePlan.id
+        slaPlan = typePlan as unknown as SlaPlan & { sla_plan_targets: SlaPlanTarget[] }
+      }
     }
   }
 
@@ -769,7 +810,7 @@ export async function createTicket(formData: {
       assigned_to: formData.assigned_to || null,
       brand_id: formData.brand_id || null,
       category_id: formData.category_id || null,
-      contract_id: contractId,
+      customer_contract_id: contractId,
       sla_plan_id: slaPlanId,
       subject: formData.subject,
       description: formData.description || null,
@@ -890,12 +931,14 @@ export async function changeTicketStatus(id: string, newStatus: TicketStatus) {
       updates.waiting_since = now.toISOString()
     }
     updates.auto_close_warning_sent_at = null
+    updates.auto_nudge_sent_at = null
   }
 
   // Auto-close: clear waiting_since when leaving waiting_on_customer
   if (ticket.status === 'waiting_on_customer' && newStatus !== 'waiting_on_customer') {
     updates.waiting_since = null
     updates.auto_close_warning_sent_at = null
+    updates.auto_nudge_sent_at = null
   }
 
   // SLA pause when waiting on customer
@@ -954,6 +997,20 @@ export async function changeTicketStatus(id: string, newStatus: TicketStatus) {
   })
 
   logActivity({ supabase, user, entityType: 'ticket', entityId: id, action: 'status_changed', details: { from: ticket.status, to: newStatus } })
+
+  // Notify watchers/assignee
+  notifyTicketStakeholders({
+    supabase,
+    orgId: user.orgId,
+    ticketId: id,
+    ticketNumber: ticket.ticket_number,
+    subject: ticket.subject,
+    actorId: user.id,
+    type: 'ticket_status_changed',
+    title: 'Status changed',
+    message: `${ticket.ticket_number} moved to ${newStatus.replace(/_/g, ' ')} by ${user.firstName} ${user.lastName}`,
+  })
+
   revalidatePath(`/helpdesk/tickets/${id}`)
   revalidatePath('/helpdesk')
   return { success: true }
@@ -1088,6 +1145,7 @@ export async function addMessage(ticketId: string, formData: {
         updates.status = 'waiting_on_customer'
         updates.waiting_since = now.toISOString()
         updates.auto_close_warning_sent_at = null
+        updates.auto_nudge_sent_at = null
       }
 
       await supabase.from('tickets').update(updates).eq('id', ticketId)
@@ -1095,6 +1153,29 @@ export async function addMessage(ticketId: string, formData: {
   }
 
   logActivity({ supabase, user, entityType: 'ticket', entityId: ticketId, action: 'message_added', details: { is_internal: formData.is_internal } })
+
+  // Notify watchers/assignee about new reply
+  {
+    const { data: tkt } = await supabase
+      .from('tickets')
+      .select('ticket_number, subject')
+      .eq('id', ticketId)
+      .single()
+
+    if (tkt) {
+      notifyTicketStakeholders({
+        supabase,
+        orgId: user.orgId,
+        ticketId,
+        ticketNumber: tkt.ticket_number,
+        subject: tkt.subject,
+        actorId: user.id,
+        type: formData.is_internal ? 'ticket_internal_note' : 'ticket_reply',
+        title: formData.is_internal ? 'Internal note added' : 'Reply added',
+        message: `${user.firstName} ${user.lastName} ${formData.is_internal ? 'added an internal note on' : 'replied to'} ${tkt.ticket_number}`,
+      })
+    }
+  }
 
   // Fire-and-forget: send email reply if ticket has email context and reply is non-internal
   if (!formData.is_internal) {
@@ -1182,6 +1263,28 @@ export async function assignTicket(id: string, userId: string | null) {
   })
 
   logActivity({ supabase, user, entityType: 'ticket', entityId: id, action: 'assigned', details: { assigned_to: userId } })
+
+  // Notify watchers/assignee — fetch ticket number for notification
+  const { data: tkt } = await supabase
+    .from('tickets')
+    .select('ticket_number, subject')
+    .eq('id', id)
+    .single()
+
+  if (tkt) {
+    notifyTicketStakeholders({
+      supabase,
+      orgId: user.orgId,
+      ticketId: id,
+      ticketNumber: tkt.ticket_number,
+      subject: tkt.subject,
+      actorId: user.id,
+      type: 'ticket_assigned',
+      title: 'Assigned',
+      message: `${tkt.ticket_number} assigned to ${assigneeName} by ${user.firstName} ${user.lastName}`,
+    })
+  }
+
   revalidatePath(`/helpdesk/tickets/${id}`)
   revalidatePath('/helpdesk')
   return { success: true }
@@ -2088,10 +2191,11 @@ export async function getCompanyTickets(companyId: string) {
     .not('status', 'in', '("closed","cancelled","resolved")')
 
   const { data: contract } = await supabase
-    .from('support_contracts')
-    .select('*, sla_plans(name)')
+    .from('customer_contracts')
+    .select('*, sla_plans(name), contract_types(name, includes_remote_support, includes_telephone, includes_onsite)')
     .eq('customer_id', companyId)
-    .eq('is_active', true)
+    .eq('status', 'active')
+    .not('sla_plan_id', 'is', null)
     .limit(1)
     .maybeSingle()
 
@@ -2392,6 +2496,7 @@ export async function approveDraftResponse(draftId: string, ticketId: string, ed
   ticketUpdates.status = 'waiting_on_customer'
   ticketUpdates.waiting_since = new Date().toISOString()
   ticketUpdates.auto_close_warning_sent_at = null
+  ticketUpdates.auto_nudge_sent_at = null
 
   await supabase
     .from('tickets')

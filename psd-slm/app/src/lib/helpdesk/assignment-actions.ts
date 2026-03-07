@@ -41,7 +41,7 @@ export async function assignTicketToCustomer(
   // Recalculate SLA based on new customer's contract
   const sla = await resolveSlaForCustomer(supabase, user.orgId, customerId)
   if (sla.slaPlanId) update.sla_plan_id = sla.slaPlanId
-  if (sla.contractId) update.contract_id = sla.contractId
+  if (sla.contractId) update.customer_contract_id = sla.contractId
   if (sla.responseDueAt) update.sla_response_due_at = sla.responseDueAt
   if (sla.resolutionDueAt) update.sla_resolution_due_at = sla.resolutionDueAt
 
@@ -86,13 +86,14 @@ async function resolveSlaForCustomer(
 }> {
   const empty = { slaPlanId: null, contractId: null, responseDueAt: null, resolutionDueAt: null }
 
-  // Check for active support contract
+  // Check for active customer contract with SLA
   const { data: contract } = await supabase
-    .from('support_contracts')
+    .from('customer_contracts')
     .select('id, sla_plan_id, sla_plans(*, sla_plan_targets(*))')
     .eq('customer_id', customerId)
     .eq('org_id', orgId)
-    .eq('is_active', true)
+    .eq('status', 'active')
+    .not('sla_plan_id', 'is', null)
     .limit(1)
     .maybeSingle()
 

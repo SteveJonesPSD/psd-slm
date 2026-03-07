@@ -102,6 +102,9 @@ export async function createContractType(formData: FormData): Promise<{ error?: 
     includes_remote_support: formData.get('includes_remote_support') === 'true',
     includes_telephone: formData.get('includes_telephone') === 'true',
     includes_onsite: formData.get('includes_onsite') === 'true',
+    default_sla_plan_id: (formData.get('default_sla_plan_id') as string) || null,
+    default_monthly_hours: formData.get('default_monthly_hours') ? Number(formData.get('default_monthly_hours')) : null,
+    allowed_schedule_weeks: formData.get('allowed_schedule_weeks') ? JSON.parse(formData.get('allowed_schedule_weeks') as string) : [36, 39],
     is_active: true,
     sort_order: formData.get('sort_order') ? Number(formData.get('sort_order')) : 0,
   }
@@ -132,16 +135,21 @@ export async function updateContractType(id: string, formData: FormData): Promis
     const v = formData.get(f) as string | null
     if (v !== null) payload[f] = v || null
   }
-  const numFields = ['default_visit_length_hours', 'default_visits_per_year', 'sort_order'] as const
+  const numFields = ['default_visit_length_hours', 'default_visits_per_year', 'default_monthly_hours', 'sort_order'] as const
   for (const f of numFields) {
     const v = formData.get(f) as string | null
     if (v !== null) payload[f] = v ? Number(v) : null
   }
+  // String-or-null fields
+  const slaPlanId = formData.get('default_sla_plan_id') as string | null
+  if (slaPlanId !== null) payload.default_sla_plan_id = slaPlanId || null
   const boolFields = ['includes_remote_support', 'includes_telephone', 'includes_onsite', 'is_active'] as const
   for (const f of boolFields) {
     const v = formData.get(f) as string | null
     if (v !== null) payload[f] = v === 'true'
   }
+  const asw = formData.get('allowed_schedule_weeks') as string | null
+  if (asw) payload.allowed_schedule_weeks = JSON.parse(asw)
 
   const { data, error } = await supabase
     .from('contract_types')
@@ -191,8 +199,10 @@ export async function getCustomerContracts(filters?: {
     .select(`
       *,
       customers(id, name),
-      contract_types(id, name, code, category, default_visit_frequency, default_visit_length_hours, default_visits_per_year, includes_remote_support, includes_telephone, includes_onsite),
-      contacts(id, first_name, last_name)
+      contract_types(id, name, code, category, default_visit_frequency, default_visit_length_hours, default_visits_per_year, includes_remote_support, includes_telephone, includes_onsite, default_sla_plan_id, default_monthly_hours),
+      contacts(id, first_name, last_name),
+      visit_calendars(id, name, schedule_weeks),
+      sla_plans(id, name)
     `)
     .eq('org_id', user.orgId)
     .order('created_at', { ascending: false })
@@ -234,8 +244,10 @@ export async function getCustomerContract(id: string): Promise<CustomerContractW
     .select(`
       *,
       customers(id, name),
-      contract_types(id, name, code, category, default_visit_frequency, default_visit_length_hours, default_visits_per_year, includes_remote_support, includes_telephone, includes_onsite),
-      contacts(id, first_name, last_name)
+      contract_types(id, name, code, category, default_visit_frequency, default_visit_length_hours, default_visits_per_year, includes_remote_support, includes_telephone, includes_onsite, default_sla_plan_id, default_monthly_hours),
+      contacts(id, first_name, last_name),
+      visit_calendars(id, name, schedule_weeks),
+      sla_plans(id, name)
     `)
     .eq('id', id)
     .single()
@@ -243,6 +255,16 @@ export async function getCustomerContract(id: string): Promise<CustomerContractW
   if (error || !cc) return null
 
   const mapped = mapContractRow(cc)
+
+  // If SLA plan is inherited from type (no direct sla_plan_id), resolve the name
+  if (!mapped.sla_plan_id && mapped.effective_sla_plan_id) {
+    const { data: slaPlan } = await supabase
+      .from('sla_plans')
+      .select('name')
+      .eq('id', mapped.effective_sla_plan_id)
+      .single()
+    if (slaPlan) mapped.effective_sla_plan_name = slaPlan.name
+  }
 
   // Fetch lines, entitlements, renewals, visit slots in parallel
   const [linesRes, entitlementsRes, renewalsRes, slotsRes] = await Promise.all([
@@ -384,8 +406,11 @@ export async function createCustomerContract(formData: FormData): Promise<{ erro
     visit_frequency: (formData.get('visit_frequency') as string) || null,
     visit_length_hours: formData.get('visit_length_hours') ? Number(formData.get('visit_length_hours')) : null,
     visits_per_year: formData.get('visits_per_year') ? Number(formData.get('visits_per_year')) : null,
+    sla_plan_id: (formData.get('sla_plan_id') as string) || null,
+    monthly_hours: formData.get('monthly_hours') ? Number(formData.get('monthly_hours')) : null,
     opportunity_id: (formData.get('opportunity_id') as string) || null,
     quote_id: (formData.get('quote_id') as string) || null,
+    calendar_id: (formData.get('calendar_id') as string) || null,
     notes: (formData.get('notes') as string) || null,
     created_by: user.id,
   }
@@ -409,12 +434,12 @@ export async function updateCustomerContract(id: string, formData: FormData): Pr
 
   const payload: Record<string, unknown> = { updated_at: new Date().toISOString() }
 
-  const stringFields = ['contact_id', 'renewal_period', 'billing_frequency', 'visit_frequency', 'notes'] as const
+  const stringFields = ['contact_id', 'renewal_period', 'billing_frequency', 'visit_frequency', 'sla_plan_id', 'calendar_id', 'notes'] as const
   for (const f of stringFields) {
     const v = formData.get(f) as string | null
     if (v !== null) payload[f] = v || null
   }
-  const numFields = ['renewal_month', 'annual_value', 'visit_length_hours', 'visits_per_year'] as const
+  const numFields = ['renewal_month', 'annual_value', 'visit_length_hours', 'visits_per_year', 'monthly_hours'] as const
   for (const f of numFields) {
     const v = formData.get(f) as string | null
     if (v !== null) payload[f] = v ? Number(v) : null
@@ -1097,10 +1122,10 @@ export async function seedContractTypes(): Promise<{ error?: string; message?: s
   const supabase = await createClient()
 
   const types = [
-    { name: 'ProFlex 1', code: 'proflex_1', description: 'Monthly ICT support visits with telephone and remote support', category: 'ict', default_visit_frequency: 'monthly', default_visit_length_hours: 4.0, default_visits_per_year: 12, includes_remote_support: true, includes_telephone: true, includes_onsite: true, sort_order: 1 },
-    { name: 'ProFlex 2', code: 'proflex_2', description: 'Fortnightly ICT support visits with telephone and remote support', category: 'ict', default_visit_frequency: 'fortnightly', default_visit_length_hours: 4.0, default_visits_per_year: 26, includes_remote_support: true, includes_telephone: true, includes_onsite: true, sort_order: 2 },
-    { name: 'ProFlex 3', code: 'proflex_3', description: 'Weekly ICT support visits with telephone and remote support', category: 'ict', default_visit_frequency: 'weekly', default_visit_length_hours: 4.0, default_visits_per_year: 39, includes_remote_support: true, includes_telephone: true, includes_onsite: true, sort_order: 3 },
-    { name: 'ProFlex 4', code: 'proflex_4', description: 'Bespoke ICT support — up to daily visits, fully customisable', category: 'ict', default_visit_frequency: 'daily', default_visit_length_hours: null, default_visits_per_year: null, includes_remote_support: true, includes_telephone: true, includes_onsite: true, sort_order: 4 },
+    { name: 'ProFlex 1', code: 'proflex_1', description: 'Monthly ICT support visits with telephone and remote support', category: 'ict', default_visit_frequency: 'monthly', default_visit_length_hours: 4.0, default_visits_per_year: 12, includes_remote_support: true, includes_telephone: true, includes_onsite: true, allowed_schedule_weeks: [36], sort_order: 1 },
+    { name: 'ProFlex 2', code: 'proflex_2', description: 'Fortnightly ICT support visits with telephone and remote support', category: 'ict', default_visit_frequency: 'fortnightly', default_visit_length_hours: 4.0, default_visits_per_year: 26, includes_remote_support: true, includes_telephone: true, includes_onsite: true, allowed_schedule_weeks: [36], sort_order: 2 },
+    { name: 'ProFlex 3', code: 'proflex_3', description: 'Weekly ICT support visits with telephone and remote support', category: 'ict', default_visit_frequency: 'weekly', default_visit_length_hours: 4.0, default_visits_per_year: 39, includes_remote_support: true, includes_telephone: true, includes_onsite: true, allowed_schedule_weeks: [36], sort_order: 3 },
+    { name: 'ProFlex 4', code: 'proflex_4', description: 'Bespoke ICT support — up to daily visits, fully customisable', category: 'ict', default_visit_frequency: 'daily', default_visit_length_hours: null, default_visits_per_year: null, includes_remote_support: true, includes_telephone: true, includes_onsite: true, allowed_schedule_weeks: [36, 39], sort_order: 4 },
   ]
 
   let created = 0
@@ -1124,21 +1149,27 @@ export async function getContractFormData(): Promise<{
   customers: { id: string; name: string }[]
   contractTypes: ContractType[]
   opportunities: { id: string; title: string; customer_id: string }[]
+  calendars: { id: string; name: string; schedule_weeks: number; status: string }[]
+  slaPlans: { id: string; name: string }[]
 }> {
   await requirePermission('contracts', 'view')
   const supabase = await createClient()
   const user = await requireAuth()
 
-  const [customersRes, typesRes, oppsRes] = await Promise.all([
+  const [customersRes, typesRes, oppsRes, calendarsRes, slaRes] = await Promise.all([
     supabase.from('customers').select('id, name').eq('org_id', user.orgId).eq('is_active', true).order('name'),
     supabase.from('contract_types').select('*').eq('org_id', user.orgId).eq('is_active', true).order('sort_order'),
     supabase.from('opportunities').select('id, title, customer_id').eq('org_id', user.orgId).not('stage', 'eq', 'lost').order('title'),
+    supabase.from('visit_calendars').select('id, name, schedule_weeks, status').eq('org_id', user.orgId).eq('status', 'active').order('name'),
+    supabase.from('sla_plans').select('id, name').eq('org_id', user.orgId).eq('is_active', true).order('name'),
   ])
 
   return {
     customers: customersRes.data || [],
     contractTypes: typesRes.data || [],
     opportunities: oppsRes.data || [],
+    calendars: calendarsRes.data || [],
+    slaPlans: slaRes.data || [],
   }
 }
 
@@ -1156,6 +1187,20 @@ export async function getContactsByCustomer(customerId: string): Promise<{ id: s
   return data || []
 }
 
+export async function getSlaPlanOptions(): Promise<{ id: string; name: string }[]> {
+  const user = await requireAuth()
+  const supabase = await createClient()
+
+  const { data } = await supabase
+    .from('sla_plans')
+    .select('id, name')
+    .eq('org_id', user.orgId)
+    .eq('is_active', true)
+    .order('name')
+
+  return data || []
+}
+
 // ============================================================
 // Private helpers
 // ============================================================
@@ -1164,6 +1209,12 @@ function mapContractRow(row: Record<string, unknown>): CustomerContractWithDetai
   const customers = row.customers as Record<string, string> | null
   const ct = row.contract_types as Record<string, unknown> | null
   const contact = row.contacts as Record<string, string> | null
+  const cal = row.visit_calendars as Record<string, unknown> | null
+  const sla = row.sla_plans as Record<string, string> | null
+
+  // SLA: contract-level overrides type default
+  const effectiveSlaPlanId = (row.sla_plan_id as string) || (ct?.default_sla_plan_id as string) || null
+  const effectiveSlaPlanName = (row.sla_plan_id && sla) ? sla.name : null
 
   return {
     ...(row as unknown as CustomerContract),
@@ -1177,6 +1228,11 @@ function mapContractRow(row: Record<string, unknown>): CustomerContractWithDetai
     includes_remote_support: (ct?.includes_remote_support as boolean) || false,
     includes_telephone: (ct?.includes_telephone as boolean) || false,
     includes_onsite: (ct?.includes_onsite as boolean) || false,
+    effective_sla_plan_id: effectiveSlaPlanId,
+    effective_sla_plan_name: effectiveSlaPlanName,
+    effective_monthly_hours: (row.monthly_hours as number) ?? (ct?.default_monthly_hours as number) ?? null,
     contact_name: contact ? `${contact.first_name} ${contact.last_name}` : null,
+    calendar_name: (cal?.name as string) || null,
+    calendar_schedule_weeks: (cal?.schedule_weeks as number) || null,
   }
 }

@@ -340,7 +340,7 @@ async function createNewTicket(
     source: 'email',
     portal_token: portalToken,
     sla_plan_id: sla.slaPlanId,
-    contract_id: sla.contractId,
+    customer_contract_id: sla.contractId,
     sla_response_due_at: sla.responseDueAt,
     sla_resolution_due_at: sla.resolutionDueAt,
     needs_customer_assignment: resolution.needsAssignment,
@@ -526,13 +526,13 @@ async function resolveSla(
 
   if (!customerId) return empty
 
-  // Check for active support contract
+  // Check for active customer contract — link contract regardless of SLA, then resolve SLA via inheritance
   const { data: contract } = await supabase
-    .from('support_contracts')
-    .select('id, sla_plan_id, sla_plans(*, sla_plan_targets(*))')
+    .from('customer_contracts')
+    .select('id, sla_plan_id, sla_plans(*, sla_plan_targets(*)), contract_types(default_sla_plan_id)')
     .eq('customer_id', customerId)
     .eq('org_id', orgId)
-    .eq('is_active', true)
+    .eq('status', 'active')
     .limit(1)
     .maybeSingle()
 
@@ -545,8 +545,23 @@ async function resolveSla(
 
   if (contract) {
     contractId = contract.id
-    slaPlanId = contract.sla_plan_id
-    slaPlan = contract.sla_plans as unknown as SlaPlanWithTargets
+    // Resolve SLA: contract direct → contract type default
+    const directSlaId = contract.sla_plan_id
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const typeSlaId = ((contract as any).contract_types?.default_sla_plan_id as string) || null
+    if (directSlaId && contract.sla_plans) {
+      slaPlanId = directSlaId
+      slaPlan = contract.sla_plans as unknown as SlaPlanWithTargets
+    } else if (typeSlaId) {
+      slaPlanId = typeSlaId
+      // Fetch the plan from type default
+      const { data: typePlan } = await supabase
+        .from('sla_plans')
+        .select('*, sla_plan_targets(*)')
+        .eq('id', typeSlaId)
+        .single()
+      if (typePlan) slaPlan = typePlan as unknown as SlaPlanWithTargets
+    }
   }
 
   // Fallback to default SLA plan

@@ -28,6 +28,8 @@ export default async function NewContractPage({ searchParams }: PageProps) {
         customers={formData.customers}
         contractTypes={formData.contractTypes}
         opportunities={formData.opportunities}
+        calendars={formData.calendars}
+        slaPlans={formData.slaPlans}
         preselectedCustomerId={company}
       />
     </div>

@@ -8,7 +8,7 @@ import { AutogrumpBadge } from '@/components/helpdesk/autogrump-badge'
 import { assignTicket, getTickets } from './actions'
 import { useAuth } from '@/components/auth-provider'
 import { formatTimeRemaining, getSlaStatus } from '@/lib/sla'
-import { TICKET_STATUSES } from '@/lib/helpdesk'
+import { TICKET_STATUSES, CLOSED_STATUSES } from '@/lib/helpdesk'
 import { MobileQueueFilters } from './mobile-queue-filters'
 import type { TicketSummary } from '@/types/database'
 
@@ -133,17 +133,20 @@ export function MobileTicketQueue({
     ))
   }
 
-  function getSlaIndicator(ticket: TicketSummary) {
+  function getWorstSlaStatus(ticket: TicketSummary) {
     const responseStatus = getSlaStatus(ticket.sla_response_due_at, ticket.first_responded_at, ticket.created_at)
     const resolutionStatus = getSlaStatus(ticket.sla_resolution_due_at, ticket.resolved_at, ticket.created_at)
 
-    const worst = responseStatus === 'breached' || resolutionStatus === 'breached' ? 'breached'
+    return responseStatus === 'breached' || resolutionStatus === 'breached' ? 'breached'
       : responseStatus === 'at_risk' || resolutionStatus === 'at_risk' ? 'at_risk'
       : responseStatus === 'met' && resolutionStatus === 'met' ? 'met'
       : 'on_track'
+  }
 
+  function getSlaIndicator(ticket: TicketSummary) {
     if (!ticket.sla_response_due_at && !ticket.sla_resolution_due_at) return null
 
+    const worst = getWorstSlaStatus(ticket)
     const color = worst === 'breached' ? '#dc2626' : worst === 'at_risk' ? '#d97706' : '#059669'
     const dueAt = ticket.sla_resolution_due_at || ticket.sla_response_due_at
 
@@ -153,6 +156,16 @@ export function MobileTicketQueue({
         {worst === 'met' ? 'Met' : dueAt ? formatTimeRemaining(dueAt) : ''}
       </span>
     )
+  }
+
+  function getSlaCardClasses(ticket: TicketSummary): { border: string; bg: string } {
+    if (CLOSED_STATUSES.includes(ticket.status as typeof CLOSED_STATUSES[number])) return { border: '', bg: '' }
+    if (!ticket.sla_response_due_at && !ticket.sla_resolution_due_at) return { border: '', bg: '' }
+
+    const worst = getWorstSlaStatus(ticket)
+    if (worst === 'breached') return { border: 'border-red-300 dark:border-red-700', bg: 'bg-red-50/80 dark:bg-red-900/20' }
+    if (worst === 'at_risk') return { border: 'border-orange-200 dark:border-orange-700', bg: 'bg-orange-50 dark:bg-orange-900/15' }
+    return { border: '', bg: '' }
   }
 
   return (
@@ -225,6 +238,8 @@ export function MobileTicketQueue({
             const ticketTags = ticketTagMap[ticket.id] || []
             const isWaiting = customerWaiting[ticket.id]
 
+            const slaCard = getSlaCardClasses(ticket)
+
             return (
               <Link
                 key={ticket.id}
@@ -232,7 +247,9 @@ export function MobileTicketQueue({
                 className={`block rounded-xl border p-3 no-underline active:bg-gray-50 dark:active:bg-slate-700 transition-colors ${
                   isWaiting
                     ? 'border-indigo-200 dark:border-indigo-700 bg-indigo-50/30 dark:bg-indigo-900/10'
-                    : 'border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800'
+                    : slaCard.border
+                      ? `${slaCard.border} ${slaCard.bg}`
+                      : 'border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800'
                 }`}
               >
                 {/* Row 1: ticket number + priority + tone */}

@@ -263,8 +263,31 @@ export async function deleteMailChannel(channelId: string): Promise<{ error?: st
   const user = await requireAuth()
   requireAdmin(user)
   const supabase = await createClient()
+  const admin = createAdminClient()
 
-  const { error } = await supabase
+  // Verify channel belongs to this org before proceeding
+  const { data: channel } = await supabase
+    .from('mail_channels')
+    .select('id')
+    .eq('id', channelId)
+    .eq('org_id', user.orgId)
+    .maybeSingle()
+
+  if (!channel) return { error: 'Channel not found' }
+
+  // Clear FK references that block deletion (admin client to bypass RLS)
+  await admin
+    .from('ticket_emails')
+    .update({ channel_id: null })
+    .eq('channel_id', channelId)
+
+  await admin
+    .from('mail_processing_log')
+    .delete()
+    .eq('channel_id', channelId)
+
+  // Now delete the channel
+  const { error } = await admin
     .from('mail_channels')
     .delete()
     .eq('id', channelId)

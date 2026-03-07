@@ -10,7 +10,7 @@ export default async function ReviewPage() {
   return (
     <div>
       <PageHeader
-        title="Visit Review"
+        title="Validate Visits"
         subtitle="Review and confirm upcoming visits"
         actions={
           <Link href="/visit-scheduling">

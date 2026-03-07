@@ -27,12 +27,15 @@ type NavSection = {
   items: NavLink[]
 }
 
+const TOP_ITEMS: NavLink[] = [
+  { href: '/', label: 'Dashboard', icon: '🏠' },
+]
+
 const NAV_SECTIONS: NavSection[] = [
   {
     key: 'sales',
     label: 'Sales',
     items: [
-      { href: '/', label: 'Dashboard', icon: '🏠' },
       { href: '/customers', label: 'Customers', icon: '🏢', permission: { module: 'customers', action: 'view' } },
       { href: '/pipeline', label: 'Pipeline', icon: '📈', permission: { module: 'pipeline', action: 'view' } },
       { href: '/quotes', label: 'Quotes', icon: '📄', permission: { module: 'quotes', action: 'view' } },
@@ -77,6 +80,7 @@ const NAV_SECTIONS: NavSection[] = [
 ]
 
 const BOTTOM_ITEMS: NavLink[] = [
+  { href: '/portal-preview', label: 'Portal Preview', icon: '🌐', adminOnly: true },
   { href: '/team', label: 'Team', icon: '👥', permission: { module: 'team', action: 'view' } },
   { href: '/settings', label: 'Settings', icon: '⚙️', adminOnly: true },
 ]
@@ -112,14 +116,14 @@ function usePolledCount(enabled: boolean, fetcher: () => Promise<number>) {
 
 function useSectionState(key: string, defaultOpen: boolean) {
   const storageKey = `sidebar-section-${key}`
-  const [open, setOpen] = useState(defaultOpen)
-
-  useEffect(() => {
-    const stored = localStorage.getItem(storageKey)
-    if (stored !== null) {
-      setOpen(stored === 'true')
+  // Initialize from localStorage synchronously to avoid flash, fall back to default
+  const [open, setOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(storageKey)
+      if (stored !== null) return stored === 'true'
     }
-  }, [storageKey])
+    return defaultOpen
+  })
 
   const toggle = useCallback(() => {
     setOpen((prev) => {
@@ -137,7 +141,7 @@ function useSectionState(key: string, defaultOpen: boolean) {
   return { open, toggle, forceOpen }
 }
 
-export function Sidebar({ agentAvatars }: { agentAvatars?: AgentAvatars }) {
+export function Sidebar({ agentAvatars, portalLogoUrl }: { agentAvatars?: AgentAvatars; portalLogoUrl?: string | null }) {
   const pathname = usePathname()
   const { collapsed, toggleCollapsed, mobileOpen, setMobileOpen, isMobile } = useSidebar()
   const { user, hasPermission } = useAuth()
@@ -156,12 +160,10 @@ export function Sidebar({ agentAvatars }: { agentAvatars?: AgentAvatars }) {
     return count || 0
   }, [])
   const helpdeskFetcher = useMemo(() => async () => {
-    const supabase = createClient()
-    const { count } = await supabase
-      .from('tickets')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'new')
-    return count || 0
+    const res = await fetch('/api/helpdesk/badge-count')
+    if (!res.ok) return 0
+    const data = await res.json()
+    return data.count || 0
   }, [])
   const pendingPOCount = usePolledCount(hasPOPermission, pendingPOFetcher)
   const newTicketCount = usePolledCount(hasHelpdeskPermission, helpdeskFetcher)
@@ -242,16 +244,31 @@ export function Sidebar({ agentAvatars }: { agentAvatars?: AgentAvatars }) {
           onClick={handleLogoClick}
         >
           {effectiveCollapsed ? (
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center shrink-0">
-              <span className="text-white font-bold text-[11px]">i8</span>
-            </div>
+            portalLogoUrl ? (
+              <img src={portalLogoUrl} alt="Logo" className="h-8 w-8 object-contain shrink-0" />
+            ) : (
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center shrink-0">
+                <span className="text-white font-bold text-[11px]">i8</span>
+              </div>
+            )
           ) : (
-            <img src="/innov8iv-logo.png" alt="Innov8iv" className="h-8 w-auto" />
+            <img src={portalLogoUrl || '/innov8iv-logo.png'} alt={portalLogoUrl ? 'Logo' : 'Innov8iv'} className="h-8 w-auto" />
           )}
         </div>
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto p-2 space-y-1">
+          {/* Top-level items (Dashboard) */}
+          {TOP_ITEMS.filter(isItemVisible).map((item) => (
+            <NavItemLink
+              key={item.href}
+              item={item}
+              active={isActive(item.href)}
+              collapsed={effectiveCollapsed}
+              badgeCount={getBadgeCount(item)}
+            />
+          ))}
+
           {visibleSections.map((section) => (
             <SidebarSection
               key={section.key}
@@ -357,7 +374,7 @@ function SidebarSection({
   containsActive: boolean
   agentAvatarMap: Record<string, string | null>
 }) {
-  const { open, toggle, forceOpen } = useSectionState(section.key, true)
+  const { open, toggle, forceOpen } = useSectionState(section.key, false)
 
   // Auto-expand if the section contains the active route
   useEffect(() => {
@@ -387,6 +404,9 @@ function SidebarSection({
     )
   }
 
+  // Total badge count for the section (shown when collapsed)
+  const sectionBadgeTotal = visibleItems.reduce((sum, item) => sum + getBadgeCount(item), 0)
+
   return (
     <div>
       {/* Section header */}
@@ -394,7 +414,14 @@ function SidebarSection({
         onClick={toggle}
         className="flex items-center justify-between w-full px-3.5 py-1.5 text-[10px] uppercase tracking-wider text-slate-400 hover:text-slate-200 transition-colors"
       >
-        <span>{section.label}</span>
+        <span className="flex items-center gap-1.5">
+          {section.label}
+          {!open && sectionBadgeTotal > 0 && (
+            <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-indigo-500 px-1 text-[9px] font-bold text-white normal-case tracking-normal">
+              {sectionBadgeTotal > 99 ? '99+' : sectionBadgeTotal}
+            </span>
+          )}
+        </span>
         <svg
           xmlns="http://www.w3.org/2000/svg"
           className={`h-3 w-3 transition-transform duration-200 ${open ? 'rotate-0' : '-rotate-90'}`}

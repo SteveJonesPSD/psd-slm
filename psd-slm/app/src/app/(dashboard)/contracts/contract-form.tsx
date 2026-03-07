@@ -14,10 +14,12 @@ interface ContractFormProps {
   customers: { id: string; name: string }[]
   contractTypes: ContractType[]
   opportunities: { id: string; title: string; customer_id: string }[]
+  calendars: { id: string; name: string; schedule_weeks: number; status: string }[]
+  slaPlans: { id: string; name: string }[]
   preselectedCustomerId?: string
 }
 
-export function ContractForm({ customers, contractTypes, opportunities, preselectedCustomerId }: ContractFormProps) {
+export function ContractForm({ customers, contractTypes, opportunities, calendars, slaPlans, preselectedCustomerId }: ContractFormProps) {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -36,8 +38,11 @@ export function ContractForm({ customers, contractTypes, opportunities, preselec
     visit_frequency: '',
     visit_length_hours: '',
     visits_per_year: '',
+    sla_plan_id: '',
+    monthly_hours: '',
     opportunity_id: '',
     quote_id: '',
+    calendar_id: '',
     notes: '',
   })
 
@@ -81,6 +86,27 @@ export function ContractForm({ customers, contractTypes, opportunities, preselec
     () => (form.customer_id ? opportunities.filter((o) => o.customer_id === form.customer_id) : []),
     [opportunities, form.customer_id]
   )
+
+  // Filter contract types by selected calendar's schedule_weeks
+  const selectedCalendar = useMemo(
+    () => calendars.find((c) => c.id === form.calendar_id),
+    [calendars, form.calendar_id]
+  )
+
+  const filteredContractTypes = useMemo(() => {
+    if (!selectedCalendar) return contractTypes
+    return contractTypes.filter((t) =>
+      t.allowed_schedule_weeks?.includes(selectedCalendar.schedule_weeks)
+    )
+  }, [contractTypes, selectedCalendar])
+
+  // Filter calendars by selected contract type's allowed_schedule_weeks
+  const filteredCalendars = useMemo(() => {
+    if (!selectedType) return calendars
+    return calendars.filter((c) =>
+      selectedType.allowed_schedule_weeks?.includes(c.schedule_weeks)
+    )
+  }, [calendars, selectedType])
 
   const upd = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [field]: e.target.value }))
@@ -144,10 +170,15 @@ export function ContractForm({ customers, contractTypes, opportunities, preselec
             label="Contract Type"
             required
             value={form.contract_type_id}
-            options={contractTypes.map((t) => ({ value: t.id, label: t.name }))}
+            options={filteredContractTypes.map((t) => ({ value: t.id, label: t.name }))}
             placeholder="Search contract types..."
             onChange={(val) => setForm((f) => ({ ...f, contract_type_id: val }))}
           />
+          {selectedCalendar && filteredContractTypes.length < contractTypes.length && (
+            <p className="text-xs text-slate-400 mt-1">
+              Filtered to types compatible with {selectedCalendar.schedule_weeks}-week calendars
+            </p>
+          )}
         </div>
 
         {/* Type info preview */}
@@ -166,6 +197,10 @@ export function ContractForm({ customers, contractTypes, opportunities, preselec
                 {selectedType.includes_telephone && <span className="text-green-600">Phone</span>}
                 {selectedType.includes_onsite && <span className="text-green-600">Onsite</span>}
               </span>
+              {selectedType.default_sla_plan_id && (
+                <span>SLA: {slaPlans.find(s => s.id === selectedType.default_sla_plan_id)?.name}</span>
+              )}
+              {selectedType.default_monthly_hours && <span>Hours/mo: {selectedType.default_monthly_hours}h</span>}
             </div>
           </div>
         )}
@@ -366,6 +401,81 @@ export function ContractForm({ customers, contractTypes, opportunities, preselec
           </div>
         )}
 
+        {/* SLA & Support Hours Overrides */}
+        {selectedType && (selectedType.default_sla_plan_id || selectedType.default_monthly_hours) ? (
+          <div className="sm:col-span-2">
+            <details className="rounded-lg border border-slate-200 p-3">
+              <summary className="text-sm font-medium text-slate-700 cursor-pointer">
+                SLA & Support Hours Overrides (optional — leave blank to inherit from contract type)
+              </summary>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">
+                    SLA Plan {selectedType.default_sla_plan_id && (
+                      <span className="text-slate-400">(default: {slaPlans.find(s => s.id === selectedType.default_sla_plan_id)?.name})</span>
+                    )}
+                  </label>
+                  <select
+                    value={form.sla_plan_id}
+                    onChange={upd('sla_plan_id')}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
+                  >
+                    <option value="">Inherit</option>
+                    {slaPlans.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">
+                    Monthly Hours {selectedType.default_monthly_hours && (
+                      <span className="text-slate-400">(default: {selectedType.default_monthly_hours}h)</span>
+                    )}
+                  </label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    value={form.monthly_hours}
+                    onChange={upd('monthly_hours')}
+                    placeholder="Inherit"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
+                  />
+                </div>
+              </div>
+            </details>
+          </div>
+        ) : (
+          /* If no defaults from type, show SLA fields directly */
+          <>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">SLA Plan</label>
+              <select
+                value={form.sla_plan_id}
+                onChange={upd('sla_plan_id')}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
+              >
+                <option value="">None</option>
+                {slaPlans.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Monthly Support Hours</label>
+              <input
+                type="number"
+                step="0.5"
+                min="0"
+                value={form.monthly_hours}
+                onChange={upd('monthly_hours')}
+                placeholder="Unlimited"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
+              />
+            </div>
+          </>
+        )}
+
         {/* Opportunity Link */}
         <SearchableSelect
           label="Link to Opportunity"
@@ -376,8 +486,29 @@ export function ContractForm({ customers, contractTypes, opportunities, preselec
           disabled={!form.customer_id}
         />
 
-        {/* Placeholder for quote link */}
-        <div />
+        {/* Visit Calendar */}
+        <div>
+          <SearchableSelect
+            label="Visit Calendar"
+            value={form.calendar_id}
+            options={filteredCalendars.map((c) => ({ value: c.id, label: `${c.name} (${c.schedule_weeks}-week)` }))}
+            placeholder="Select calendar..."
+            onChange={(val) => {
+              setForm((f) => {
+                const cal = calendars.find((c) => c.id === val)
+                const typeStillValid = cal && f.contract_type_id
+                  ? contractTypes.find((t) => t.id === f.contract_type_id)?.allowed_schedule_weeks?.includes(cal.schedule_weeks)
+                  : true
+                return { ...f, calendar_id: val, contract_type_id: typeStillValid ? f.contract_type_id : '' }
+              })
+            }}
+          />
+          {selectedType && filteredCalendars.length < calendars.length && (
+            <p className="text-xs text-slate-400 mt-1">
+              Filtered to calendars compatible with {selectedType.name}
+            </p>
+          )}
+        </div>
 
         {/* Notes */}
         <div className="sm:col-span-2">

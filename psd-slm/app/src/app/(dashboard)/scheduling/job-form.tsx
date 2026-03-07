@@ -1,11 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { SearchableSelect } from '@/components/ui/form-fields'
 import { Button } from '@/components/ui/button'
 import { createJob, updateJob, getContactsForCompany, getSalesOrdersForCompany, type CreateJobInput } from './actions'
 import { DateRangePicker } from './date-range-picker'
+import { SmartScheduleModal } from './components/smart-schedule-modal'
+import type { ScheduleConflict } from '@/lib/scheduling/conflict'
 
 interface Company {
   id: string
@@ -25,6 +27,7 @@ interface Contact {
   phone: string | null
   email: string | null
   mobile: string | null
+  is_primary: boolean
 }
 
 interface JobTypeOption {
@@ -146,15 +149,24 @@ export function JobForm({ companies, jobTypes, engineers, workingDays = [1, 2, 3
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  // Conflict detection state
+  const [conflicts, setConflicts] = useState<ScheduleConflict[]>([])
+  const [conflictDismissed, setConflictDismissed] = useState(false)
+  const [showSmartSchedule, setShowSmartSchedule] = useState(false)
+  const [ignoreConfirm, setIgnoreConfirm] = useState(false)
+  const conflictDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   // Load contacts and sales orders when company changes
   const [initialCompanyId] = useState(form.company_id)
   useEffect(() => {
     if (form.company_id) {
       getContactsForCompany(form.company_id).then(result => {
         if ('data' in result) {
-          setContacts(result.data || [])
+          const contactList = result.data || []
+          setContacts(contactList)
           if (!isEdit && form.company_id !== initialCompanyId) {
-            setForm(prev => ({ ...prev, contact_id: '' }))
+            const primary = contactList.find(c => c.is_primary)
+            setForm(prev => ({ ...prev, contact_id: primary?.id || '' }))
           }
         }
       })
@@ -224,6 +236,101 @@ export function JobForm({ companies, jobTypes, engineers, workingDays = [1, 2, 3
       setForm(prev => ({ ...prev, title: `${jt.name} — ${company.name}` }))
     }
   }, [form.job_type_id, form.company_id, jobTypes, companies, isEdit])
+
+  // Conflict check: fires when engineer + date + time are set
+  // In create mode with multiple engineers/dates, check for the first engineer + first date
+  const currentEngineerId = isEdit ? form.assigned_to : (selectedEngineers.length > 0 ? selectedEngineers[0].id : '')
+  const currentDate = isEdit ? form.scheduled_date : (selectedDates.length > 0 ? selectedDates[0] : '')
+
+  const checkConflicts = useCallback(async () => {
+    console.log('[conflict-check] engineerId:', currentEngineerId, 'date:', currentDate, 'time:', form.scheduled_time, 'duration:', form.estimated_duration_minutes)
+    if (!currentEngineerId || !currentDate || !form.scheduled_time) {
+      setConflicts([])
+      return
+    }
+
+    const startIso = `${currentDate}T${form.scheduled_time}:00`
+    const endDate = new Date(new Date(startIso).getTime() + form.estimated_duration_minutes * 60000)
+    const endIso = endDate.toISOString()
+
+    try {
+      const res = await fetch('/api/scheduling/check-conflicts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          engineerId: currentEngineerId,
+          proposedStart: startIso,
+          proposedEnd: endIso,
+          excludeJobId: initialData?.id,
+        }),
+      })
+      const data = await res.json()
+      setConflicts(data.conflicts || [])
+      setConflictDismissed(false)
+      setIgnoreConfirm(false)
+    } catch {
+      setConflicts([])
+    }
+  }, [currentEngineerId, currentDate, form.scheduled_time, form.estimated_duration_minutes, initialData?.id])
+
+  useEffect(() => {
+    if (conflictDebounceRef.current) clearTimeout(conflictDebounceRef.current)
+    conflictDebounceRef.current = setTimeout(() => {
+      checkConflicts()
+    }, 500)
+    return () => {
+      if (conflictDebounceRef.current) clearTimeout(conflictDebounceRef.current)
+    }
+  }, [checkConflicts])
+
+  // Smart Schedule apply handler
+  function handleSmartScheduleApply(engId: string, suggestedStart: string, suggestedEnd: string) {
+    const startDate = new Date(suggestedStart)
+    const date = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`
+    const time = `${String(startDate.getHours()).padStart(2, '0')}:${String(startDate.getMinutes()).padStart(2, '0')}`
+
+    const endDate = new Date(suggestedEnd)
+    const durationMs = endDate.getTime() - startDate.getTime()
+    const durationMinutes = Math.round(durationMs / 60000)
+
+    if (isEdit) {
+      setForm(prev => ({
+        ...prev,
+        assigned_to: engId,
+        scheduled_date: date,
+        scheduled_time: time,
+        estimated_duration_minutes: durationMinutes || prev.estimated_duration_minutes,
+      }))
+    } else {
+      // Update engineer
+      const eng = engineers.find(e => e.id === engId)
+      if (eng) {
+        setSelectedEngineers([eng])
+      }
+      setSelectedDates([date])
+      setForm(prev => ({
+        ...prev,
+        scheduled_date: date,
+        scheduled_time: time,
+        estimated_duration_minutes: durationMinutes || prev.estimated_duration_minutes,
+      }))
+    }
+
+    setShowSmartSchedule(false)
+  }
+
+  // Helpers for conflict banner
+  const hasHardBlock = conflicts.some(c => c.isHardBlock)
+  const selectedEngineerName = isEdit
+    ? engineers.find(e => e.id === form.assigned_to)
+    : (selectedEngineers.length === 1 ? selectedEngineers[0] : null)
+  const conflictEngineerName = selectedEngineerName
+    ? ('first_name' in selectedEngineerName ? `${selectedEngineerName.first_name} ${selectedEngineerName.last_name}` : '')
+    : ''
+
+  const proposedStartIso = currentDate && form.scheduled_time ? `${currentDate}T${form.scheduled_time}:00` : ''
+  const proposedEndIso = proposedStartIso ? new Date(new Date(proposedStartIso).getTime() + form.estimated_duration_minutes * 60000).toISOString() : ''
+  const jobAddress = [form.site_address_line1, form.site_address_line2, form.site_city, form.site_postcode].filter(Boolean).join(', ')
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -314,8 +421,11 @@ export function JobForm({ companies, jobTypes, engineers, workingDays = [1, 2, 3
     }
   }
 
+  const showConflictPanel = conflicts.length > 0 && !conflictDismissed
+
   return (
-    <form onSubmit={handleSubmit} className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-3xl">
+    <form onSubmit={handleSubmit} className="space-y-6">
       {error && (
         <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>
       )}
@@ -599,36 +709,154 @@ export function JobForm({ companies, jobTypes, engineers, workingDays = [1, 2, 3
               />
             </div>
           </div>
-          {!isEdit && (
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Date</label>
-              <DateRangePicker
-                selectedDates={selectedDates}
-                workingDays={workingDays}
-                onDatesChange={(dates) => {
-                  setSelectedDates(dates)
-                  // Keep the form.scheduled_date in sync with the first selected date
-                  setForm(prev => ({ ...prev, scheduled_date: dates[0] || '' }))
-                }}
-              />
+          {/* Date picker + Conflict panel side by side */}
+          <div className="flex gap-4 items-start">
+            <div className="flex-1 min-w-0">
+              {!isEdit && (
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">Date</label>
+                  <DateRangePicker
+                    selectedDates={selectedDates}
+                    workingDays={workingDays}
+                    onDatesChange={(dates) => {
+                      setSelectedDates(dates)
+                      // Keep the form.scheduled_date in sync with the first selected date
+                      setForm(prev => ({ ...prev, scheduled_date: dates[0] || '' }))
+                    }}
+                  />
+                </div>
+              )}
+              {isEdit && (
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">Scheduled Date</label>
+                  <input
+                    type="date"
+                    value={form.scheduled_date}
+                    onChange={e => setForm({ ...form, scheduled_date: e.target.value })}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+              )}
+              {selectedDates.length > 1 && (
+                <p className="mt-2 text-xs text-amber-600">
+                  {selectedDates.length} days selected{selectedEngineers.length > 1 ? ` across ${selectedEngineers.length} engineers` : ''} — {selectedDates.length * Math.max(1, selectedEngineers.length)} job{selectedDates.length * Math.max(1, selectedEngineers.length) > 1 ? 's' : ''} will be created
+                </p>
+              )}
             </div>
-          )}
-          {isEdit && (
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Scheduled Date</label>
-              <input
-                type="date"
-                value={form.scheduled_date}
-                onChange={e => setForm({ ...form, scheduled_date: e.target.value })}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              />
-            </div>
-          )}
-          {selectedDates.length > 1 && (
-            <p className="text-xs text-amber-600">
-              {selectedDates.length} days selected{selectedEngineers.length > 1 ? ` across ${selectedEngineers.length} engineers` : ''} — {selectedDates.length * Math.max(1, selectedEngineers.length)} job{selectedDates.length * Math.max(1, selectedEngineers.length) > 1 ? 's' : ''} will be created
-            </p>
-          )}
+
+            {/* Conflict Panel — beside calendar */}
+            {showConflictPanel && (
+              <div className="w-64 flex-shrink-0">
+                <div className={`rounded-lg border p-4 ${hasHardBlock ? 'border-red-300 bg-red-50' : 'border-amber-300 bg-amber-50'}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <svg className={`h-5 w-5 flex-shrink-0 ${hasHardBlock ? 'text-red-500' : 'text-amber-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                      </svg>
+                      <p className={`text-sm font-semibold ${hasHardBlock ? 'text-red-800' : 'text-amber-800'}`}>
+                        Conflict Detected
+                      </p>
+                    </div>
+                    {!hasHardBlock && (
+                      <button type="button" onClick={() => setConflictDismissed(true)} className="text-amber-400 hover:text-amber-600">
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    )}
+                  </div>
+
+                  <p className={`mt-2 text-xs ${hasHardBlock ? 'text-red-700' : 'text-amber-700'}`}>
+                    {conflictEngineerName ? `${conflictEngineerName} has ` : ''}
+                    {conflicts.length === 1 ? 'a booking' : `${conflicts.length} bookings`}
+                    {conflicts.some(c => c.conflictType === 'no_travel_gap')
+                      ? ' with no travel gap:'
+                      : ' at this time:'}
+                  </p>
+
+                  <ul className="mt-2 space-y-2">
+                    {conflicts.map((c, i) => {
+                      const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
+                      const isTravelGap = c.conflictType === 'no_travel_gap'
+                      const cardClass = hasHardBlock
+                        ? 'border-red-200 bg-red-100/50 text-red-700'
+                        : 'border-amber-200 bg-amber-100/50 text-amber-700'
+                      if (c.source === 'job') {
+                        return (
+                          <li key={i} className={`rounded-md border p-2 text-xs ${cardClass}`}>
+                            {isTravelGap && (
+                              <span className="inline-block rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 mb-1">No travel gap</span>
+                            )}
+                            <div>
+                              <span className="font-semibold">{c.conflictingJobNumber}</span>
+                              {c.customerName && <> &mdash; {c.customerName}</>}
+                            </div>
+                            <div className="mt-0.5 opacity-80">
+                              {fmtTime(c.conflictingStart)}&ndash;{fmtTime(c.conflictingEnd)}
+                            </div>
+                            {c.address && <div className="mt-0.5 opacity-70">{c.address}</div>}
+                          </li>
+                        )
+                      } else {
+                        return (
+                          <li key={i} className={`rounded-md border p-2 text-xs ${cardClass}`}>
+                            {isTravelGap && (
+                              <span className="inline-block rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 mb-1">No travel gap</span>
+                            )}
+                            <div>
+                              <span className="font-semibold">{c.conflictingTitle}</span>
+                              {' '}&mdash; {c.activityTypeName}
+                            </div>
+                            {c.isAllDay ? <div className="mt-0.5 opacity-80">All day</div> : <div className="mt-0.5 opacity-80">{fmtTime(c.conflictingStart)}&ndash;{fmtTime(c.conflictingEnd)}</div>}
+                          </li>
+                        )
+                      }
+                    })}
+                  </ul>
+
+                  <div className="mt-3 flex flex-col gap-2">
+                    {!hasHardBlock && (
+                      <>
+                        <Button
+                          type="button"
+                          variant="purple"
+                          size="sm"
+                          onClick={() => setShowSmartSchedule(true)}
+                          className="w-full"
+                        >
+                          Smart Schedule
+                        </Button>
+                        {!ignoreConfirm ? (
+                          <Button
+                            type="button"
+                            variant="default"
+                            size="sm"
+                            onClick={() => setIgnoreConfirm(true)}
+                            className="w-full"
+                          >
+                            Ignore & Save Anyway
+                          </Button>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="danger"
+                            size="sm"
+                            onClick={() => setConflictDismissed(true)}
+                            className="w-full"
+                          >
+                            Yes, Create Conflict
+                          </Button>
+                        )}
+                      </>
+                    )}
+                    {hasHardBlock && (
+                      <p className="text-xs font-medium text-red-700">
+                        Cannot book &mdash; engineer is on annual leave
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -656,7 +884,7 @@ export function JobForm({ companies, jobTypes, engineers, workingDays = [1, 2, 3
         <Button
           type="submit"
           variant="primary"
-          disabled={saving || !form.company_id || !form.job_type_id || !form.title.trim()}
+          disabled={saving || !form.company_id || !form.job_type_id || !form.title.trim() || (hasHardBlock && conflicts.length > 0 && !conflictDismissed)}
         >
           {(() => {
             if (saving) return isEdit ? 'Saving...' : 'Creating...'
@@ -669,5 +897,21 @@ export function JobForm({ companies, jobTypes, engineers, workingDays = [1, 2, 3
         </Button>
       </div>
     </form>
+
+    {/* Smart Schedule Modal */}
+    <SmartScheduleModal
+      isOpen={showSmartSchedule}
+      onClose={() => setShowSmartSchedule(false)}
+      engineerId={currentEngineerId}
+      engineerName={conflictEngineerName}
+      conflicts={conflicts}
+      proposedJobAddress={jobAddress}
+      proposedJobDurationMinutes={form.estimated_duration_minutes}
+      targetDate={currentDate}
+      proposedStart={proposedStartIso}
+      proposedEnd={proposedEndIso}
+      onApply={handleSmartScheduleApply}
+    />
+    </div>
   )
 }

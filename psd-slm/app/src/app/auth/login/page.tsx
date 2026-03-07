@@ -1,8 +1,9 @@
 'use client'
 
-import { Suspense, useState } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { signIn } from '@/app/auth/actions'
+import { APP_VERSION } from '@/lib/version'
 
 function LoginForm() {
   const searchParams = useSearchParams()
@@ -98,14 +99,33 @@ function LoginForm() {
   )
 }
 
+function usePortalLogo() {
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  useEffect(() => {
+    fetch('/api/settings/portal-logo')
+      .then(r => r.json())
+      .then(d => setLogoUrl(d.url || null))
+      .catch(() => {})
+  }, [])
+  return logoUrl
+}
+
 export default function LoginPage() {
+  const portalLogoUrl = usePortalLogo()
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#f5f6f8]">
       <div className="w-full max-w-[400px] px-4">
         {/* Logo */}
         <div className="mb-8 flex flex-col items-center">
-          <img src="/innov8iv-logo.png" alt="Innov8iv" className="h-12 w-auto mb-3" />
-          <h1 className="text-xl font-semibold tracking-wide text-slate-400">Engage</h1>
+          {portalLogoUrl ? (
+            <img src={portalLogoUrl} alt="Logo" className="h-14 w-auto mb-3" />
+          ) : (
+            <>
+              <img src="/innov8iv-logo.png" alt="Innov8iv" className="h-12 w-auto mb-3" />
+              <h1 className="text-xl font-semibold tracking-wide text-slate-400">Engage</h1>
+            </>
+          )}
         </div>
 
         <Suspense fallback={
@@ -115,6 +135,16 @@ export default function LoginPage() {
         }>
           <LoginForm />
         </Suspense>
+
+        {/* Powered by — only shown when custom logo is set */}
+        {portalLogoUrl && (
+          <div className="mt-8 flex flex-col items-center gap-1.5">
+            <span className="text-[11px] text-slate-400">Powered by</span>
+            <img src="/innov8iv-logo.png" alt="Innov8iv Engage" className="h-5 w-auto opacity-40" />
+          </div>
+        )}
+
+        <div className="mt-6 text-center text-[10px] text-slate-300">v{APP_VERSION}</div>
       </div>
     </div>
   )
