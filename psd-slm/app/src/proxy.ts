@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 
-const PUBLIC_ROUTES = ['/auth/login', '/auth/callback', '/auth/change-password', '/auth/mfa-setup', '/q/', '/t/', '/portal', '/collect/', '/api/collect/', '/api/email/poll', '/api/auth/mail-callback', '/api/portal/', '/api/tickets/portal-close', '/api/passkeys/authenticate/', '/sw-push.js']
+const PUBLIC_ROUTES = ['/auth/login', '/auth/callback', '/auth/change-password', '/auth/mfa-setup', '/q/', '/t/', '/portal', '/collect/', '/api/collect/', '/api/email/poll', '/api/auth/mail-callback', '/api/portal/', '/api/tickets/portal-close', '/api/passkeys/authenticate/', '/sw-push.js', '/api/manifest', '/api/app-icon']
 
 // Portal routes that don't require a portal session cookie
 const PORTAL_PUBLIC_ROUTES = ['/portal/login', '/portal/auth/']

@@ -62,6 +62,14 @@ export function OrganisationForm({ initialSettings }: OrganisationFormProps) {
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const logoInputRef = useRef<HTMLInputElement>(null)
 
+  // Web app icon state
+  const [webappIconUrl, setWebappIconUrl] = useState(initialSettings.webapp_icon_url || '')
+  const [iconPreview, setIconPreview] = useState<string | null>(null)
+  const [iconFile, setIconFile] = useState<File | null>(null)
+  const [uploadingIcon, setUploadingIcon] = useState(false)
+  const iconInputRef = useRef<HTMLInputElement>(null)
+  const [iconDragOver, setIconDragOver] = useState(false)
+
   const update = (key: string, value: string) => {
     setSettings((prev) => ({ ...prev, [key]: value }))
     setMessage(null)
@@ -129,6 +137,77 @@ export function OrganisationForm({ initialSettings }: OrganisationFormProps) {
     }
   }
 
+  const handleIconSelect = (file: File) => {
+    if (!['image/png', 'image/jpeg'].includes(file.type)) {
+      setMessage({ type: 'error', text: 'Web app icon must be PNG or JPG.' })
+      return
+    }
+    if (file.size > LOGO_MAX_SIZE) {
+      setMessage({ type: 'error', text: 'File too large. Maximum 2MB.' })
+      return
+    }
+    setIconFile(file)
+    const reader = new FileReader()
+    reader.onload = () => setIconPreview(reader.result as string)
+    reader.readAsDataURL(file)
+    setMessage(null)
+  }
+
+  const handleIconInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) handleIconSelect(file)
+  }
+
+  const handleIconDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIconDragOver(false)
+    const file = e.dataTransfer.files[0]
+    if (file) handleIconSelect(file)
+  }
+
+  const uploadIcon = async (): Promise<string | null> => {
+    if (!iconFile) return webappIconUrl || null
+    setUploadingIcon(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', iconFile)
+      formData.append('brandId', 'webapp-icon')
+      if (webappIconUrl) formData.append('oldPath', webappIconUrl)
+      const res = await fetch('/api/settings/upload-logo', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      return data.url
+    } catch (err) {
+      throw err
+    } finally {
+      setUploadingIcon(false)
+    }
+  }
+
+  const handleRemoveIcon = async () => {
+    if (!webappIconUrl) return
+    setUploadingIcon(true)
+    try {
+      const formData = new FormData()
+      formData.append('delete', '1')
+      formData.append('oldPath', webappIconUrl)
+      await fetch('/api/settings/upload-logo', { method: 'POST', body: formData })
+      setWebappIconUrl('')
+      setIconPreview(null)
+      setIconFile(null)
+      await saveSettings([{
+        category: 'general',
+        setting_key: 'webapp_icon_url',
+        setting_value: '',
+      }])
+      setMessage({ type: 'success', text: 'Web app icon removed.' })
+    } catch {
+      setMessage({ type: 'error', text: 'Failed to remove icon.' })
+    } finally {
+      setUploadingIcon(false)
+    }
+  }
+
   const handleSave = async () => {
     setSaving(true)
     setMessage(null)
@@ -144,6 +223,16 @@ export function OrganisationForm({ initialSettings }: OrganisationFormProps) {
         setLogoPreview(null)
       }
 
+      // Upload web app icon if a new one was selected
+      let newIconUrl = webappIconUrl
+      if (iconFile) {
+        const url = await uploadIcon()
+        newIconUrl = url || ''
+        setWebappIconUrl(newIconUrl)
+        setIconFile(null)
+        setIconPreview(null)
+      }
+
       const allSettings = Object.entries(settings).map(([key, value]) => ({
         category: 'general',
         setting_key: key,
@@ -155,6 +244,13 @@ export function OrganisationForm({ initialSettings }: OrganisationFormProps) {
         category: 'general',
         setting_key: 'portal_logo_url',
         setting_value: newLogoUrl,
+      })
+
+      // Include web app icon URL in the save
+      allSettings.push({
+        category: 'general',
+        setting_key: 'webapp_icon_url',
+        setting_value: newIconUrl,
       })
 
       const result = await saveSettings(allSettings)
@@ -303,6 +399,74 @@ export function OrganisationForm({ initialSettings }: OrganisationFormProps) {
                 </Button>
               )}
               <p className="text-[11px] text-slate-400">PNG, JPG or SVG. Max 2MB.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t border-gray-100 pt-6 mt-2">
+          <h3 className="text-sm font-semibold text-slate-700 mb-1">Web App Icon</h3>
+          <p className="text-xs text-slate-500 mb-4">
+            Upload a square icon (ideally 512x512 PNG) used when adding Engage to your home screen on iOS or Android.
+            This also serves as the browser favicon.
+          </p>
+          <div className="flex items-start gap-6">
+            <div
+              className={`relative flex-shrink-0 w-24 h-24 rounded-xl border-2 ${
+                iconDragOver
+                  ? 'border-blue-400 bg-blue-50'
+                  : (iconPreview || webappIconUrl)
+                    ? 'border-slate-200 bg-slate-50'
+                    : 'border-dashed border-slate-300 bg-slate-50'
+              } flex items-center justify-center cursor-pointer transition-colors`}
+              onClick={() => iconInputRef.current?.click()}
+              onDragOver={(e) => { e.preventDefault(); setIconDragOver(true) }}
+              onDragLeave={() => setIconDragOver(false)}
+              onDrop={handleIconDrop}
+            >
+              {(iconPreview || webappIconUrl) ? (
+                <img
+                  src={iconPreview || webappIconUrl}
+                  alt="Web app icon"
+                  className="w-20 h-20 rounded-lg object-contain"
+                />
+              ) : (
+                <div className="text-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mx-auto text-slate-400 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                  </svg>
+                  <span className="text-[10px] text-slate-400">Drop or tap</span>
+                </div>
+              )}
+              <input
+                ref={iconInputRef}
+                type="file"
+                accept="image/png,image/jpeg"
+                className="hidden"
+                onChange={handleIconInputChange}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Button
+                variant="primary"
+                size="sm"
+                type="button"
+                onClick={() => iconInputRef.current?.click()}
+                disabled={uploadingIcon}
+              >
+                {webappIconUrl || iconPreview ? 'Change Icon' : 'Upload Icon'}
+              </Button>
+              {(webappIconUrl || iconPreview) && (
+                <Button
+                  variant="danger"
+                  size="sm"
+                  type="button"
+                  onClick={handleRemoveIcon}
+                  disabled={uploadingIcon}
+                >
+                  Remove Icon
+                </Button>
+              )}
+              <p className="text-[11px] text-slate-400">Square PNG or JPG. 512x512 recommended.</p>
             </div>
           </div>
         </div>

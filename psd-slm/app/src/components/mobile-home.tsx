@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/components/auth-provider'
+import { signOut } from '@/app/auth/actions'
 import type { AgentAvatars } from '@/lib/agent-avatars'
 
 type NavTile = {
@@ -191,25 +192,39 @@ export function MobileHome({ agentAvatars }: MobileHomeProps) {
         </div>
       ))}
 
-      {/* Bottom bar — user profile */}
+      {/* Bottom bar — user profile + logout */}
       <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-slate-700 bg-slate-800 px-4 py-3">
-        <Link
-          href="/profile"
-          className="flex items-center gap-3 no-underline"
-        >
-          <UserTileAvatar user={user} />
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-medium text-slate-200 truncate">
-              {user.firstName} {user.lastName}
+        <div className="flex items-center gap-3">
+          <Link
+            href="/profile"
+            className="flex min-w-0 flex-1 items-center gap-3 no-underline"
+          >
+            <UserTileAvatar user={user} />
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium text-slate-200 truncate">
+                {user.firstName} {user.lastName}
+              </div>
+              <div className="text-[11px] text-slate-400 truncate">
+                {user.role.displayName}
+              </div>
             </div>
-            <div className="text-[11px] text-slate-400 truncate">
-              {user.role.displayName}
-            </div>
-          </div>
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-          </svg>
-        </Link>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </Link>
+          <div className="h-8 w-px bg-slate-600" />
+          <button
+            onClick={async () => {
+              await signOut()
+            }}
+            className="flex shrink-0 items-center justify-center rounded-lg p-2 text-slate-400 hover:text-red-400 active:bg-slate-700 transition-colors"
+            title="Log out"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
   )

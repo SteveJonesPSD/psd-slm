@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback, useMemo, type KeyboardEvent } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect, type KeyboardEvent } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from '@/components/auth-provider'
 import { renderMarkdown, createMarkdownClickHandler } from '@/lib/chat-markdown'
@@ -226,14 +226,75 @@ export function ChatPanel({ agentAvatars }: { agentAvatars?: AgentAvatars }) {
 
   const suggested = suggestedQuestionsByAgent[agent.id] || []
 
+  // Draggable FAB state
+  const fabRef = useRef<HTMLButtonElement>(null)
+  const dragState = useRef<{ startX: number; startY: number; startLeft: number; startTop: number; moved: boolean } | null>(null)
+  const [fabPos, setFabPos] = useState<{ x: number; y: number } | null>(null)
+
+  // Initialise FAB position from localStorage or default (bottom-right, above bottom bar)
+  useLayoutEffect(() => {
+    const saved = localStorage.getItem('chat-fab-pos')
+    if (saved) {
+      try {
+        const pos = JSON.parse(saved)
+        // Clamp to viewport
+        const maxX = window.innerWidth - 56
+        const maxY = window.innerHeight - 56
+        setFabPos({ x: Math.min(Math.max(0, pos.x), maxX), y: Math.min(Math.max(0, pos.y), maxY) })
+        return
+      } catch { /* ignore */ }
+    }
+    // Default: bottom-right, 70px up to clear bottom bars
+    setFabPos({ x: window.innerWidth - 64, y: window.innerHeight - 130 })
+  }, [])
+
+  const handleFabTouchStart = useCallback((e: React.TouchEvent) => {
+    const touch = e.touches[0]
+    dragState.current = {
+      startX: touch.clientX,
+      startY: touch.clientY,
+      startLeft: fabPos?.x ?? 0,
+      startTop: fabPos?.y ?? 0,
+      moved: false,
+    }
+  }, [fabPos])
+
+  const handleFabTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!dragState.current) return
+    const touch = e.touches[0]
+    const dx = touch.clientX - dragState.current.startX
+    const dy = touch.clientY - dragState.current.startY
+    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) dragState.current.moved = true
+    const newX = Math.min(Math.max(0, dragState.current.startLeft + dx), window.innerWidth - 56)
+    const newY = Math.min(Math.max(0, dragState.current.startTop + dy), window.innerHeight - 56)
+    setFabPos({ x: newX, y: newY })
+  }, [])
+
+  const handleFabTouchEnd = useCallback(() => {
+    if (dragState.current && !dragState.current.moved) {
+      setIsOpen(true)
+    }
+    if (fabPos) {
+      localStorage.setItem('chat-fab-pos', JSON.stringify(fabPos))
+    }
+    dragState.current = null
+  }, [fabPos])
+
   return (
     <>
-      {/* Toggle Button — colour-coded per agent */}
-      {!isOpen && (
+      {/* Toggle Button — colour-coded per agent, draggable on touch */}
+      {!isOpen && fabPos && (
         <button
-          onClick={() => setIsOpen(true)}
-          className="fixed bottom-5 right-5 z-40 flex h-12 w-12 items-center justify-center rounded-full text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl overflow-hidden"
-          style={{ backgroundColor: agent.color }}
+          ref={fabRef}
+          onClick={() => {
+            // Desktop click — touch devices use touchEnd
+            if (!('ontouchstart' in window)) setIsOpen(true)
+          }}
+          onTouchStart={handleFabTouchStart}
+          onTouchMove={handleFabTouchMove}
+          onTouchEnd={handleFabTouchEnd}
+          className="fixed z-40 flex h-12 w-12 items-center justify-center rounded-full text-white shadow-lg transition-shadow hover:shadow-xl overflow-hidden touch-none"
+          style={{ backgroundColor: agent.color, left: fabPos.x, top: fabPos.y }}
           title={`Chat with ${agent.name}`}
         >
           <AgentAvatar agent={agent} size={48} avatarUrl={agentAvatarUrl} />
