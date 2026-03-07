@@ -43,7 +43,7 @@ Stock must never be auto-allocated to an SO from general inventory — the purch
 ---
 
 ## Database
-Schema deployed to Supabase (EU region). Key tables: `companies`, `contacts`, `products`, `suppliers`, `deal_registrations`, `deal_registration_lines`, `opportunities`, `quotes`, `quote_groups`, `quote_lines`, `quote_attributions`, `sales_orders`, `sales_order_lines`, `purchase_orders`, `purchase_order_lines`, `invoices`, `invoice_lines`, `commission_entries`, `commission_rates`, `activity_log`, `tickets` (includes `auto_nudge_sent_at`), `ticket_emails`, `mail_connections`, `mail_channels`, `customer_email_domains`, `chat_sessions`, `chat_messages`, `system_presence`, `customer_contracts`, `contract_types`, `contract_visit_slots`, `jobs`, `job_tasks`, `api_keys`, `user_mail_credentials`, `quote_email_sends`, `user_working_hours`, `portal_users`, `portal_magic_links`.
+Schema deployed to Supabase (EU region). Key tables: `companies`, `contacts`, `products`, `suppliers`, `deal_registrations`, `deal_registration_lines`, `opportunities`, `quotes`, `quote_groups`, `quote_lines`, `quote_attributions`, `sales_orders`, `sales_order_lines`, `purchase_orders`, `purchase_order_lines`, `invoices`, `invoice_lines`, `commission_entries`, `commission_rates`, `activity_log`, `tickets` (includes `auto_nudge_sent_at`), `ticket_emails`, `mail_connections`, `mail_channels`, `customer_email_domains`, `chat_sessions`, `chat_messages`, `system_presence`, `customer_contracts`, `contract_types`, `contract_visit_slots`, `jobs`, `job_tasks`, `api_keys`, `user_mail_credentials`, `quote_email_sends`, `user_working_hours`, `portal_users` (includes `is_group_admin`), `portal_magic_links`, `contract_esign_requests`, `contract_renewal_flags`, `user_passkeys`, `passkey_challenges`, `company_groups`, `company_group_members`.
 
 Key views: `v_margin_traceability`, `v_commission_summary`, `v_active_deal_pricing`, `v_ticket_summary`.
 
@@ -60,7 +60,7 @@ Key views: `v_margin_traceability`, `v_commission_summary`, `v_active_deal_prici
 ## Authentication & Security
 
 ### Authentication
-Supabase Auth with email/password + TOTP MFA. Row-level security scoped to organisation. Six roles with ~50 granular permissions:
+Supabase Auth with email/password + TOTP MFA + WebAuthn passkeys. Row-level security scoped to organisation. Six roles with ~50 granular permissions:
 - **super_admin** — full platform access including system settings
 - **admin** — full operational access
 - **sales** — own pipeline + shared company/contact data
@@ -69,6 +69,35 @@ Supabase Auth with email/password + TOTP MFA. Row-level security scoped to organ
 - **field** — scheduling/jobs only (mobile-optimised)
 
 MFA is enforced for admin and finance roles. All auth logic isolated in `lib/auth/` — components call `getCurrentUser()`, `signIn()`, `signOut()`. Never call `supabase.auth.getUser()` directly in components or pages.
+
+### Login Methods (per-role, configurable)
+Five methods available in `org_settings` (category `login_methods`, key = role name):
+- `password` — email + password (default)
+- `magic_link` — passwordless email link
+- `password_mfa` — password + TOTP authenticator app
+- `passkey` — passwordless biometric only (Face ID / Touch ID / Windows Hello)
+- `password_passkey` — password + biometric as 2FA (TOTP fallback if enrolled)
+
+Login method resolution: `lib/login-methods.ts` → `getLoginMethodForEmail()`.
+
+### WebAuthn / Passkey Authentication
+Passkeys provide biometric authentication via the Web Authentication API (FIDO2). Uses `@simplewebauthn/server` (server) and `@simplewebauthn/browser` (client).
+
+- **Core library:** `lib/passkeys.ts` — all `@simplewebauthn/server` imports confined here. Handles registration options/verification, authentication options/verification, CRUD, challenge management.
+- **Tables:** `user_passkeys` (credential storage — credential_id, public_key, counter, device_name, transports), `passkey_challenges` (ephemeral 5-min TTL challenges consumed on verification).
+- **API routes:** All under `/api/passkeys/`:
+  - `POST /register/options` — generate registration challenge (authenticated)
+  - `POST /register/verify` — verify and store passkey (authenticated)
+  - `POST /authenticate/options` — generate auth challenge (public, login flow)
+  - `POST /authenticate/verify` — verify passkey and create session (public)
+  - `GET /status` — passkey count for sidebar nudge (authenticated)
+- **Session bridging:** Supabase doesn't support WebAuthn natively. After passkey verification, `admin.generateLink({ type: 'magiclink' })` creates a token server-side (no email sent), client calls `supabase.auth.verifyOtp()` to establish the session.
+- **Platform authenticators only:** `authenticatorAttachment: 'platform'` — limits to Face ID / Touch ID / Windows Hello (no security keys).
+- **Proxy enforcement:** `password_passkey` roles without enrolled passkeys are redirected to `/profile/security` until they register a passkey. Passkey auth routes (`/api/passkeys/authenticate/`) are in `PUBLIC_ROUTES`.
+- **Security settings:** `/profile/security` — accessible to ALL authenticated users (not behind admin guard). Manages passkeys, MFA, trusted devices, and password. Linked from profile page.
+- **Admin escape hatches:** Clear individual user passkeys (Team page), bulk reset all org passkeys (Login Methods settings, super_admin only).
+- **Sidebar nudge:** `PasskeyNudge` component in sidebar footer — shows "Set up biometric login" link when user has no passkeys and their role requires them. Dismissable via localStorage.
+- **Environment variables:** `WEBAUTHN_RP_ID` (e.g. `localhost`), `WEBAUTHN_RP_NAME` (e.g. `Innov8iv Engage`), `WEBAUTHN_ORIGIN` (e.g. `http://localhost:3000`).
 
 ### API Route Security
 Every `/api/` route MUST verify session and org_id before executing. Missing auth checks are the most likely real-world breach vector. All routes use the auth middleware guard. `org_id` is always sourced from the verified session — never from request body or query params.
@@ -365,7 +394,7 @@ Single source of truth: `app/src/lib/version.ts` exports `APP_VERSION` and `BUIL
 
 ## Module Build Order & Status
 1. ~~Companies & Contacts~~ ✅
-2. ~~Authentication & Roles~~ ✅ (RLS enforced, RBAC with 6 roles & ~50 permissions)
+2. ~~Authentication & Roles~~ ✅ (RLS enforced, RBAC with 6 roles & ~50 permissions, WebAuthn passkeys, 5 login methods)
 3. ~~Products, Suppliers & Categories~~ ✅ (multi-supplier, category-level serial defaults, AI-assisted product creation)
 4. ~~Deal Registrations~~ ✅
 5. ~~Opportunities & Pipeline~~ ✅ (kanban + list, 6-stage, drag-and-drop)
@@ -379,12 +408,13 @@ Single source of truth: `app/src/lib/version.ts` exports `APP_VERSION` and `BUIL
 9b. ~~Stock & Fulfilment~~ ✅ (stock locations/levels, allocations, picking, delivery notes, fulfilment view, serial uniqueness, tablet-optimised picking, PO-linked serial pre-selection, stock unallocation with reason)
 10. ~~Invoicing~~ ✅ (full/partial invoicing, stat cards, credit notes, branded PDF, overdue detection, `quantity_invoiced` tracking)
 10b. **Commission** ← Next
-10c. ~~Contracts~~ ✅ (contract types with support entitlement booleans, customer contracts as unified table for both service desk SLA and visit scheduling, lines, entitlements, renewal chain, settings, seed data)
+10c. ~~Contracts~~ ✅ (contract types with support entitlement booleans, customer contracts as unified table for both service desk SLA and visit scheduling, lines, entitlements, renewal chain, settings, seed data, e-sign infrastructure)
 10d. ~~Visit Scheduling~~ ✅ (academic year calendars, multi-calendar support, 4-week cycle patterns, extra weeks, ProFlex quick-fill, visit generation, bulk confirm, customer visit history)
 11. ~~AI Chat Agents~~ ✅ (Jasper/Helen/Lucia with tool-calling, floating chat panel, dedicated pages, persistent sessions, admin chat archive, markdown with auto-linking)
 12. ~~Engineer Stock Collection~~ ✅ (QR magic links, PDF slips, touch-to-confirm mobile UI, GPS capture, partial collection)
 13. ~~Email Integration~~ ✅ (Microsoft 365 Graph API, inbound polling, ticket creation/threading, outbound replies, auto-polling, domain matching, processing log)
 14. ~~Customer Portal~~ ✅ (magic link auth, dashboard, tickets, contracts, visits, quotes, orders, KB, admin impersonation, portal access management)
+15. ~~Company Groups~~ ✅ (parent-child company relationships, group membership UI, group badges on customer list, quote builder group contact picker, portal group dashboard + group ticket view, internal group ticket view, group admin portal flag)
 
 **Upcoming / Planned:**
 - Xero integration (outbound invoice push, inbound payment polling — Engage is single source of truth)
@@ -518,6 +548,58 @@ Generates context-aware follow-up messages for tickets awaiting customer respons
 ## Invoicing Module
 - **Invoice number format:** `{brand.invoice_prefix}-{YYYY}-{NNNN}` (e.g. `INV-2026-0001`)
 - **Credit note numbers:** `{parent_invoice_number}-CN{N}`
+
+---
+
+## E-Sign & Renewal Module
+Contract e-signing engine — type-agnostic, works for any contract type (ICT visits, licensing, maintenance, etc.).
+
+- **Migration:** `20260408000001_esign_module.sql`
+- **Tables:** `contract_esign_requests` (token-based signing requests), `contract_renewal_flags` (renewal due/overdue tracking)
+- **Token pattern:** `/sign/[token]` — unauthenticated, token IS the auth (same pattern as `/collect/[token]`)
+- **Request types:** `new_contract`, `renewal_acceptance`, `schedule_acceptance` — adding a new type means adding a new document template, not restructuring the engine
+- **Request statuses:** `pending`, `signed`, `declined`, `expired`
+- **Contract statuses (extended to 13):** `draft`, `pending_signature`, `declined_signature`, `awaiting_activation`, `active`, `renewal_flagged`, `renewal_sent`, `renewal_accepted`, `schedule_pending`, `not_renewing`, `expired`, `cancelled`, `renewed`
+- **Storage bucket:** `esign-documents` (private, 50MB, PDF/PNG)
+- **Types:** `lib/esign/types.ts`
+- **Server actions:** `lib/esign/actions.ts` — CRUD for requests + flags, sign/decline/expire, contract status updates (all via admin client)
+- **Token utility:** `lib/esign/token.ts` — `buildSigningUrl()`, `isRequestExpired()`, `expireStaleRequests()`
+- **Org settings (category: `esign`):** `default_renewal_notice_days` (60), `esign_from_name` ("Contracts Team"), `esign_expiry_days` (30)
+- **Contract fields added:** `account_manager_id`, `renewal_notice_days` (per-contract override), `esign_required`
+- **Contract types field added:** `requires_visit_slots` (gates "Send for Signing" on visit-based types)
+- **Extensibility:** `request_type` is a CHECK constraint today — adding a new type means: add to CHECK, add document template, add post-sign handler case
+
+---
+
+## Company Groups Module
+Parent–child company relationships. Domain-agnostic — supports MATs, franchise groups, NHS trusts, or any business group structure.
+
+- **Migration:** `20260410000001_company_groups.sql`
+- **Tables:** `company_groups` (parent company + group metadata), `company_group_members` (member companies with colour + display_order)
+- **Types:** `types/company-groups.ts` — `CompanyGroup`, `CompanyGroupMember`, `GroupType` (`group`/`mat`/`franchise`/`nhs_trust`), `BillingModel` (`individual`/`centralised`), `GROUP_TYPE_LABELS`, `GROUP_MEMBER_COLOURS` (10-colour palette)
+- **Server actions:** `lib/company-groups/actions.ts` — full CRUD: `getCompanyGroups`, `getCompanyGroup`, `getGroupForCompany` (returns `asParent` + `asMembers`), `createCompanyGroup`, `updateCompanyGroup`, `addGroupMember` (auto-colour), `removeGroupMember`, `updateMemberColour`, `updateMemberOrder`
+- **Permission:** `companies.manage_groups` — granted to admin, super_admin, sales
+- **Constraints:** One group per parent company (`UNIQUE(org_id, parent_company_id)`). A company CAN be a member of multiple groups. A company CAN be both parent and member.
+
+### Back-Office UI
+- **Customer detail:** `GroupMembershipSection` — parent view (member table with colour swatches, add/remove/edit), member view (group name + parent link), no-group view (create/add-to-existing buttons), "Group Tickets" button links to `/helpdesk/groups/[groupId]`
+- **Customer list:** Purple "Group: X" badge on parent rows, grey "↳ X" badge on member rows
+- **Quote builder:** Contact picker surfaces parent company contacts (with `[Group Name]` suffix) when selected customer is a group member
+- **Internal group tickets:** `/helpdesk/groups/[groupId]` — cross-member ticket list with colour dots, toggle pills per member, clickable rows → ticket detail
+
+### Portal
+- **Group admin flag:** `portal_users.is_group_admin` — set by internal staff via `toggleGroupAdmin()` in `lib/portal/admin-actions.ts`
+- **Session:** `PortalContext.isGroupAdmin` — included in portal session resolution
+- **Navigation:** "Group" nav item visible only to group admins
+- **Group dashboard:** `/portal/group` — member cards with colour bars + stat summary (open tickets, contracts, quotes)
+- **Group tickets:** `/portal/group/tickets` — cross-member ticket list with colour dots, toggle pills, search + status filter
+- **Portal actions:** `lib/portal/group-actions.ts` — `getPortalGroup`, `getPortalMemberStats`, `getPortalGroupTickets`
+
+### Deferred (Phase 2)
+- Portal impersonation (view-as-member) read-only mode
+- Centralised billing model behaviour
+- Group-level deal registrations / quotes
+- Portal job/visit grid colour coding
 
 ---
 
