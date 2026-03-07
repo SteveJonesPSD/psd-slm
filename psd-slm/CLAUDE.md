@@ -43,17 +43,39 @@ Stock must never be auto-allocated to an SO from general inventory — the purch
 ---
 
 ## Database
-Schema deployed to Supabase (EU region). Key tables: `companies`, `contacts`, `products`, `suppliers`, `deal_registrations`, `deal_registration_lines`, `opportunities`, `quotes`, `quote_groups`, `quote_lines`, `quote_attributions`, `sales_orders`, `sales_order_lines`, `purchase_orders`, `purchase_order_lines`, `invoices`, `invoice_lines`, `commission_entries`, `commission_rates`, `activity_log`, `tickets` (includes `auto_nudge_sent_at`), `ticket_emails`, `mail_connections`, `mail_channels`, `customer_email_domains`, `chat_sessions`, `chat_messages`, `system_presence`, `customer_contracts`, `contract_types`, `contract_visit_slots`, `jobs`, `job_tasks`, `api_keys`, `user_mail_credentials`, `quote_email_sends`, `user_working_hours`, `portal_users` (includes `is_group_admin`), `portal_magic_links`, `contract_esign_requests`, `contract_renewal_flags`, `user_passkeys`, `passkey_challenges`, `company_groups`, `company_group_members`.
+Schema deployed to Supabase (EU region). Key tables: `companies`, `contacts`, `products`, `suppliers`, `deal_registrations`, `deal_registration_lines`, `opportunities`, `quotes`, `quote_groups`, `quote_lines`, `quote_attributions`, `sales_orders`, `sales_order_lines`, `purchase_orders`, `purchase_order_lines`, `invoices`, `invoice_lines`, `commission_entries`, `commission_rates`, `activity_log`, `tickets` (includes `auto_nudge_sent_at`), `ticket_emails`, `mail_connections`, `mail_channels`, `customer_email_domains`, `chat_sessions`, `chat_messages`, `system_presence`, `customer_contracts`, `contract_types`, `contract_visit_slots`, `contract_invoice_schedule`, `contract_line_supplier_prices`, `jobs`, `job_tasks`, `api_keys`, `user_mail_credentials`, `quote_email_sends`, `user_working_hours`, `portal_users` (includes `is_group_admin`), `portal_magic_links`, `contract_esign_requests`, `contract_renewal_flags`, `user_passkeys`, `passkey_challenges`, `company_groups`, `company_group_members`.
 
-Key views: `v_margin_traceability`, `v_commission_summary`, `v_active_deal_pricing`, `v_ticket_summary`.
+Key views: `v_margin_traceability`, `v_commission_summary`, `v_active_deal_pricing`, `v_ticket_summary`, `v_contract_invoice_schedule`, `v_contract_renewal_pipeline`, `v_pending_invoice_alerts`, `v_expiring_contracts`, `v_contract_line_costs`.
 
 ### Contract Data Model (Unified)
-`customer_contracts` is the **single source of truth** for all contracts — both service desk (SLA/support hours) and visit scheduling. The old `support_contracts` table is deprecated and no longer queried.
+`customer_contracts` is the **single source of truth** for all contracts — support (service desk SLA), service (subscriptions), and licensing (licenses/warranties). The old `support_contracts` table is deprecated and no longer queried.
 
-- `customer_contracts` — one contract per customer engagement. Key columns: `contract_type_id` (FK → `contract_types`), `sla_plan_id` (FK → `sla_plans`, nullable), `monthly_hours` (support hours allowance, nullable), `calendar_id` (FK → `visit_calendars`, nullable), `status` ('draft'/'active'/'expired'/'cancelled').
-- `contract_types` — defines what a contract includes: `name`, `includes_remote_support` (bool), `includes_telephone` (bool), `includes_onsite` (bool), `allowed_schedule_weeks` (int array), `default_sla_plan_id` (FK → `sla_plans`, nullable), `default_monthly_hours` (numeric, nullable). ProFlex 1–4 are the standard types. SLA inheritance: contract direct `sla_plan_id` → type `default_sla_plan_id` → org default SLA plan → null.
+**Three contract categories:**
+- `support` — service desk SLA/support hours, visit scheduling (existing behaviour preserved)
+- `service` — subscription products, fixed or rolling term, auto-invoice, upgrade with pro-rata credit
+- `licensing` — license/warranty products, fixed term, renewal quote workflow
+
+**Key tables:**
+- `customer_contracts` — one contract per customer engagement. Key columns: `contract_type_id` (FK → `contract_types`), `sla_plan_id` (FK → `sla_plans`, nullable), `monthly_hours` (nullable), `calendar_id` (FK → `visit_calendars`, nullable), `status` ('draft'/'active'/'expired'/'cancelled'/'pending_signature'/'declined_signature'/'awaiting_activation'/'renewal_flagged'/'renewal_sent'/'renewal_accepted'/'schedule_pending'/'not_renewing'/'renewed'), `source_quote_id` (FK → `quotes`, nullable — links to the quote from which contract was created), `esign_status` ('not_required'/'pending'/'signed'/'waived'), `renewal_status` ('active'/'alert_180'/'alert_90'/'notice_given'/'renewal_in_progress'/'rolling'/'superseded'/'expired'/'cancelled'), `is_rolling` (bool), `rolling_frequency` ('monthly'/'annual'), `term_months` (nullable), `go_live_date`, `invoice_schedule_start`, `auto_invoice` (bool), `invoice_frequency` ('annual'/'monthly'/'quarterly'), `upgrade_go_live_date` (nullable — set when superseded), `superseded_by` (nullable).
+- `contract_types` — defines what a contract includes: `name`, `category` ('support'/'service'/'licensing'), `includes_remote_support/telephone/onsite` (bools), `allowed_schedule_weeks` (int array), `default_sla_plan_id`, `default_monthly_hours`, `default_term_months`, `default_notice_alert_days`, `secondary_alert_days`, `auto_invoice` (bool), `invoice_frequency`. ProFlex 1–4 are the standard support types. COALESCE pattern: contract field → contract_type default.
+- `contract_invoice_schedule` — invoice schedule rows for Year 2+ billing. Columns: `contract_id`, `scheduled_date`, `period_label`, `period_start`, `period_end`, `base_amount`, `amount_override` (nullable), `invoice_id` (FK → `invoices`, nullable), `status` ('pending'/'draft_created'/'sent'/'skipped'/'cancelled'). Year 1 invoiced via Sales Order.
+- `contract_line_supplier_prices` — stub table for future supplier price list integration. Populated on contract creation, not yet read from.
+- `contract_lines` — extended with `source_quote_line_id`, `product_type`, `unit_price`, `buy_price`, `line_type` ('recurring'/'one_off'/'usage').
+- `contract_renewals` — extended with `renewal_quote_id` (FK → `quotes`), `renewal_workflow_status` ('pending'/'quote_generated'/'quote_sent'/'quote_accepted'/'signed'/'completed').
 - `tickets.customer_contract_id` — FK linking a ticket to its customer contract (for SLA resolution and entitlement badges). The old `tickets.contract_id` (→ `support_contracts`) is deprecated.
 - Entitlement badges on ticket detail derive from `contract_types.includes_remote_support/telephone/onsite` — not from an enum.
+
+**Product types:** `goods`, `service`, `hardware`, `labour`, `consumable`, `software`, `subscription`, `license`, `warranty`. The last three are "contractable" types — quote lines with these product types can be selected to create contracts.
+
+**Invoice schedule engine:** `generateInvoiceSchedule()` creates schedule rows from Year 2 onwards when a contract is signed/activated. `processPendingContractInvoices()` creates draft invoices for rows where `scheduled_date <= today`. Schedule supports amount overrides and skip with reason.
+
+**Rolling contracts:** Service contracts with `auto_invoice = true` automatically transition to rolling after `end_date` passes. `extendRollingSchedule()` generates 3 years of additional rows. Can be cancelled with a date via `cancelRollingContract()`.
+
+**Upgrade flow (service):** `upgradeContract()` calculates pro-rata credit from the most recent invoice period, creates a draft credit note, cancels remaining schedule rows, and marks the contract as superseded.
+
+**Licensing renewal flow:** `generateRenewalQuote()` creates a draft quote from contract lines (with attribution copied from source quote). Workflow: quote_generated → quote_sent → quote_accepted → signed → completed. `completeRenewalSigning()` creates the new contract, generates its invoice schedule, and expires the old contract.
+
+**E-sign gate:** When a service/licensing contract has `esign_status = 'pending'`, the "Create Sales Order" button on the linked quote is disabled until the contract is signed or waived. `signContract()` and `waiveEsign()` handle the transitions.
 
 ---
 
@@ -66,7 +88,7 @@ Supabase Auth with email/password + TOTP MFA + WebAuthn passkeys. Row-level secu
 - **sales** — own pipeline + shared company/contact data
 - **tech** — read-only commercial, full scheduling
 - **finance** — invoicing + commission
-- **field** — scheduling/jobs only (mobile-optimised)
+- **field_engineer** — scheduling/jobs only (mobile-optimised). On desktop, sees "My Schedule" view (own assigned jobs only, same as mobile) instead of the full dispatch calendar. Contracts and Products are hidden from sidebar and DB permissions removed. Has: `scheduling.view/create/edit`, `customers.view`, `helpdesk.view/create/edit`.
 
 MFA is enforced for admin and finance roles. All auth logic isolated in `lib/auth/` — components call `getCurrentUser()`, `signIn()`, `signOut()`. Never call `supabase.auth.getUser()` directly in components or pages.
 
@@ -91,13 +113,22 @@ Passkeys provide biometric authentication via the Web Authentication API (FIDO2)
   - `POST /authenticate/options` — generate auth challenge (public, login flow)
   - `POST /authenticate/verify` — verify passkey and create session (public)
   - `GET /status` — passkey count for sidebar nudge (authenticated)
-- **Session bridging:** Supabase doesn't support WebAuthn natively. After passkey verification, `admin.generateLink({ type: 'magiclink' })` creates a token server-side (no email sent), client calls `supabase.auth.verifyOtp()` to establish the session.
+- **Session bridging:** Supabase doesn't support WebAuthn natively. After passkey verification, `admin.generateLink({ type: 'magiclink' })` creates a token server-side (no email sent). Client calls `supabase.auth.verifyOtp()` using `email_otp` (preferred, avoids token_hash format issues) or `hashed_token` fallback. The verify route returns `verifyMethod: 'otp' | 'token_hash'` so the client knows which `verifyOtp` overload to use.
 - **Platform authenticators only:** `authenticatorAttachment: 'platform'` — limits to Face ID / Touch ID / Windows Hello (no security keys).
 - **Proxy enforcement:** `password_passkey` roles without enrolled passkeys are redirected to `/profile/security` until they register a passkey. Passkey auth routes (`/api/passkeys/authenticate/`) are in `PUBLIC_ROUTES`.
 - **Security settings:** `/profile/security` — accessible to ALL authenticated users (not behind admin guard). Manages passkeys, MFA, trusted devices, and password. Linked from profile page.
 - **Admin escape hatches:** Clear individual user passkeys (Team page), bulk reset all org passkeys (Login Methods settings, super_admin only).
 - **Sidebar nudge:** `PasskeyNudge` component in sidebar footer — shows "Set up biometric login" link when user has no passkeys and their role requires them. Dismissable via localStorage.
 - **Environment variables:** `WEBAUTHN_RP_ID` (e.g. `localhost`), `WEBAUTHN_RP_NAME` (e.g. `Innov8iv Engage`), `WEBAUTHN_ORIGIN` (e.g. `http://localhost:3000`).
+
+### Accepted Email Domains
+`org_settings` key `accepted_email_domains` (category `general`) stores a JSON array of allowed domains (e.g. `["psdgroup.co.uk", "psd.com"]`). Configured in Organisation settings. When set, `inviteUser()` and `updateUser()` in `team/actions.ts` reject emails from unlisted domains. Empty array = no restriction. Login page email input uses a generic placeholder (no domain hint) for security.
+
+### Team Invitations & Welcome Emails
+- **Single invite:** `inviteUser()` creates auth account + users row, optionally sends a branded welcome email via Graph API with login credentials and sign-in link.
+- **Bulk invite:** `bulkInviteUsers()` accepts up to 50 entries (parsed from `Name, email` / `Name <email>` / bare email formats), creates accounts sequentially, sends welcome emails. Returns per-entry results.
+- **Welcome email:** Sent via first active `mail_channel` using application-level `GraphClient`. Fire-and-forget — email failure never blocks account creation.
+- **UI:** Team page has "Invite Team Member" (single) and "Bulk Invite" buttons. Both have "Send welcome email" checkbox (on by default).
 
 ### API Route Security
 Every `/api/` route MUST verify session and org_id before executing. Missing auth checks are the most likely real-world breach vector. All routes use the auth middleware guard. `org_id` is always sourced from the verified session — never from request body or query params.
@@ -408,7 +439,7 @@ Single source of truth: `app/src/lib/version.ts` exports `APP_VERSION` and `BUIL
 9b. ~~Stock & Fulfilment~~ ✅ (stock locations/levels, allocations, picking, delivery notes, fulfilment view, serial uniqueness, tablet-optimised picking, PO-linked serial pre-selection, stock unallocation with reason)
 10. ~~Invoicing~~ ✅ (full/partial invoicing, stat cards, credit notes, branded PDF, overdue detection, `quantity_invoiced` tracking)
 10b. **Commission** ← Next
-10c. ~~Contracts~~ ✅ (contract types with support entitlement booleans, customer contracts as unified table for both service desk SLA and visit scheduling, lines, entitlements, renewal chain, settings, seed data, e-sign infrastructure)
+10c. ~~Contracts~~ ✅ (contract types with 3 categories — support/service/licensing, customer contracts unified table, lines, entitlements, renewal chain, settings, seed data, e-sign infrastructure, invoice schedule engine, contract creation from quote lines, e-sign gate on SO creation, days-remaining dashboard with alerts, upgrade flow with pro-rata credit notes, licensing renewal workflow with quote generation, rolling contract auto-detection and cancellation, supplier price stubs)
 10d. ~~Visit Scheduling~~ ✅ (academic year calendars, multi-calendar support, 4-week cycle patterns, extra weeks, ProFlex quick-fill, visit generation, bulk confirm, customer visit history)
 11. ~~AI Chat Agents~~ ✅ (Jasper/Helen/Lucia with tool-calling, floating chat panel, dedicated pages, persistent sessions, admin chat archive, markdown with auto-linking)
 12. ~~Engineer Stock Collection~~ ✅ (QR magic links, PDF slips, touch-to-confirm mobile UI, GPS capture, partial collection)
@@ -531,6 +562,7 @@ Generates context-aware follow-up messages for tickets awaiting customer respons
 - **Working hours (org-level):** `org_settings` keys `working_day_start`, `working_day_end`, `travel_buffer_minutes` (category: `scheduling`). Config UI at `/scheduling/config/working-hours`. `org_settings` unique constraint is `(org_id, setting_key)` — category is NOT part of the unique constraint.
 - **Working hours (individual):** `user_working_hours` table stores per-user, per-day overrides (day_of_week 1–7 ISO, is_working_day, start_time, end_time). If no row exists for a user+day, org defaults apply. Config UI at `/scheduling/config/individual-hours` (admin only). Calendar display: non-working days show hatched grey overlay (no override, drag disabled); reduced hours show amber hatched blocks before/after custom times (overridable).
 - **Conflict panel layout:** Sticky right sidebar (w-80) on the job form, hidden on mobile (`hidden lg:block`). Form expands from `max-w-3xl` to `max-w-5xl` when conflicts present.
+- **Field engineer view:** `field_engineer` role sees "My Schedule" on both desktop and mobile — uses `MobileScheduleView` with `getMyScheduleRange()` (own assigned jobs, 2-week window). Full dispatch calendar (`WeekView`) is only rendered for other roles. This avoids loading all jobs/engineers/activities data for field staff.
 
 ---
 
@@ -568,6 +600,27 @@ Contract e-signing engine — type-agnostic, works for any contract type (ICT vi
 - **Contract fields added:** `account_manager_id`, `renewal_notice_days` (per-contract override), `esign_required`
 - **Contract types field added:** `requires_visit_slots` (gates "Send for Signing" on visit-based types)
 - **Extensibility:** `request_type` is a CHECK constraint today — adding a new type means: add to CHECK, add document template, add post-sign handler case
+
+---
+
+## Contracts Expansion Module
+Extends the base contracts module with three contract categories, invoice scheduling, and lifecycle management.
+
+- **Migration:** `20260411000001_contracts_expansion_phase1.sql`
+- **Product types added:** `subscription`, `license`, `warranty` (contractable), `hardware`, `labour`, `consumable`, `software` (alongside existing `goods`/`service`)
+- **Contract categories:** `support` (existing), `service` (subscriptions, fixed/rolling), `licensing` (licenses/warranties, renewal)
+- **Contract type billing fields:** `default_term_months`, `default_notice_alert_days`, `secondary_alert_days`, `auto_invoice`, `invoice_frequency`
+- **Contract creation from quote lines:** Contractable quote lines (subscription/license/warranty) can be selected to create a draft contract. Mixed-type validation prevents combining subscription + license in one contract. Two-step modal: configure → preview → create.
+- **E-sign gate:** Service/licensing contracts with `esign_status = 'pending'` block SO creation on linked quotes. `signContract()`/`waiveEsign()` server actions. Blue banner on contract detail page.
+- **Invoice schedule engine:** `generateInvoiceSchedule()` creates Year 2+ schedule rows on contract activation. Supports annual/monthly/quarterly. `processPendingContractInvoices()` auto-creates draft invoices. Override amount and skip with reason per row. Auto-processes on contract detail page load.
+- **Alerts dashboard:** `syncContractAlertStatuses()` updates `renewal_status` at 180/90 day thresholds. Alert banner on contracts list (expiring, pending invoices, e-sign pending). Days Remaining column + Renewal Status column in contracts table. Days-remaining card on detail page.
+- **Upgrade flow (service only):** Pro-rata credit calculation from most recent invoice period. Creates draft credit note with negative amounts. Cancels remaining schedule rows. Marks contract as superseded.
+- **Licensing renewal workflow:** `generateRenewalQuote()` → mark sent → mark accepted → `completeRenewalSigning()` with term selection. Creates new contract with inherited settings and invoice schedule.
+- **Rolling contracts:** `processExpiredFixedTermContracts()` auto-transitions expired service contracts with `auto_invoice=true` to rolling. `extendRollingSchedule()` generates 3 years additional rows. `cancelRollingContract()` with date picker.
+- **Supplier price stubs:** `contract_line_supplier_prices` table populated on creation, not yet read from. TODO hooks in renewal quote generator for future supplier price list integration.
+- **Server actions:** All in `app/(dashboard)/contracts/actions.ts`
+- **UI components:** `esign-banner.tsx`, `invoice-schedule-section.tsx`, `upgrade-section.tsx`, `renewal-flow-section.tsx`, `contracts-alert-banner.tsx`
+- **Types:** `lib/contracts/types.ts` — `ContractCategory`, `EsignStatus`, `RenewalStatus`, `InvoiceFrequency`, `ScheduleStatus`, `ContractInvoiceSchedule`, `ContractLineSupplierPrice`
 
 ---
 
