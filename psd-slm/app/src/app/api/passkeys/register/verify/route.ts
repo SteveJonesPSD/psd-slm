@@ -10,6 +10,7 @@ export async function POST(request: Request) {
 
   const { challengeId, response, deviceName } = await request.json()
 
+  console.log('[passkey-register]', { authId: user.authId, orgId: user.orgId, deviceName })
   const result = await verifyPasskeyRegistration(
     challengeId,
     user.authId,

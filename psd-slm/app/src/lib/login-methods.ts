@@ -73,8 +73,10 @@ export async function getLoginMethodForEmail(email: string): Promise<{
   ) ?? false
 
   // Check if user has any passkeys enrolled
-  const { hasPasskeyEnrolled } = await import('@/lib/passkeys')
-  const hasPasskey = await hasPasskeyEnrolled(user.id)
+  const { hasPasskeyEnrolled, getUserPasskeys } = await import('@/lib/passkeys')
+  const passkeys = await getUserPasskeys(user.id)
+  const hasPasskey = passkeys.length > 0
+  console.log('[login-method]', { email, authUserId: user.id, roleName, method, hasPassword, hasPasskey, passkeyCount: passkeys.length })
 
   return { method, hasPassword, hasPasskey }
 }
