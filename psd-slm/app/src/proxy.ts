@@ -101,17 +101,10 @@ export async function proxy(request: NextRequest) {
 
       const loginMethod = loginSetting?.setting_value ?? 'password'
 
-      // Passkey enrolment enforcement for password_passkey roles
-      if (loginMethod === 'password_passkey') {
-        const { hasPasskeyEnrolled } = await import('@/lib/passkeys')
-        const hasPasskey = await hasPasskeyEnrolled(user.id)
-
-        if (!hasPasskey && pathname !== '/profile/security' && pathname !== '/auth/login' && !pathname.startsWith('/api/passkeys/')) {
-          const url = request.nextUrl.clone()
-          url.pathname = '/profile/security'
-          return NextResponse.redirect(url)
-        }
-      }
+      // Passkey enrolment note for password_passkey roles:
+      // We do NOT hard-redirect to /profile/security if no passkey is enrolled,
+      // because the device may not support WebAuthn (e.g. older Windows laptops).
+      // The login page handles fallbacks (password-only, TOTP, magic link) gracefully.
 
       if (loginMethod === 'password_mfa') {
         const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()

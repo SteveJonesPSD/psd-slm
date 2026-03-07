@@ -12,9 +12,9 @@ export async function POST(request: Request) {
   }
 
   // Create a Supabase session for the verified user.
-  // We use admin.generateLink() to create an OTP link, then return the
-  // token data so the client can call supabase.auth.verifyOtp() to establish
-  // the session with proper cookies.
+  // We use admin.generateLink() to create a magic link, then return the
+  // hashed token so the client can call supabase.auth.verifyOtp() to
+  // establish the session with proper cookies.
   const supabase = createAdminClient()
 
   const { data: { user: authUser } } = await supabase.auth.admin.getUserById(result.userId)
@@ -28,18 +28,33 @@ export async function POST(request: Request) {
   })
 
   if (linkError || !linkData) {
+    console.error('[passkey-auth] generateLink failed:', linkError?.message)
     return NextResponse.json({ error: 'Session creation failed' }, { status: 500 })
   }
 
-  // Extract the OTP token hash from the generated link
-  const url = new URL(linkData.properties.action_link)
-  const tokenHash = url.searchParams.get('token_hash') || url.searchParams.get('token')
-  const type = url.searchParams.get('type') || 'magiclink'
+  // Use hashed_token directly from properties (more reliable than URL parsing)
+  const tokenHash = linkData.properties.hashed_token
+
+  if (!tokenHash) {
+    // Fallback: parse from action_link URL
+    const url = new URL(linkData.properties.action_link)
+    const fallbackHash = url.searchParams.get('token_hash') || url.searchParams.get('token')
+    if (!fallbackHash) {
+      console.error('[passkey-auth] no token hash in generateLink response')
+      return NextResponse.json({ error: 'Session creation failed' }, { status: 500 })
+    }
+    return NextResponse.json({
+      success: true,
+      tokenHash: fallbackHash,
+      type: 'magiclink',
+      email: authUser.email,
+    })
+  }
 
   return NextResponse.json({
     success: true,
     tokenHash,
-    type,
+    type: 'magiclink',
     email: authUser.email,
   })
 }

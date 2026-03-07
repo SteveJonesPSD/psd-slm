@@ -45,9 +45,24 @@ function LoginFlow() {
   const [factorId, setFactorId] = useState<string | null>(null)
   const [passkeyLoading, setPasskeyLoading] = useState(false)
   const [passkeyError, setPasskeyError] = useState<string | null>(null)
+  const [webAuthnSupported, setWebAuthnSupported] = useState(true)
 
   const passwordRef = useRef<HTMLInputElement>(null)
   const totpRef = useRef<HTMLInputElement>(null)
+
+  // Detect WebAuthn support on mount
+  useEffect(() => {
+    const supported = typeof window !== 'undefined'
+      && !!window.PublicKeyCredential
+      && typeof window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === 'function'
+    if (supported) {
+      window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
+        .then(available => setWebAuthnSupported(available))
+        .catch(() => setWebAuthnSupported(false))
+    } else {
+      setWebAuthnSupported(false)
+    }
+  }, [])
 
   // Auto-focus password/totp when step changes
   useEffect(() => {
@@ -90,14 +105,19 @@ function LoginFlow() {
     } else if (result.method === 'password_mfa') {
       setStep('password_mfa')
     } else if (result.method === 'passkey') {
-      if (result.hasPasskey) {
+      if (result.hasPasskey && webAuthnSupported) {
         setStep('passkey')
       } else {
-        // No passkey enrolled — fall back to magic link
+        // No passkey or device doesn't support it — fall back to magic link
         setStep('magic_link')
       }
     } else if (result.method === 'password_passkey') {
-      setStep('password_passkey')
+      if (!webAuthnSupported) {
+        // Device doesn't support passkeys — fall back to password + MFA
+        setStep('password_mfa')
+      } else {
+        setStep('password_passkey')
+      }
     } else {
       setStep('password')
     }
@@ -147,18 +167,18 @@ function LoginFlow() {
 
     // password_passkey: after password success, challenge passkey as 2FA
     if (method === 'password_passkey') {
-      if (hasPasskey) {
+      if (hasPasskey && webAuthnSupported) {
         setStep('passkey_verify')
         return
       }
-      // No passkey enrolled — fall back to TOTP if available
+      // No passkey, device doesn't support it, or not enrolled — fall back to TOTP
       if (result.factorId) {
         setFactorId(result.factorId)
         setStep('totp')
         return
       }
-      // Neither passkey nor TOTP — redirect to security settings
-      router.push('/profile/security')
+      // Neither passkey nor TOTP available — allow through (password alone)
+      router.push(redirectTo)
       return
     }
 
@@ -427,12 +447,22 @@ function LoginFlow() {
               {passkeyLoading ? 'Verifying...' : 'Sign in with Passkey'}
             </button>
           </div>
-          <button
-            onClick={() => { setStep('magic_link'); setPasskeyError(null) }}
-            className="w-full text-center text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
-          >
-            Use sign-in link instead
-          </button>
+          <div className="flex flex-col gap-2 mt-1">
+            {hasPassword && (
+              <button
+                onClick={() => { setStep('password'); setPasskeyError(null) }}
+                className="w-full text-center text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+              >
+                Sign in with password instead
+              </button>
+            )}
+            <button
+              onClick={() => { setStep('magic_link'); setPasskeyError(null) }}
+              className="w-full text-center text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+            >
+              Use sign-in link instead
+            </button>
+          </div>
         </>
       )}
 
@@ -459,14 +489,22 @@ function LoginFlow() {
               {passkeyLoading ? 'Verifying...' : 'Verify with Passkey'}
             </button>
           </div>
-          {factorId && (
+          <div className="flex flex-col gap-2 mt-1">
+            {factorId && (
+              <button
+                onClick={() => { setStep('totp'); setPasskeyError(null) }}
+                className="w-full text-center text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+              >
+                Use authenticator app instead
+              </button>
+            )}
             <button
-              onClick={() => { setStep('totp'); setPasskeyError(null) }}
-              className="w-full text-center text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+              onClick={() => { router.push(redirectTo) }}
+              className="w-full text-center text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:underline"
             >
-              Use authenticator app instead
+              Skip — continue without passkey
             </button>
-          )}
+          </div>
         </>
       )}
 
