@@ -142,3 +142,101 @@ export function hasAnyPermission(
 ): boolean {
   return checks.some((c) => hasPermission(user, c.module, c.action))
 }
+
+// --- MFA helpers ---
+
+/**
+ * Check if current user has TOTP enrolled and verified.
+ */
+export async function getUserMfaStatus(): Promise<{
+  enrolled: boolean
+  factorId: string | null
+}> {
+  const supabase = await createClient()
+  const { data } = await supabase.auth.mfa.listFactors()
+  const totp = data?.totp?.find(f => f.status === 'verified')
+  return {
+    enrolled: !!totp,
+    factorId: totp?.id ?? null,
+  }
+}
+
+/**
+ * Get the AAL (Authenticator Assurance Level) for the current session.
+ */
+export async function getMfaAssuranceLevel() {
+  const supabase = await createClient()
+  const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+  if (error) return null
+  return data
+}
+
+/**
+ * Enrol a new TOTP factor — returns QR code URI and secret.
+ */
+export async function enrollMfaFactor(): Promise<{
+  factorId: string
+  qrCode: string
+  secret: string
+}> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.auth.mfa.enroll({
+    factorType: 'totp',
+    issuer: 'Innov8iv Engage',
+  })
+  if (error || !data) throw new Error(error?.message ?? 'MFA enrolment failed')
+  return {
+    factorId: data.id,
+    qrCode: data.totp.qr_code,
+    secret: data.totp.secret,
+  }
+}
+
+/**
+ * Verify a TOTP code during enrolment (challenges the new factor).
+ */
+export async function verifyMfaEnrolment(
+  factorId: string,
+  code: string
+): Promise<void> {
+  const supabase = await createClient()
+  const { data: challenge, error: challengeError } =
+    await supabase.auth.mfa.challenge({ factorId })
+  if (challengeError || !challenge) throw new Error('MFA challenge failed')
+
+  const { error: verifyError } = await supabase.auth.mfa.verify({
+    factorId,
+    challengeId: challenge.id,
+    code,
+  })
+  if (verifyError) throw new Error('Invalid code — please try again')
+}
+
+/**
+ * Verify TOTP at login time.
+ */
+export async function verifyMfaLogin(
+  factorId: string,
+  code: string
+): Promise<void> {
+  const supabase = await createClient()
+  const { data: challenge, error: challengeError } =
+    await supabase.auth.mfa.challenge({ factorId })
+  if (challengeError || !challenge) throw new Error('MFA challenge failed')
+
+  const { error } = await supabase.auth.mfa.verify({
+    factorId,
+    challengeId: challenge.id,
+    code,
+  })
+  if (error) throw new Error('Invalid code')
+}
+
+/**
+ * Unenrol MFA factor (remove TOTP).
+ */
+export async function unenrolMfaFactor(factorId: string): Promise<void> {
+  const supabase = await createClient()
+  const { error } = await supabase.auth.mfa.unenroll({ factorId })
+  if (error) throw new Error(error.message)
+}

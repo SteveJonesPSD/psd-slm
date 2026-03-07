@@ -7,6 +7,7 @@ import { MobileHeader } from '@/components/mobile-header'
 import { requireAuth } from '@/lib/auth'
 import { getAgentAvatars } from '@/lib/agent-avatars'
 import { EmailPoller } from '@/components/email-poller'
+import { SessionRefresh } from '@/components/session-refresh'
 import { getAutoPollingEnabled } from '@/lib/email/actions'
 import { getPortalLogoUrl } from '@/lib/settings'
 
@@ -38,6 +39,7 @@ export default async function DashboardLayout({
         </SidebarProvider>
         <ChatPanel agentAvatars={agentAvatars} />
         <EmailPoller enabled={autoPollingEnabled} />
+        <SessionRefresh />
       </ThemeProvider>
     </AuthProvider>
   )

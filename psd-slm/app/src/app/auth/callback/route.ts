@@ -15,5 +15,5 @@ export async function GET(request: Request) {
   }
 
   // Auth code exchange failed — redirect to login with error
-  return NextResponse.redirect(`${origin}/auth/login`)
+  return NextResponse.redirect(`${origin}/auth/login?error=auth_callback_failed`)
 }
