@@ -49,9 +49,17 @@ CREATE POLICY "org_isolation_group_members" ON company_group_members
     FOR ALL USING (org_id = auth_org_id());
 
 -- 4. Updated_at trigger
+CREATE OR REPLACE FUNCTION update_company_groups_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE TRIGGER set_updated_at_company_groups
     BEFORE UPDATE ON company_groups
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    FOR EACH ROW EXECUTE FUNCTION update_company_groups_updated_at();
 
 -- 5. Permissions
 INSERT INTO permissions (module, action, description) VALUES
