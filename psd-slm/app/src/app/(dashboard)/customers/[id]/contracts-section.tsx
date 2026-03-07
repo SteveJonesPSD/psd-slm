@@ -17,7 +17,7 @@ interface ContractRow {
   effective_visits_per_year: number | null
   annual_value: number | null
   renewal_period: string
-  end_date: string
+  end_date: string | null
 }
 
 interface ContractsSectionProps {
@@ -91,11 +91,11 @@ export function ContractsSection({ contracts, customerId }: ContractsSectionProp
       key: 'end_date',
       label: 'End Date',
       nowrap: true,
-      render: (r) => (
+      render: (r) => r.end_date ? (
         <span className={getEndDateStyle(r.end_date, r.status)}>
           {new Date(r.end_date).toLocaleDateString('en-GB')}
         </span>
-      ),
+      ) : <span className="text-slate-400">Open-ended</span>,
     },
   ]
 

@@ -11,6 +11,8 @@ import { formatCurrency } from '@/lib/utils'
 import { FindSerialModal } from './find-serial-modal'
 import type { Product, ProductCategory } from '@/types/database'
 
+const NON_PHYSICAL_TYPES = ['service', 'subscription', 'license', 'warranty', 'labour']
+
 type ProductWithExtras = Product & {
   category_name: string | null
   category_requires_serial: boolean
@@ -71,6 +73,21 @@ export function ProductsTable({ products, categories }: ProductsTableProps) {
               SVC
             </span>
           )}
+          {r.product_type === 'subscription' && (
+            <span className="ml-1.5 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-blue-50 text-blue-600 align-middle">
+              SUB
+            </span>
+          )}
+          {r.product_type === 'license' && (
+            <span className="ml-1.5 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-purple-50 text-purple-600 align-middle">
+              LIC
+            </span>
+          )}
+          {r.product_type === 'warranty' && (
+            <span className="ml-1.5 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-amber-50 text-amber-600 align-middle">
+              WTY
+            </span>
+          )}
         </span>
       ),
     },
@@ -82,7 +99,7 @@ export function ProductsTable({ products, categories }: ProductsTableProps) {
     {
       key: 'manufacturer',
       label: 'Manufacturer',
-      render: (r) => r.product_type === 'service' ? '\u2014' : (r.manufacturer || '\u2014'),
+      render: (r) => NON_PHYSICAL_TYPES.includes(r.product_type) ? '\u2014' : (r.manufacturer || '\u2014'),
     },
     {
       key: 'main_supplier',
@@ -119,7 +136,7 @@ export function ProductsTable({ products, categories }: ProductsTableProps) {
       label: 'Serialised',
       align: 'center',
       nowrap: true,
-      render: (r) => r.product_type === 'service' ? <span className="text-slate-300">\u2014</span> : (
+      render: (r) => NON_PHYSICAL_TYPES.includes(r.product_type) ? <span className="text-slate-300">\u2014</span> : (
         <SerialisedBadge
           productIsSerialised={r.is_serialised}
           categoryRequiresSerial={r.category_requires_serial}
@@ -132,7 +149,7 @@ export function ProductsTable({ products, categories }: ProductsTableProps) {
       align: 'center',
       nowrap: true,
       render: (r) =>
-        r.product_type === 'service' ? <span className="text-slate-300">\u2014</span> :
+        NON_PHYSICAL_TYPES.includes(r.product_type) ? <span className="text-slate-300">\u2014</span> :
         r.is_stocked ? <Badge label="Stocked" color="#059669" bg="#ecfdf5" /> : null,
     },
     {
@@ -141,7 +158,7 @@ export function ProductsTable({ products, categories }: ProductsTableProps) {
       align: 'right',
       nowrap: true,
       render: (r) => {
-        if (r.product_type === 'service') return <span className="text-slate-300">{'\u2014'}</span>
+        if (NON_PHYSICAL_TYPES.includes(r.product_type)) return <span className="text-slate-300">{'\u2014'}</span>
         if (r.total_stock === 0) return <span className="text-slate-300">{'\u2014'}</span>
         return (
           <span className="text-xs tabular-nums">

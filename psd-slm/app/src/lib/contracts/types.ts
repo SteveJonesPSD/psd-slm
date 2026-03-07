@@ -1,10 +1,16 @@
+export type ContractCategory = 'support' | 'service' | 'licensing'
+export type EsignStatus = 'not_required' | 'pending' | 'signed' | 'waived'
+export type RenewalStatus = 'active' | 'alert_180' | 'alert_90' | 'notice_given' | 'renewal_in_progress' | 'rolling' | 'superseded' | 'expired' | 'cancelled'
+export type InvoiceFrequency = 'annual' | 'monthly' | 'quarterly'
+export type ScheduleStatus = 'pending' | 'draft_created' | 'sent' | 'skipped' | 'cancelled'
+
 export interface ContractType {
   id: string
   org_id: string
   name: string
   code: string
   description: string | null
-  category: string
+  category: ContractCategory
   default_visit_frequency: string | null
   default_visit_length_hours: number | null
   default_visits_per_year: number | null
@@ -15,6 +21,12 @@ export interface ContractType {
   default_monthly_hours: number | null
   allowed_schedule_weeks: number[]
   requires_visit_slots: boolean
+  // Service/Licensing billing fields
+  default_term_months: number | null
+  default_notice_alert_days: number
+  secondary_alert_days: number
+  auto_invoice: boolean
+  invoice_frequency: InvoiceFrequency
   is_active: boolean
   sort_order: number
   created_at: string
@@ -35,7 +47,7 @@ export interface CustomerContract {
   visit_length_hours: number | null
   visits_per_year: number | null
   start_date: string
-  end_date: string
+  end_date: string | null
   renewal_period: string
   renewal_month: number | null
   auto_renew: boolean
@@ -52,6 +64,22 @@ export interface CustomerContract {
   account_manager_id: string | null
   renewal_notice_days: number | null
   esign_required: boolean
+  // Expansion fields
+  source_quote_id: string | null
+  term_months: number | null
+  go_live_date: string | null
+  invoice_schedule_start: string | null
+  notice_alert_days: number | null
+  secondary_alert_days: number | null
+  auto_invoice: boolean | null
+  invoice_frequency: InvoiceFrequency | null
+  is_rolling: boolean
+  rolling_frequency: 'monthly' | 'annual' | null
+  next_invoice_date: string | null
+  renewal_status: RenewalStatus
+  superseded_by: string | null
+  upgrade_go_live_date: string | null
+  esign_status: EsignStatus
   notes: string | null
   created_by: string | null
   created_at: string
@@ -92,6 +120,12 @@ export interface ContractLine {
   product_id: string | null
   sort_order: number
   notes: string | null
+  // Expansion fields
+  source_quote_line_id: string | null
+  product_type: string | null
+  unit_price: number | null
+  buy_price: number | null
+  line_type: 'recurring' | 'one_off' | 'usage'
   created_at: string
 }
 
@@ -106,6 +140,8 @@ export interface ContractRenewal {
   new_annual_value: number | null
   renewal_method: string
   esign_request_id: string | null
+  renewal_quote_id: string | null
+  renewal_workflow_status: string
   notes: string | null
   renewed_by: string | null
   renewed_by_name?: string | null
@@ -188,12 +224,9 @@ export interface RenewalFormData {
 }
 
 export const CONTRACT_CATEGORIES = [
-  'ict',
-  'access_control',
-  'cctv',
-  'telephony',
-  'maintenance',
-  'bespoke',
+  'support',
+  'service',
+  'licensing',
 ] as const
 
 export const CONTRACT_STATUSES = [
@@ -230,3 +263,119 @@ export const RENEWAL_PERIODS = [
   'september',
   'custom',
 ] as const
+
+export const INVOICE_FREQUENCIES = [
+  'annual',
+  'monthly',
+  'quarterly',
+] as const
+
+export const TERM_MONTH_OPTIONS = [
+  { value: 12, label: '12 months' },
+  { value: 24, label: '24 months' },
+  { value: 36, label: '36 months' },
+  { value: 60, label: '60 months' },
+] as const
+
+export const RENEWAL_STATUS_LABELS: Record<RenewalStatus, string> = {
+  active: 'Active',
+  alert_180: '180-Day Alert',
+  alert_90: '90-Day Alert',
+  notice_given: 'Notice Given',
+  renewal_in_progress: 'Renewal In Progress',
+  rolling: 'Rolling',
+  superseded: 'Superseded',
+  expired: 'Expired',
+  cancelled: 'Cancelled',
+}
+
+export const ESIGN_STATUS_LABELS: Record<EsignStatus, string> = {
+  not_required: 'Not Required',
+  pending: 'Pending',
+  signed: 'Signed',
+  waived: 'Waived',
+}
+
+// New types for invoice schedule and alerts
+export interface ContractInvoiceSchedule {
+  id: string
+  org_id: string
+  contract_id: string
+  scheduled_date: string
+  period_label: string
+  period_start: string
+  period_end: string
+  base_amount: number
+  amount_override: number | null
+  invoice_id: string | null
+  status: ScheduleStatus
+  notes: string | null
+  created_at: string
+  updated_at: string
+  // view-joined
+  effective_amount?: number
+  contract_number?: string
+  customer_name?: string
+  category?: string
+  invoice_number?: string | null
+  invoice_status?: string | null
+}
+
+export interface ContractLineSupplierPrice {
+  id: string
+  org_id: string
+  contract_line_id: string
+  supplier_id: string | null
+  product_id: string | null
+  current_buy_price: number | null
+  last_checked_at: string | null
+  price_source: string | null
+  notes: string | null
+  created_at: string
+}
+
+export interface PendingInvoiceAlert {
+  contract_id: string
+  contract_number: string
+  customer_name: string
+  schedule_id: string
+  scheduled_date: string
+  period_label: string
+  effective_amount: number
+}
+
+export interface ExpiringContractAlert {
+  contract_id: string
+  contract_number: string
+  customer_name: string
+  end_date: string
+  days_remaining: number
+  alert_level: 'alert_180' | 'alert_90'
+  category: ContractCategory
+}
+
+export interface ContractEligibleQuoteLine {
+  id: string
+  description: string
+  product_id: string | null
+  product_type: string
+  quantity: number
+  unit_price: number
+  buy_price: number
+  sell_price: number
+  group_name: string | null
+}
+
+export interface CreateContractFromLinesPayload {
+  quote_id: string
+  customer_id: string
+  contract_type_id: string
+  selected_line_ids: string[]
+  go_live_date: string
+  term_months: number | null
+  notice_alert_days: number
+  secondary_alert_days: number
+  auto_invoice: boolean
+  invoice_frequency: InvoiceFrequency
+  annual_value: number
+}

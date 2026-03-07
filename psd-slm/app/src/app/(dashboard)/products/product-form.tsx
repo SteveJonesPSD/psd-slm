@@ -49,7 +49,7 @@ export function ProductForm({ product, categories: initialCategories, manufactur
     is_active: product?.is_active ?? true,
   })
 
-  const isService = form.product_type === 'service'
+  const isService = ['service', 'subscription', 'license', 'warranty', 'labour'].includes(form.product_type)
 
   // When switching to service, check for supplier links to warn
   const [typeWarning, setTypeWarning] = useState('')
@@ -183,44 +183,35 @@ export function ProductForm({ product, categories: initialCategories, manufactur
           <label className="mb-1.5 block text-xs font-medium text-slate-500">
             Product Type
           </label>
-          <div className="flex rounded-lg border border-slate-200 overflow-hidden w-fit">
-            <button
-              type="button"
-              onClick={() => {
-                setForm((f) => ({ ...f, product_type: 'goods' }))
+          <select
+            value={form.product_type}
+            onChange={(e) => {
+              const newType = e.target.value as typeof form.product_type
+              setForm((f) => ({ ...f, product_type: newType }))
+              if (isEdit && product?.product_type === 'goods' && newType === 'service' && preferredSupplier) {
+                setTypeWarning('This product has linked suppliers. Switching to service type won\u2019t remove these links, but services typically don\u2019t require suppliers.')
+              } else {
                 setTypeWarning('')
-              }}
-              className={`px-4 py-2 text-sm font-medium transition-colors ${
-                form.product_type === 'goods'
-                  ? 'bg-slate-800 text-white'
-                  : 'bg-white text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              Goods
-            </button>
-            <button
-              type="button"
-              onClick={async () => {
-                setForm((f) => ({ ...f, product_type: 'service' }))
-                // Warn if switching from goods with supplier links in edit mode
-                if (isEdit && product?.product_type === 'goods' && preferredSupplier) {
-                  setTypeWarning('This product has linked suppliers. Switching to service type won\u2019t remove these links, but services typically don\u2019t require suppliers.')
-                } else {
-                  setTypeWarning('')
-                }
-              }}
-              className={`px-4 py-2 text-sm font-medium transition-colors ${
-                form.product_type === 'service'
-                  ? 'bg-slate-800 text-white'
-                  : 'bg-white text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              Service
-            </button>
-          </div>
+              }
+            }}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+          >
+            <option value="goods">Goods</option>
+            <option value="service">Service (Labour / Non-Tangible)</option>
+            <option value="hardware">Hardware</option>
+            <option value="software">Software</option>
+            <option value="consumable">Consumable</option>
+            <option value="labour">Labour</option>
+            <option disabled>— Contractable Types —</option>
+            <option value="subscription">Subscription (Broadband, Voice, Backup, M365)</option>
+            <option value="license">License (Software, SaaS, CSP)</option>
+            <option value="warranty">Warranty / Care Pack</option>
+          </select>
           <p className="mt-1 text-xs text-slate-400">
-            {form.product_type === 'goods'
+            {['goods', 'hardware', 'consumable'].includes(form.product_type)
               ? 'Physical item (stocked, sourced, serialised)'
+              : ['subscription', 'license', 'warranty'].includes(form.product_type)
+              ? 'Contractable — can be linked to service or licensing contracts'
               : 'Labour, delivery, support, or other non-tangible'}
           </p>
           {typeWarning && (

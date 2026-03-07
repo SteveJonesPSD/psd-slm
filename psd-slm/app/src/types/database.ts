@@ -531,7 +531,7 @@ export interface Product {
   is_serialised: boolean | null
   is_stocked: boolean
   is_active: boolean
-  product_type: 'goods' | 'service'
+  product_type: 'goods' | 'service' | 'hardware' | 'labour' | 'consumable' | 'software' | 'subscription' | 'license' | 'warranty'
   default_delivery_destination: 'psd_office' | 'customer_site'
   default_route: 'from_stock' | 'drop_ship'
   created_at: string

@@ -137,6 +137,7 @@ export function ContractsTable({ contracts, hideCompany }: ContractsTableProps) 
       label: 'End Date',
       nowrap: true,
       render: (r) => {
+        if (!r.end_date) return <span className="text-slate-400">Open-ended</span>
         const style = r.status === 'active' ? getEndDateStyle(r.end_date) : { className: '' }
         return (
           <span className={style.className}>

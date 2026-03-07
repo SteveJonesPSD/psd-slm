@@ -6,7 +6,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Badge, CONTRACT_CATEGORY_CONFIG } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { createContractType, updateContractType, getActiveContractCountForType } from '../../contracts/actions'
-import type { ContractType } from '@/lib/contracts/types'
+import type { ContractType, InvoiceFrequency } from '@/lib/contracts/types'
 import { CONTRACT_CATEGORIES, VISIT_FREQUENCIES } from '@/lib/contracts/types'
 
 interface SlaPlanOption {
@@ -191,7 +191,7 @@ function ContractTypeModal({
     name: type?.name || '',
     code: type?.code || '',
     description: type?.description || '',
-    category: type?.category || 'ict',
+    category: type?.category || 'support',
     default_visit_frequency: type?.default_visit_frequency || '',
     default_visit_length_hours: type?.default_visit_length_hours ? String(type.default_visit_length_hours) : '',
     default_visits_per_year: type?.default_visits_per_year ? String(type.default_visits_per_year) : '',
@@ -202,7 +202,15 @@ function ContractTypeModal({
     default_monthly_hours: type?.default_monthly_hours ? String(type.default_monthly_hours) : '',
     allowed_schedule_weeks: type?.allowed_schedule_weeks ?? [36, 39],
     sort_order: type?.sort_order ? String(type.sort_order) : '0',
+    // Billing/term fields for service/licensing
+    default_term_months: type?.default_term_months ? String(type.default_term_months) : '',
+    auto_invoice: type?.auto_invoice ?? false,
+    invoice_frequency: (type?.invoice_frequency || 'annual') as InvoiceFrequency,
+    default_notice_alert_days: type?.default_notice_alert_days ? String(type.default_notice_alert_days) : '180',
+    secondary_alert_days: type?.secondary_alert_days ? String(type.secondary_alert_days) : '90',
   })
+
+  const isServiceOrLicensing = form.category === 'service' || form.category === 'licensing'
 
   const upd = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [field]: e.target.value }))
@@ -232,6 +240,12 @@ function ContractTypeModal({
     fd.append('default_monthly_hours', form.default_monthly_hours)
     fd.append('allowed_schedule_weeks', JSON.stringify(form.allowed_schedule_weeks))
     fd.append('sort_order', form.sort_order)
+    // Billing/term fields
+    fd.append('default_term_months', form.default_term_months)
+    fd.append('auto_invoice', String(form.auto_invoice))
+    fd.append('invoice_frequency', form.invoice_frequency)
+    fd.append('default_notice_alert_days', form.default_notice_alert_days)
+    fd.append('secondary_alert_days', form.secondary_alert_days)
 
     const result = isEdit
       ? await updateContractType(type!.id, fd)
@@ -403,6 +417,76 @@ function ContractTypeModal({
             </div>
             <p className="text-xs text-slate-400 mt-1">Controls which calendar types this contract can be assigned to</p>
           </div>
+
+          {/* Service/Licensing billing fields */}
+          {isServiceOrLicensing && (
+            <div className="border-t border-slate-200 pt-3 mt-1">
+              <p className="text-sm font-medium text-slate-700 mb-3">Billing & Term Defaults</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Default Term</label>
+                  <select
+                    value={form.default_term_months}
+                    onChange={(e) => setForm((f) => ({ ...f, default_term_months: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
+                  >
+                    <option value="">Open-ended</option>
+                    <option value="12">12 months</option>
+                    <option value="24">24 months</option>
+                    <option value="36">36 months</option>
+                    <option value="60">60 months</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Invoice Frequency</label>
+                  <select
+                    value={form.invoice_frequency}
+                    onChange={(e) => setForm((f) => ({ ...f, invoice_frequency: e.target.value as InvoiceFrequency }))}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
+                  >
+                    <option value="annual">Annual</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="quarterly">Quarterly</option>
+                  </select>
+                </div>
+              </div>
+              <div className="mt-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.auto_invoice}
+                    onChange={(e) => setForm((f) => ({ ...f, auto_invoice: e.target.checked }))}
+                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-400"
+                  />
+                  <span className="text-sm text-slate-700">Auto-Invoice (generate draft invoices on schedule)</span>
+                </label>
+              </div>
+              <div className="grid grid-cols-2 gap-3 mt-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Notice Alert (days)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={form.default_notice_alert_days}
+                    onChange={(e) => setForm((f) => ({ ...f, default_notice_alert_days: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
+                  />
+                  <p className="text-xs text-slate-400 mt-1">First alert before contract end</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Secondary Alert (days)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={form.secondary_alert_days}
+                    onChange={(e) => setForm((f) => ({ ...f, secondary_alert_days: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
+                  />
+                  <p className="text-xs text-slate-400 mt-1">Second (urgent) alert threshold</p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end gap-2 mt-6">

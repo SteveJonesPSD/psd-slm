@@ -95,7 +95,7 @@ export async function createContractType(formData: FormData): Promise<{ error?: 
     name: name.trim(),
     code: code.trim().toLowerCase(),
     description: (formData.get('description') as string) || null,
-    category: (formData.get('category') as string) || 'ict',
+    category: (formData.get('category') as string) || 'support',
     default_visit_frequency: (formData.get('default_visit_frequency') as string) || null,
     default_visit_length_hours: formData.get('default_visit_length_hours') ? Number(formData.get('default_visit_length_hours')) : null,
     default_visits_per_year: formData.get('default_visits_per_year') ? Number(formData.get('default_visits_per_year')) : null,
@@ -107,6 +107,12 @@ export async function createContractType(formData: FormData): Promise<{ error?: 
     allowed_schedule_weeks: formData.get('allowed_schedule_weeks') ? JSON.parse(formData.get('allowed_schedule_weeks') as string) : [36, 39],
     is_active: true,
     sort_order: formData.get('sort_order') ? Number(formData.get('sort_order')) : 0,
+    // Billing/term fields
+    default_term_months: formData.get('default_term_months') ? Number(formData.get('default_term_months')) : null,
+    auto_invoice: formData.get('auto_invoice') === 'true',
+    invoice_frequency: (formData.get('invoice_frequency') as string) || 'annual',
+    default_notice_alert_days: formData.get('default_notice_alert_days') ? Number(formData.get('default_notice_alert_days')) : 180,
+    secondary_alert_days: formData.get('secondary_alert_days') ? Number(formData.get('secondary_alert_days')) : 90,
   }
 
   const { data, error } = await supabase
@@ -135,7 +141,7 @@ export async function updateContractType(id: string, formData: FormData): Promis
     const v = formData.get(f) as string | null
     if (v !== null) payload[f] = v || null
   }
-  const numFields = ['default_visit_length_hours', 'default_visits_per_year', 'default_monthly_hours', 'sort_order'] as const
+  const numFields = ['default_visit_length_hours', 'default_visits_per_year', 'default_monthly_hours', 'sort_order', 'default_term_months', 'default_notice_alert_days', 'secondary_alert_days'] as const
   for (const f of numFields) {
     const v = formData.get(f) as string | null
     if (v !== null) payload[f] = v ? Number(v) : null
@@ -143,7 +149,9 @@ export async function updateContractType(id: string, formData: FormData): Promis
   // String-or-null fields
   const slaPlanId = formData.get('default_sla_plan_id') as string | null
   if (slaPlanId !== null) payload.default_sla_plan_id = slaPlanId || null
-  const boolFields = ['includes_remote_support', 'includes_telephone', 'includes_onsite', 'is_active'] as const
+  const invoiceFreq = formData.get('invoice_frequency') as string | null
+  if (invoiceFreq !== null) payload.invoice_frequency = invoiceFreq || 'annual'
+  const boolFields = ['includes_remote_support', 'includes_telephone', 'includes_onsite', 'is_active', 'auto_invoice'] as const
   for (const f of boolFields) {
     const v = formData.get(f) as string | null
     if (v !== null) payload[f] = v === 'true'

@@ -77,7 +77,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
           <DetailField label="Category" value={catCfg?.label || contract.category} />
           <DetailField label="Contact" value={contract.contact_name} />
           <DetailField label="Start Date" value={new Date(contract.start_date).toLocaleDateString('en-GB')} />
-          <DetailField label="End Date" value={new Date(contract.end_date).toLocaleDateString('en-GB')} />
+          <DetailField label="End Date" value={contract.end_date ? new Date(contract.end_date).toLocaleDateString('en-GB') : 'Open-ended'} />
           <DetailField
             label="Renewal Period"
             value={

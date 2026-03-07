@@ -279,12 +279,36 @@ export const CONTRACT_STATUS_CONFIG: Record<string, { label: string; color: stri
 }
 
 export const CONTRACT_CATEGORY_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  ict: { label: 'ICT', color: '#6366f1', bg: '#eef2ff' },
-  access_control: { label: 'Access Control', color: '#059669', bg: '#ecfdf5' },
-  cctv: { label: 'CCTV', color: '#d97706', bg: '#fffbeb' },
-  telephony: { label: 'Telephony', color: '#2563eb', bg: '#eff6ff' },
-  maintenance: { label: 'Maintenance', color: '#7c3aed', bg: '#f5f3ff' },
-  bespoke: { label: 'Bespoke', color: '#64748b', bg: '#f8fafc' },
+  support: { label: 'Support', color: '#64748b', bg: '#f8fafc' },
+  service: { label: 'Service', color: '#2563eb', bg: '#eff6ff' },
+  licensing: { label: 'Licensing', color: '#7c3aed', bg: '#f5f3ff' },
+}
+
+export const RENEWAL_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  active: { label: 'Active', color: '#059669', bg: '#ecfdf5' },
+  alert_180: { label: '180-Day Alert', color: '#d97706', bg: '#fffbeb' },
+  alert_90: { label: '90-Day Alert', color: '#dc2626', bg: '#fef2f2' },
+  notice_given: { label: 'Notice Given', color: '#d97706', bg: '#fffbeb' },
+  renewal_in_progress: { label: 'Renewal In Progress', color: '#2563eb', bg: '#eff6ff' },
+  rolling: { label: 'Rolling', color: '#6366f1', bg: '#eef2ff' },
+  superseded: { label: 'Superseded', color: '#64748b', bg: '#f8fafc' },
+  expired: { label: 'Expired', color: '#dc2626', bg: '#fef2f2' },
+  cancelled: { label: 'Cancelled', color: '#dc2626', bg: '#fef2f2' },
+}
+
+export const ESIGN_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  not_required: { label: 'Not Required', color: '#64748b', bg: '#f8fafc' },
+  pending: { label: 'E-Sign Pending', color: '#2563eb', bg: '#eff6ff' },
+  signed: { label: 'E-Signed', color: '#059669', bg: '#ecfdf5' },
+  waived: { label: 'Waived', color: '#d97706', bg: '#fffbeb' },
+}
+
+export const SCHEDULE_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  pending: { label: 'Pending', color: '#64748b', bg: '#f8fafc' },
+  draft_created: { label: 'Draft Created', color: '#d97706', bg: '#fffbeb' },
+  sent: { label: 'Sent', color: '#059669', bg: '#ecfdf5' },
+  skipped: { label: 'Skipped', color: '#64748b', bg: '#f8fafc' },
+  cancelled: { label: 'Cancelled', color: '#dc2626', bg: '#fef2f2' },
 }
 
 export const RENEWAL_PERIOD_CONFIG: Record<string, { label: string; color: string; bg: string }> = {

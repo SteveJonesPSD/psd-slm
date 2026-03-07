@@ -134,7 +134,7 @@ function RenewalModal({
   onSubmit: (formData: FormData) => void
   loading: boolean
 }) {
-  const oldEnd = new Date(contract.end_date)
+  const oldEnd = contract.end_date ? new Date(contract.end_date) : new Date()
   const newStart = new Date(oldEnd)
   newStart.setDate(newStart.getDate() + 1)
   const newEnd = new Date(newStart)
