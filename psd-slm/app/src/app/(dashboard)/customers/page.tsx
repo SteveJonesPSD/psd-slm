@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { decryptCustomerRows } from '@/lib/crypto-helpers'
 import { CustomersPageClient } from './customers-page-client'
 
 export default async function CustomersPage() {
@@ -22,5 +23,5 @@ export default async function CustomersPage() {
     }
   }
 
-  return <CustomersPageClient customers={customers || []} groupBadges={groupBadges} />
+  return <CustomersPageClient customers={decryptCustomerRows(customers || [])} groupBadges={groupBadges} />
 }

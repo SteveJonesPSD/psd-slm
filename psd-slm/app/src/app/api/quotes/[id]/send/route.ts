@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, hasPermission } from '@/lib/auth'
+import { decryptContactRow } from '@/lib/crypto-helpers'
 
 // TODO: Integrate with Resend or Postmark for email delivery
 // For now, this is a placeholder that logs the action
@@ -27,7 +28,8 @@ export async function POST(
     return NextResponse.json({ error: 'Quote not found' }, { status: 404 })
   }
 
-  const contact = quote.contacts as unknown as { email: string | null; first_name: string } | null
+  const rawContact = quote.contacts as unknown as { email: string | null; first_name: string } | null
+  const contact = rawContact ? decryptContactRow(rawContact) : null
 
   // Placeholder: log what would be sent
   console.log('[quote-send]', {

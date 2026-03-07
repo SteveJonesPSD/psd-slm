@@ -2,6 +2,7 @@ import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { requirePermission } from '@/lib/auth'
+import { decryptCustomerRow, decryptContactRow } from '@/lib/crypto-helpers'
 import { getMarginThresholds } from '@/lib/margin-settings'
 import { CreateSoForm } from './create-so-form'
 
@@ -49,9 +50,9 @@ export default async function NewSalesOrderPage({ searchParams }: PageProps) {
     { data: lines, error: linesErr },
     { data: teamMembers },
   ] = await Promise.all([
-    supabase.from('customers').select('id, name, address_line1, address_line2, city, county, postcode').eq('id', quote.customer_id).single(),
+    supabase.from('customers').select('id, name, address_line1, address_line2, city, county, postcode').eq('id', quote.customer_id).single().then(r => ({ ...r, data: r.data ? decryptCustomerRow(r.data) : null })),
     quote.contact_id
-      ? supabase.from('contacts').select('id, first_name, last_name, email').eq('id', quote.contact_id).single()
+      ? supabase.from('contacts').select('id, first_name, last_name, email').eq('id', quote.contact_id).single().then(r => ({ ...r, data: r.data ? decryptContactRow(r.data) : null }))
       : Promise.resolve({ data: null }),
     supabase.from('quote_groups').select('*').eq('quote_id', quote_id).order('sort_order'),
     supabase.from('quote_lines').select('*, products(name, sku, product_type, is_stocked, is_serialised, default_delivery_destination), suppliers(name)').eq('quote_id', quote_id).order('sort_order'),

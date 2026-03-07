@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { requirePermission } from '@/lib/auth'
+import { decryptContactRows } from '@/lib/crypto-helpers'
 import { addBusinessDays } from '@/lib/utils'
 import { getMarginThresholds } from '@/lib/margin-settings'
 import { QuoteBuilder } from '../builder/quote-builder'
@@ -44,9 +45,12 @@ export default async function NewQuotePage({ searchParams }: PageProps) {
     supabase.from('org_settings').select('setting_value').eq('org_id', user.orgId).eq('category', 'general').eq('setting_key', 'quote_validity_days').single(),
   ])
 
+  // Decrypt contact fields
+  const decryptedContacts = decryptContactRows(directContacts || [])
+
   // Build contacts list: direct contacts + linked contacts (with linked customer_id)
-  const contactsById = new Map((directContacts || []).map((c) => [c.id, c]))
-  const allContacts = (directContacts || []).map((c) => ({ ...c, email: c.email || null }))
+  const contactsById = new Map(decryptedContacts.map((c) => [c.id, c]))
+  const allContacts = decryptedContacts.map((c) => ({ ...c, email: c.email || null }))
   for (const link of contactLinks || []) {
     const contact = contactsById.get(link.contact_id)
     if (contact && link.customer_id !== contact.customer_id) {

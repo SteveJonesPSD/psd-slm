@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
+import { decryptContactRow } from '@/lib/crypto-helpers'
 
 export async function GET(
   request: NextRequest,
@@ -172,7 +173,7 @@ export async function GET(
           .eq('id', entityId)
           .single()
         if (!contact) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-        return NextResponse.json({ detail: contact })
+        return NextResponse.json({ detail: decryptContactRow(contact) })
       }
 
       case 'Opportunity': {

@@ -21,6 +21,7 @@ import { QuoteAttachmentsSection } from './attachments-section'
 import { MobileQuoteDetail } from './mobile-quote-detail'
 import { ContractFromLinesSection } from './contract-from-lines-section'
 import { getContractsBySourceQuote } from '../../contracts/actions'
+import { decryptContactRow } from '@/lib/crypto-helpers'
 import type { User } from '@/types/database'
 
 interface PageProps {
@@ -59,7 +60,7 @@ export default async function QuoteDetailPage({ params }: PageProps) {
   ] = await Promise.all([
     supabase.from('customers').select('id, name').eq('id', quote.customer_id).single(),
     quote.contact_id
-      ? supabase.from('contacts').select('id, first_name, last_name, email, phone').eq('id', quote.contact_id).single()
+      ? supabase.from('contacts').select('id, first_name, last_name, email, phone').eq('id', quote.contact_id).single().then(r => ({ ...r, data: r.data ? decryptContactRow(r.data) : null }))
       : Promise.resolve({ data: null }),
     quote.assigned_to
       ? supabase.from('users').select('id, first_name, last_name, initials, color').eq('id', quote.assigned_to).single()

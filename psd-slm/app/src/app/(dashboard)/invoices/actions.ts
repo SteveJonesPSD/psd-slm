@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { requirePermission, requireAuth, hasAnyPermission } from '@/lib/auth'
+import { decryptCustomerRow, decryptContactRow, decryptContactRows } from '@/lib/crypto-helpers'
 import { revalidatePath } from 'next/cache'
 import { logActivity } from '@/lib/activity-log'
 import { generateInvoiceNumber, getEffectiveInvoiceStatus } from '@/lib/invoicing'
@@ -65,9 +66,9 @@ export async function getInvoice(id: string) {
     { data: activities },
     { data: parentInvoice },
   ] = await Promise.all([
-    supabase.from('customers').select('id, name, address_line1, address_line2, city, postcode, payment_terms').eq('id', invoice.customer_id).single(),
+    supabase.from('customers').select('id, name, address_line1, address_line2, city, postcode, payment_terms').eq('id', invoice.customer_id).single().then(r => ({ ...r, data: r.data ? decryptCustomerRow(r.data) : null })),
     invoice.contact_id
-      ? supabase.from('contacts').select('id, first_name, last_name, email, phone').eq('id', invoice.contact_id).single()
+      ? supabase.from('contacts').select('id, first_name, last_name, email, phone').eq('id', invoice.contact_id).single().then(r => ({ ...r, data: r.data ? decryptContactRow(r.data) : null }))
       : Promise.resolve({ data: null }),
     invoice.brand_id
       ? supabase.from('brands').select('*').eq('id', invoice.brand_id).single()
@@ -160,7 +161,7 @@ export async function getSalesOrderForInvoice(soId: string) {
   }
 
   // Get contacts for the company
-  const { data: contacts } = await supabase
+  const { data: rawContacts } = await supabase
     .from('contacts')
     .select('id, first_name, last_name, email')
     .eq('customer_id', so.customer_id)
@@ -174,7 +175,7 @@ export async function getSalesOrderForInvoice(soId: string) {
     ),
     brand,
     quoteId,
-    contacts: contacts || [],
+    contacts: decryptContactRows(rawContacts || []),
   }
 }
 

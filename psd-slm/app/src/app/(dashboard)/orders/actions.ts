@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { requirePermission, requireAuth, hasAnyPermission } from '@/lib/auth'
+import { decryptCustomerRow, decryptContactRow } from '@/lib/crypto-helpers'
 import type { AuthUser } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { logActivity } from '@/lib/activity-log'
@@ -147,9 +148,9 @@ export async function getSalesOrder(id: string) {
     { data: lines, error: linesErr },
     { data: activities },
   ] = await Promise.all([
-    supabase.from('customers').select('id, name, address_line1, address_line2, city, county, postcode').eq('id', so.customer_id).single(),
+    supabase.from('customers').select('id, name, address_line1, address_line2, city, county, postcode').eq('id', so.customer_id).single().then(r => ({ ...r, data: r.data ? decryptCustomerRow(r.data) : null })),
     so.contact_id
-      ? supabase.from('contacts').select('id, first_name, last_name, email, phone').eq('id', so.contact_id).single()
+      ? supabase.from('contacts').select('id, first_name, last_name, email, phone').eq('id', so.contact_id).single().then(r => ({ ...r, data: r.data ? decryptContactRow(r.data) : null }))
       : Promise.resolve({ data: null }),
     so.assigned_to
       ? supabase.from('users').select('id, first_name, last_name, initials, color').eq('id', so.assigned_to).single()
@@ -249,11 +250,12 @@ export async function createSalesOrder(input: CreateSalesOrderInput) {
   }
 
   // Fetch customer for delivery address
-  const { data: customer } = await supabase
+  const { data: rawCustomer } = await supabase
     .from('customers')
     .select('address_line1, address_line2, city, postcode')
     .eq('id', quote.customer_id)
     .single()
+  const customer = rawCustomer ? decryptCustomerRow(rawCustomer) : null
 
   // Generate SO number
   const soNumber = await generateSoNumber(supabase, user.orgId)
@@ -977,11 +979,12 @@ export async function seedSalesOrders() {
   }
 
   // Fetch customer for address
-  const { data: customer } = await supabase
+  const { data: rawCustomerSeed } = await supabase
     .from('customers')
     .select('address_line1, address_line2, city, postcode')
     .eq('id', quote.customer_id)
     .single()
+  const customer = rawCustomerSeed ? decryptCustomerRow(rawCustomerSeed) : null
 
   const soNumber = await generateSoNumber(supabase, user.orgId)
 

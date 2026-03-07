@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { decryptUserRows } from '@/lib/crypto-helpers'
 import { getUser } from '@/lib/auth'
 import { PageHeader } from '@/components/ui/page-header'
 import { TeamTable } from './team-table'
@@ -55,7 +56,7 @@ export default async function TeamPage({
     }
   }
 
-  const allUsers = (users as UserWithRole[]) || []
+  const allUsers = decryptUserRows((users as UserWithRole[]) || []) as UserWithRole[]
   const activeCount = allUsers.filter((u) => u.is_active).length
   const inactiveCount = allUsers.length - activeCount
 

@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth, hasPermission } from '@/lib/auth'
+import { decryptContactRows } from '@/lib/crypto-helpers'
 import { getMarginThresholds } from '@/lib/margin-settings'
 import { QuoteBuilder } from '../../builder/quote-builder'
 
@@ -56,9 +57,12 @@ export default async function EditQuotePage({ params }: PageProps) {
     supabase.from('product_suppliers').select('product_id, supplier_id, standard_cost, is_preferred'),
   ])
 
+  // Decrypt contact fields
+  const decryptedContacts = decryptContactRows(directContacts || [])
+
   // Build contacts list: direct contacts + linked contacts (with linked customer_id)
-  const contactsById = new Map((directContacts || []).map((c) => [c.id, c]))
-  const allContacts = (directContacts || []).map((c) => ({ ...c, email: c.email || null }))
+  const contactsById = new Map(decryptedContacts.map((c) => [c.id, c]))
+  const allContacts = decryptedContacts.map((c) => ({ ...c, email: c.email || null }))
   for (const link of contactLinks || []) {
     const contact = contactsById.get(link.contact_id)
     if (contact && link.customer_id !== contact.customer_id) {

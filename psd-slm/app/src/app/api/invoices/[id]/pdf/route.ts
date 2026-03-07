@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requirePermission } from '@/lib/auth'
+import { decryptCustomerRow } from '@/lib/crypto-helpers'
 import { renderToBuffer } from '@react-pdf/renderer'
 import React from 'react'
 import { InvoicePdfDocument } from './invoice-pdf-document'
@@ -51,10 +52,11 @@ export async function GET(
     }
   }
 
-  const customer = invoice.customers as {
+  const rawCustomer = invoice.customers as {
     name: string; address_line1: string | null; address_line2: string | null;
     city: string | null; postcode: string | null
   } | null
+  const customer = rawCustomer ? decryptCustomerRow(rawCustomer) : null
 
   const contact = invoice.contacts as { first_name: string; last_name: string } | null
 

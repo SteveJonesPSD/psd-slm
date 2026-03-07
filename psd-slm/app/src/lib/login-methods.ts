@@ -3,6 +3,7 @@
 // and the org's configured login method policy in org_settings.
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { blindIndex } from '@/lib/crypto'
 
 export type LoginMethod = 'magic_link' | 'password' | 'password_mfa' | 'passkey' | 'password_passkey'
 // FUTURE: Add 'microsoft_sso' | 'microsoft_sso_mfa' to LoginMethod type when M365 SSO phase is built
@@ -18,8 +19,10 @@ const DEFAULT_LOGIN_METHOD: LoginMethod = 'password'
  * IMPORTANT: Must not leak whether an account exists.
  * Returns 'password' for unknown emails (same as default).
  *
- * TODO: When field-level encryption is added, this function queries
- * by email and will need updating to use the blind index.
+ * NOTE: Email lookup uses Supabase Auth admin.listUsers() which queries
+ * auth.users (plaintext, managed by Supabase). Our users table email is
+ * encrypted but lookup is via auth_id, not email. blindIndex import is
+ * available if we later need direct users table email lookup.
  */
 export async function getLoginMethodForEmail(email: string): Promise<{
   method: LoginMethod

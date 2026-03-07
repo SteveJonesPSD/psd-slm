@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { decryptCustomerRow, decryptContactRows } from '@/lib/crypto-helpers'
 import { formatCurrency } from '@/lib/utils'
 import { StatCard } from '@/components/ui/stat-card'
 import { CustomerHeader } from './customer-header'
@@ -36,19 +37,21 @@ export default async function CustomerDetailPage({ params }: PageProps) {
   const supabase = await createClient()
 
   // Fetch customer and related data
-  const { data: customer } = await supabase
+  const { data: rawCustomer } = await supabase
     .from('customers')
     .select('*')
     .eq('id', id)
     .single()
+  const customer = rawCustomer ? decryptCustomerRow(rawCustomer) : null
 
-  const { data: contacts } = await supabase
+  const { data: rawContacts } = await supabase
     .from('contacts')
     .select('*')
     .eq('customer_id', id)
     .eq('is_active', true)
     .order('is_primary', { ascending: false })
     .order('first_name')
+  const contacts = rawContacts ? decryptContactRows(rawContacts) : null
 
   const { data: opportunities } = await supabase
     .from('opportunities')

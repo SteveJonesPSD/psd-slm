@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
+import { decryptUserRow } from '@/lib/crypto-helpers'
 import { getSystemPrompt } from '@/lib/ai/system-prompt'
 import { getToolsForUser, executeTool } from '@/lib/ai/tools'
 import type { AuthUser } from '@/lib/auth'
@@ -24,6 +25,10 @@ async function getApiUser(supabase: Awaited<ReturnType<typeof createClient>>): P
     .single()
 
   if (!appUser) return null
+
+  // Decrypt user email
+  const decryptedUser = decryptUserRow(appUser)
+  Object.assign(appUser, decryptedUser)
 
   const { data: rolePerms } = await supabase
     .from('role_permissions')

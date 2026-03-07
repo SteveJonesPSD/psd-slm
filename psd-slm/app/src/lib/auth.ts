@@ -1,6 +1,7 @@
 import { cache } from 'react'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { decrypt } from '@/lib/crypto'
 
 export interface AuthUser {
   id: string
@@ -77,7 +78,12 @@ export const getUser = cache(async (): Promise<AuthUser | null> => {
     id: appUser.id as string,
     authId: authUser.id,
     orgId: appUser.org_id as string,
-    email: appUser.email as string,
+    email: (() => {
+      const raw = appUser.email as string
+      if (!raw) return raw
+      // Decrypt if encrypted (contains ':' separator from AES-256-GCM format)
+      try { return raw.includes(':') ? decrypt(raw) : raw } catch { return raw }
+    })(),
     firstName: appUser.first_name as string,
     lastName: appUser.last_name as string,
     initials: (appUser.initials as string) ?? null,

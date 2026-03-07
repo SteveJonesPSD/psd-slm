@@ -12,6 +12,7 @@ import { processAutoClose } from '@/lib/helpdesk/auto-close'
 import type { TicketStatus, TicketPriority, SlaPlan, SlaPlanTarget, DepartmentMemberRole } from '@/types/database'
 import { createNotifications } from '@/lib/notifications'
 import { notifyTicketStakeholders } from '@/lib/helpdesk/ticket-notifications'
+import { decryptContactRow } from '@/lib/crypto-helpers'
 
 // ============================================================================
 // TICKET NUMBER GENERATION
@@ -695,9 +696,15 @@ export async function getTicket(id: string) {
     .eq('ticket_id', id)
     .order('created_at', { ascending: false })
 
+  // Decrypt contact PII in nested join
+  const decryptedTicket = {
+    ...ticket,
+    contacts: ticket.contacts ? decryptContactRow(ticket.contacts as Record<string, unknown>) : ticket.contacts,
+  }
+
   return {
     data: {
-      ...ticket,
+      ...decryptedTicket,
       messages: messages || [],
       tags: (tagAssignments || []).map(ta => (ta as Record<string, unknown>).ticket_tags),
       time_entries: timeEntries || [],

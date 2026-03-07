@@ -4,6 +4,10 @@ import { createClient } from '@/lib/supabase/server'
 import { requirePermission } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { logActivity } from '@/lib/activity-log'
+import {
+  encryptContactFields,
+  encryptCustomerFields,
+} from '@/lib/crypto-helpers'
 
 async function generateAccountNumber(supabase: Awaited<ReturnType<typeof createClient>>, orgId: string): Promise<string> {
   const prefix = 'ACC-'
@@ -31,6 +35,14 @@ export async function createCustomer(formData: FormData) {
 
   const accountNumber = await generateAccountNumber(supabase, user.orgId)
 
+  const encryptedCustomer = encryptCustomerFields({
+    email: (formData.get('email') as string) || null,
+    phone: (formData.get('phone') as string) || null,
+    address_line1: (formData.get('address_line1') as string) || null,
+    address_line2: (formData.get('address_line2') as string) || null,
+    postcode: (formData.get('postcode') as string) || null,
+  })
+
   const { data, error } = await supabase
     .from('customers')
     .insert({
@@ -40,17 +52,13 @@ export async function createCustomer(formData: FormData) {
       dfe_number: (formData.get('dfe_number') as string) || null,
       account_number: accountNumber,
       xero_reference: (formData.get('xero_reference') as string) || null,
-      address_line1: (formData.get('address_line1') as string) || null,
-      address_line2: (formData.get('address_line2') as string) || null,
       city: (formData.get('city') as string) || null,
       county: (formData.get('county') as string) || null,
-      postcode: (formData.get('postcode') as string) || null,
-      phone: (formData.get('phone') as string) || null,
-      email: (formData.get('email') as string) || null,
       website: (formData.get('website') as string) || null,
       payment_terms: parseInt(formData.get('payment_terms') as string) || 30,
       vat_number: (formData.get('vat_number') as string) || null,
       notes: (formData.get('notes') as string) || null,
+      ...encryptedCustomer,
     })
     .select()
     .single()
@@ -66,7 +74,11 @@ export async function createCustomer(formData: FormData) {
   const contactLastName = (formData.get('contact_last_name') as string)?.trim()
   if (contactFirstName && contactLastName) {
     const contactEmail = (formData.get('contact_email') as string) || null
-    const contactEmailDomain = contactEmail?.split('@')[1]?.toLowerCase() ?? null
+    const encryptedContact = encryptContactFields({
+      email: contactEmail,
+      phone: (formData.get('contact_phone') as string) || null,
+      mobile: (formData.get('contact_mobile') as string) || null,
+    })
 
     const { data: contactData } = await supabase.from('contacts').insert({
       org_id: user.orgId,
@@ -74,12 +86,9 @@ export async function createCustomer(formData: FormData) {
       first_name: contactFirstName,
       last_name: contactLastName,
       job_title: (formData.get('contact_job_title') as string) || null,
-      email: contactEmail,
-      email_domain: contactEmailDomain,
-      phone: (formData.get('contact_phone') as string) || null,
-      mobile: (formData.get('contact_mobile') as string) || null,
       is_primary: true,
       is_billing: true,
+      ...encryptedContact,
     }).select('id').single()
 
     if (contactData) {
@@ -103,6 +112,14 @@ export async function updateCustomer(id: string, formData: FormData) {
   const user = await requirePermission('customers', 'edit_all')
   const supabase = await createClient()
 
+  const encryptedCustomer = encryptCustomerFields({
+    email: (formData.get('email') as string) || null,
+    phone: (formData.get('phone') as string) || null,
+    address_line1: (formData.get('address_line1') as string) || null,
+    address_line2: (formData.get('address_line2') as string) || null,
+    postcode: (formData.get('postcode') as string) || null,
+  })
+
   const { error } = await supabase
     .from('customers')
     .update({
@@ -111,17 +128,13 @@ export async function updateCustomer(id: string, formData: FormData) {
       dfe_number: (formData.get('dfe_number') as string) || null,
       account_number: (formData.get('account_number') as string) || null,
       xero_reference: (formData.get('xero_reference') as string) || null,
-      address_line1: (formData.get('address_line1') as string) || null,
-      address_line2: (formData.get('address_line2') as string) || null,
       city: (formData.get('city') as string) || null,
       county: (formData.get('county') as string) || null,
-      postcode: (formData.get('postcode') as string) || null,
-      phone: (formData.get('phone') as string) || null,
-      email: (formData.get('email') as string) || null,
       website: (formData.get('website') as string) || null,
       payment_terms: parseInt(formData.get('payment_terms') as string) || 30,
       vat_number: (formData.get('vat_number') as string) || null,
       notes: (formData.get('notes') as string) || null,
+      ...encryptedCustomer,
     })
     .eq('id', id)
 
@@ -168,23 +181,23 @@ export async function createContact(customerId: string, formData: FormData) {
       .eq('is_primary', true)
   }
 
-  const emailValue = (formData.get('email') as string) || null
-  const emailDomain = emailValue?.split('@')[1]?.toLowerCase() ?? null
+  const encryptedFields = encryptContactFields({
+    email: (formData.get('email') as string) || null,
+    phone: (formData.get('phone') as string) || null,
+    mobile: (formData.get('mobile') as string) || null,
+  })
 
   const { data, error } = await supabase.from('contacts').insert({
     customer_id: customerId,
     first_name: formData.get('first_name') as string,
     last_name: formData.get('last_name') as string,
     job_title: (formData.get('job_title') as string) || null,
-    email: emailValue,
-    email_domain: emailDomain,
-    phone: (formData.get('phone') as string) || null,
-    mobile: (formData.get('mobile') as string) || null,
     is_primary: isPrimary,
     is_billing: isBilling,
     is_shipping: isShipping,
     is_portal_user: isPortalAdmin ? false : isPortalUser,
     is_portal_admin: isPortalAdmin,
+    ...encryptedFields,
   }).select('id').single()
 
   if (error) {
@@ -216,8 +229,11 @@ export async function updateContact(contactId: string, customerId: string, formD
       .eq('is_primary', true)
   }
 
-  const updateEmailValue = (formData.get('email') as string) || null
-  const updateEmailDomain = updateEmailValue?.split('@')[1]?.toLowerCase() ?? null
+  const encryptedFields = encryptContactFields({
+    email: (formData.get('email') as string) || null,
+    phone: (formData.get('phone') as string) || null,
+    mobile: (formData.get('mobile') as string) || null,
+  })
 
   const { error } = await supabase
     .from('contacts')
@@ -225,15 +241,12 @@ export async function updateContact(contactId: string, customerId: string, formD
       first_name: formData.get('first_name') as string,
       last_name: formData.get('last_name') as string,
       job_title: (formData.get('job_title') as string) || null,
-      email: updateEmailValue,
-      email_domain: updateEmailDomain,
-      phone: (formData.get('phone') as string) || null,
-      mobile: (formData.get('mobile') as string) || null,
       is_primary: isPrimary,
       is_billing: isBilling,
       is_shipping: isShipping,
       is_portal_user: isPortalAdmin ? false : isPortalUser,
       is_portal_admin: isPortalAdmin,
+      ...encryptedFields,
     })
     .eq('id', contactId)
 

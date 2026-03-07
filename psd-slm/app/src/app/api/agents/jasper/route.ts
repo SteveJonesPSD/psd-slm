@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
+import { decryptContactRow, decryptCustomerRow } from '@/lib/crypto-helpers'
 import { deriveSoStatus } from '@/lib/sales-orders'
 
 const MAX_ITERATIONS = 10
@@ -653,16 +654,19 @@ async function handleSearchCustomers(
   if (!data || data.length === 0) return JSON.stringify({ results: [], message: 'No customers found.' })
 
   return JSON.stringify({
-    results: data.map((c) => ({
-      id: c.id,
-      name: c.name,
-      customer_type: c.customer_type,
-      account_number: c.account_number,
-      phone: c.phone,
-      email: c.email,
-      location: [c.city, c.postcode].filter(Boolean).join(', '),
-      link: `/customers/${c.id}`,
-    })),
+    results: data.map((c) => {
+      const dc = decryptCustomerRow(c)
+      return {
+        id: dc.id,
+        name: dc.name,
+        customer_type: dc.customer_type,
+        account_number: dc.account_number,
+        phone: dc.phone,
+        email: dc.email,
+        location: [dc.city, dc.postcode].filter(Boolean).join(', '),
+        link: `/customers/${dc.id}`,
+      }
+    }),
     count: data.length,
   })
 }
@@ -715,16 +719,19 @@ async function handleGetCustomerDetails(
 
   if (error || !customer) return JSON.stringify({ error: 'Customer not found.' })
 
+  const dc = decryptCustomerRow(customer)
+  const decryptedContacts = (contacts || []).map((c: Record<string, unknown>) => decryptContactRow(c))
+
   return JSON.stringify({
-    id: customer.id,
-    name: customer.name,
-    customer_type: customer.customer_type,
-    account_number: customer.account_number,
-    phone: customer.phone,
-    email: customer.email,
-    address: [customer.address_line1, customer.address_line2, customer.city, customer.county, customer.postcode].filter(Boolean).join(', '),
-    website: customer.website,
-    contacts: (contacts || []).map((c) => ({
+    id: dc.id,
+    name: dc.name,
+    customer_type: dc.customer_type,
+    account_number: dc.account_number,
+    phone: dc.phone,
+    email: dc.email,
+    address: [dc.address_line1, dc.address_line2, dc.city, dc.county, dc.postcode].filter(Boolean).join(', '),
+    website: dc.website,
+    contacts: decryptedContacts.map((c: Record<string, unknown>) => ({
       id: c.id,
       name: `${c.first_name} ${c.last_name}`,
       email: c.email,

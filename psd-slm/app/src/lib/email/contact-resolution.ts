@@ -5,6 +5,7 @@
 // =============================================================================
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { encrypt, decrypt, blindIndex } from '@/lib/crypto'
 
 export interface ResolvedContact {
   id: string
@@ -139,23 +140,30 @@ async function findCustomerByDomain(
 
 /**
  * Find a contact by exact email match across the entire org.
- * When encryption is live, swap to: WHERE email_blind = blindIndex(email)
+ * Uses blind index for encrypted email lookup.
  */
 async function findContactByEmail(
   email: string,
   orgId: string,
   supabase: SupabaseClient
 ): Promise<ResolvedContact | null> {
+  const blind = blindIndex(email.toLowerCase().trim())
   const { data } = await supabase
     .from('contacts')
     .select('id, first_name, last_name, email, customer_id')
     .eq('org_id', orgId)
-    .ilike('email', email)
+    .eq('email_blind', blind)
     .eq('is_active', true)
     .limit(1)
     .maybeSingle()
 
-  return data as ResolvedContact | null
+  if (!data) return null
+
+  // Decrypt email before returning
+  return {
+    ...data,
+    email: data.email ? decrypt(data.email) : null,
+  } as ResolvedContact
 }
 
 /**
@@ -222,7 +230,8 @@ async function autoCreateContact(
       customer_id: customerId,
       first_name: firstName,
       last_name: lastName,
-      email,
+      email: encrypt(email),
+      email_blind: blindIndex(email.toLowerCase().trim()),
       email_domain: emailDomain,
       is_primary: false,
       is_billing: false,
@@ -233,6 +242,9 @@ async function autoCreateContact(
     .single()
 
   if (!newContact) return null
+
+  // Decrypt email in returned row
+  newContact.email = newContact.email ? decrypt(newContact.email) : null
 
   // Also insert into junction table as primary link
   await supabase
