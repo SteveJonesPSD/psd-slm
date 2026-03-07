@@ -333,6 +333,7 @@ Per-user theme preference in `users.theme_preference` (`'light'`, `'dark'`, `'sy
 - **Polling — NEVER use server actions for recurring calls.** Server actions trigger RSC payload refresh, re-rendering server components and resetting client state. All polling uses `fetch()` to API routes or browser Supabase client.
 - **Polling state guards:** All polling hooks compare new data against previous value before `setState`. Use `useRef` with JSON string equality guard. Only call setter when data actually changed.
 - **Git:** Use feature branches (`feature/auth`, `feature/products`). Never `git add .` — only stage specific files each session created or modified.
+- **End-of-session commit — MANDATORY:** Before ending every session, commit all new and modified files. Stage each file explicitly (no `git add .`). Include the version bump in `lib/version.ts`. Do NOT push — pushes are only done when the user explicitly requests it. Untracked files left behind cause build failures on deploy.
 - **Versioning:** See the Versioning section below. Every commit MUST include an appropriate version bump in `lib/version.ts`.
 
 ---
