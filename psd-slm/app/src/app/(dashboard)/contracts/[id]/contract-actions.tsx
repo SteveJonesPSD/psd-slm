@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { updateContractStatus, renewContract } from '../actions'
+import { updateContractStatus, renewContract, cancelRollingContract } from '../actions'
 import { Button } from '@/components/ui/button'
 import type { CustomerContractWithDetails } from '@/lib/contracts/types'
 
@@ -15,6 +15,8 @@ export function ContractActions({ contract }: ContractActionsProps) {
   const [loading, setLoading] = useState('')
   const [showCancel, setShowCancel] = useState(false)
   const [showRenewal, setShowRenewal] = useState(false)
+  const [showCancelRolling, setShowCancelRolling] = useState(false)
+  const [cancelDate, setCancelDate] = useState(new Date().toISOString().split('T')[0])
 
   const handleStatusChange = async (status: string) => {
     setLoading(status)
@@ -72,7 +74,17 @@ export function ContractActions({ contract }: ContractActionsProps) {
           </Button>
         )}
 
-        {isEditable && (
+        {contract.is_rolling && (
+          <Button
+            onClick={() => setShowCancelRolling(true)}
+            variant="danger"
+            disabled={!!loading}
+          >
+            Cancel Rolling Contract
+          </Button>
+        )}
+
+        {isEditable && !contract.is_rolling && (
           <button
             onClick={() => setShowCancel(true)}
             disabled={!!loading}
@@ -104,6 +116,49 @@ export function ContractActions({ contract }: ContractActionsProps) {
                 disabled={!!loading}
               >
                 {loading === 'cancelled' ? 'Cancelling...' : 'Cancel Contract'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel rolling modal */}
+      {showCancelRolling && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full mx-4">
+            <h3 className="text-lg font-semibold text-slate-900 mb-2">Cancel Rolling Contract</h3>
+            <p className="text-sm text-slate-500 mb-4">
+              This will stop all future invoice generation from the cancellation date.
+            </p>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-slate-700 mb-1">Cancellation Date</label>
+              <input
+                type="date"
+                value={cancelDate}
+                onChange={(e) => setCancelDate(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowCancelRolling(false)}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Keep Rolling
+              </button>
+              <Button
+                onClick={async () => {
+                  setLoading('cancelRolling')
+                  const result = await cancelRollingContract(contract.id, cancelDate)
+                  setLoading('')
+                  if (result.error) alert(result.error)
+                  else router.refresh()
+                  setShowCancelRolling(false)
+                }}
+                variant="danger"
+                disabled={loading === 'cancelRolling'}
+              >
+                {loading === 'cancelRolling' ? 'Cancelling...' : 'Confirm Cancellation'}
               </Button>
             </div>
           </div>

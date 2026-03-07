@@ -2352,6 +2352,199 @@ export async function completeRenewalSigning(
 }
 
 // ============================================================
+// Rolling Contracts (Phase 8)
+// ============================================================
+
+export async function processExpiredFixedTermContracts(): Promise<void> {
+  const user = await requireAuth()
+  if (!hasPermission(user, 'contracts', 'view')) return
+  const supabase = await createClient()
+
+  const today = new Date().toISOString().split('T')[0]
+
+  const { data: contracts } = await supabase
+    .from('customer_contracts')
+    .select('id, end_date, is_rolling, renewal_status, auto_invoice, invoice_frequency, contract_types(category, auto_invoice, invoice_frequency)')
+    .eq('org_id', user.orgId)
+    .eq('status', 'active')
+    .eq('is_rolling', false)
+    .lt('end_date', today)
+    .not('renewal_status', 'in', '("superseded","expired","cancelled","rolling","renewal_in_progress")')
+
+  if (!contracts || contracts.length === 0) return
+
+  for (const c of contracts) {
+    const ct = (Array.isArray(c.contract_types) ? c.contract_types[0] : c.contract_types) as Record<string, unknown> | null
+    const category = (ct?.category as string) || 'support'
+
+    // Only service contracts auto-roll — licensing goes to renewal flow
+    if (category !== 'service') {
+      await supabase
+        .from('customer_contracts')
+        .update({ renewal_status: 'expired', updated_at: new Date().toISOString() })
+        .eq('id', c.id)
+      continue
+    }
+
+    const effectiveAutoInvoice = c.auto_invoice ?? (ct?.auto_invoice as boolean) ?? false
+
+    if (effectiveAutoInvoice) {
+      const effectiveFrequency = c.invoice_frequency ?? (ct?.invoice_frequency as string) ?? 'annual'
+      await supabase
+        .from('customer_contracts')
+        .update({
+          is_rolling: true,
+          renewal_status: 'rolling',
+          rolling_frequency: effectiveFrequency === 'monthly' ? 'monthly' : 'annual',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', c.id)
+
+      await extendRollingSchedule(c.id).catch(() => {})
+    } else {
+      await supabase
+        .from('customer_contracts')
+        .update({ renewal_status: 'expired', updated_at: new Date().toISOString() })
+        .eq('id', c.id)
+    }
+  }
+}
+
+export async function extendRollingSchedule(contractId: string): Promise<{ count: number; error?: string }> {
+  const user = await requirePermission('contracts', 'edit')
+  const supabase = await createClient()
+
+  const { data: contract } = await supabase
+    .from('customer_contracts')
+    .select('*, contract_types(invoice_frequency)')
+    .eq('id', contractId)
+    .single()
+
+  if (!contract) return { count: 0, error: 'Contract not found' }
+
+  const ct = (Array.isArray(contract.contract_types) ? contract.contract_types[0] : contract.contract_types) as Record<string, unknown> | null
+  const effectiveFrequency = contract.invoice_frequency ?? (ct?.invoice_frequency as string) ?? 'annual'
+
+  // Find the last schedule row
+  const { data: lastRow } = await supabase
+    .from('contract_invoice_schedule')
+    .select('period_end, base_amount')
+    .eq('contract_id', contractId)
+    .order('period_end', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const startFrom = lastRow
+    ? new Date(new Date(lastRow.period_end).getTime() + 86400000) // day after last period end
+    : new Date(contract.end_date || contract.start_date)
+
+  const baseAmount = lastRow ? Number(lastRow.base_amount) : (Number(contract.annual_value) || 0)
+  const fmtDate = (d: Date) => d.toISOString().split('T')[0]
+  const fmtLabel = (d: Date) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+
+  const rows: Array<{
+    org_id: string; contract_id: string; scheduled_date: string
+    period_label: string; period_start: string; period_end: string
+    base_amount: number; status: string
+  }> = []
+
+  if (effectiveFrequency === 'annual') {
+    const periodStart = new Date(startFrom)
+    for (let i = 0; i < 3; i++) {
+      const periodEnd = new Date(periodStart)
+      periodEnd.setFullYear(periodEnd.getFullYear() + 1)
+      periodEnd.setDate(periodEnd.getDate() - 1)
+
+      rows.push({
+        org_id: user.orgId,
+        contract_id: contractId,
+        scheduled_date: fmtDate(periodStart),
+        period_label: `Rolling Year (${fmtLabel(periodStart)} – ${fmtLabel(periodEnd)})`,
+        period_start: fmtDate(periodStart),
+        period_end: fmtDate(periodEnd),
+        base_amount: baseAmount,
+        status: 'pending',
+      })
+
+      periodStart.setFullYear(periodStart.getFullYear() + 1)
+    }
+  } else {
+    const monthlyAmount = baseAmount / 12
+    const periodStart = new Date(startFrom)
+    for (let i = 0; i < 36; i++) {
+      const periodEnd = new Date(periodStart)
+      periodEnd.setMonth(periodEnd.getMonth() + 1)
+      periodEnd.setDate(periodEnd.getDate() - 1)
+
+      const monthLabel = periodStart.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
+      rows.push({
+        org_id: user.orgId,
+        contract_id: contractId,
+        scheduled_date: fmtDate(periodStart),
+        period_label: `Rolling — ${monthLabel}`,
+        period_start: fmtDate(periodStart),
+        period_end: fmtDate(periodEnd),
+        base_amount: monthlyAmount,
+        status: 'pending',
+      })
+
+      periodStart.setMonth(periodStart.getMonth() + 1)
+    }
+  }
+
+  if (rows.length === 0) return { count: 0 }
+
+  const { error } = await supabase.from('contract_invoice_schedule').insert(rows)
+  if (error) return { count: 0, error: error.message }
+
+  return { count: rows.length }
+}
+
+export async function cancelRollingContract(
+  contractId: string,
+  cancelDate: string
+): Promise<{ error?: string }> {
+  const user = await requirePermission('contracts', 'edit')
+  const supabase = await createClient()
+
+  // Cancel pending schedule rows from the given date onwards
+  const { error: schedErr } = await supabase
+    .from('contract_invoice_schedule')
+    .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+    .eq('contract_id', contractId)
+    .eq('status', 'pending')
+    .gte('scheduled_date', cancelDate)
+
+  if (schedErr) return { error: schedErr.message }
+
+  // Update contract
+  const { error: conErr } = await supabase
+    .from('customer_contracts')
+    .update({
+      renewal_status: 'cancelled',
+      end_date: cancelDate,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', contractId)
+
+  if (conErr) return { error: conErr.message }
+
+  const { data: c } = await supabase.from('customer_contracts').select('contract_number').eq('id', contractId).single()
+
+  logActivity({
+    supabase, user,
+    entityType: 'contract',
+    entityId: contractId,
+    action: 'rolling_contract_cancelled',
+    details: { cancel_date: cancelDate, contract_number: c?.contract_number },
+  })
+
+  revalidatePath(`/contracts/${contractId}`)
+  revalidatePath('/contracts')
+  return {}
+}
+
+// ============================================================
 // Contract Creation from Quote Lines (Phase 2)
 // ============================================================
 
