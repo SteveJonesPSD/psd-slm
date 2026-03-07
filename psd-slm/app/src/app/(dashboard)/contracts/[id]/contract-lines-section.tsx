@@ -52,6 +52,16 @@ export function ContractLinesSection({ contractId, lines, editable }: ContractLi
       label: 'Location',
       render: (r) => r.location || '\u2014',
     },
+    {
+      key: 'supplier_price',
+      label: 'Supplier Price',
+      nowrap: true,
+      render: () => (
+        <span className="text-xs italic text-slate-300" title="Supplier price integration coming soon. This will auto-populate buy prices on renewal.">
+          Not configured
+        </span>
+      ),
+    },
     ...(editable
       ? [
           {

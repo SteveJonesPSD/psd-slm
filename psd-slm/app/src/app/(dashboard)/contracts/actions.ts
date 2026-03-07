@@ -2135,10 +2135,15 @@ export async function generateRenewalQuote(
       description: cl.description,
       quantity: Number(cl.quantity) || 1,
       sell_price: Number(cl.unit_price) || 0,
-      buy_price: Number(cl.buy_price) || 0,
-      // TODO: When supplier price list module ships, refresh buy_price here
-      // from contract_line_supplier_prices where contract_line_id matches
-      // and use deal registration pricing if active deal reg exists
+      // SUPPLIER PRICE STUB — DO NOT REMOVE
+      // When the supplier price list module is built:
+      // 1. Query contract_line_supplier_prices WHERE contract_line_id = cl.id
+      // 2. If a row exists with current_buy_price IS NOT NULL:
+      //    - Use current_buy_price as the buy_price on the new quote line
+      //    - Set deal_reg_line_id if an active deal registration exists for this product/customer
+      // 3. If no row or price is null: fall back to product catalogue buy price
+      // 4. Update contract_line_supplier_prices.last_checked_at on each check
+      buy_price: Number(cl.buy_price) || 0, // Fallback only — replace with above when ready
       vat_rate: 20,
       sort_order: idx,
       is_optional: false,
