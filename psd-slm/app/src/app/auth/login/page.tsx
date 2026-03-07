@@ -231,14 +231,12 @@ function LoginFlow() {
           >
             {loading ? 'Sending...' : 'Send Sign-In Link'}
           </button>
-          {hasPassword && (
-            <button
-              onClick={() => setStep('password')}
-              className="w-full text-center text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
-            >
-              Sign in with password instead
-            </button>
-          )}
+          <button
+            onClick={() => setStep('password')}
+            className="w-full text-center text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+          >
+            Sign in with password instead
+          </button>
         </>
       )}
 
