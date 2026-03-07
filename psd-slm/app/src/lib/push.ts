@@ -1,12 +1,19 @@
-import webPush from 'web-push'
 import { SupabaseClient } from '@supabase/supabase-js'
 
-const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || ''
-const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:support@innov8iv.co.uk'
+let _webPushReady = false
 
-if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
-  webPush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
+function getWebPush() {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const webPush = require('web-push') as typeof import('web-push')
+  const pub = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''
+  const priv = process.env.VAPID_PRIVATE_KEY || ''
+  if (!pub || !priv) return null
+  if (!_webPushReady) {
+    const subject = process.env.VAPID_SUBJECT || 'mailto:support@innov8iv.co.uk'
+    webPush.setVapidDetails(subject, pub, priv)
+    _webPushReady = true
+  }
+  return webPush
 }
 
 interface PushPayload {
@@ -25,7 +32,8 @@ export async function sendPushToUser(
   userId: string,
   payload: PushPayload
 ): Promise<void> {
-  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return
+  const webPush = getWebPush()
+  if (!webPush) return
 
   const { data: subs } = await supabase
     .from('push_subscriptions')
