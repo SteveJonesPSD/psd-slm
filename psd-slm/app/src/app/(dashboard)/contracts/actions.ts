@@ -1975,6 +1975,383 @@ export async function upgradeContract(
 }
 
 // ============================================================
+// Licensing Renewal Flow (Phase 7)
+// ============================================================
+
+export async function getLicensingRenewalState(contractId: string): Promise<{
+  renewalQuoteId?: string
+  renewalQuoteNumber?: string
+  workflowStatus?: string
+  newContractId?: string
+  newContractNumber?: string
+} | null> {
+  await requirePermission('contracts', 'view')
+  const supabase = await createClient()
+
+  const { data: renewal } = await supabase
+    .from('contract_renewals')
+    .select('*')
+    .or(`old_contract_id.eq.${contractId},new_contract_id.eq.${contractId}`)
+    .not('renewal_quote_id', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (!renewal) return null
+
+  // Fetch the quote separately to avoid FK naming issues
+  let quoteNumber: string | undefined
+  let quoteId: string | undefined
+  if (renewal.renewal_quote_id) {
+    const { data: q } = await supabase
+      .from('quotes')
+      .select('id, quote_number')
+      .eq('id', renewal.renewal_quote_id)
+      .single()
+    if (q) { quoteId = q.id; quoteNumber = q.quote_number }
+  }
+
+  return {
+    renewalQuoteId: quoteId,
+    renewalQuoteNumber: quoteNumber,
+    workflowStatus: renewal.renewal_workflow_status || 'pending',
+    newContractId: renewal.new_contract_id,
+    newContractNumber: undefined,
+  }
+}
+
+export async function generateRenewalQuote(
+  contractId: string
+): Promise<{ success: boolean; quoteId?: string; quoteNumber?: string; error?: string }> {
+  const user = await requirePermission('contracts', 'edit')
+  const supabase = await createClient()
+
+  const { data: contract } = await supabase
+    .from('customer_contracts')
+    .select('*, contract_types(category)')
+    .eq('id', contractId)
+    .single()
+
+  if (!contract) return { success: false, error: 'Contract not found' }
+
+  // Fetch contract lines
+  const { data: contractLines } = await supabase
+    .from('contract_lines')
+    .select('*')
+    .eq('customer_contract_id', contractId)
+    .order('sort_order')
+
+  // Fetch source quote for attribution and metadata
+  let quoteType = 'business'
+  let brandId: string | null = null
+  let assignedTo: string | null = null
+  let attributions: Array<{ user_id: string; attribution_type: string; percentage: number }> = []
+
+  if (contract.source_quote_id) {
+    const { data: srcQuote } = await supabase
+      .from('quotes')
+      .select('quote_type, brand_id, assigned_to')
+      .eq('id', contract.source_quote_id)
+      .single()
+    if (srcQuote) {
+      quoteType = srcQuote.quote_type || 'business'
+      brandId = srcQuote.brand_id
+      assignedTo = srcQuote.assigned_to
+    }
+
+    const { data: srcAttr } = await supabase
+      .from('quote_attributions')
+      .select('user_id, attribution_type, percentage')
+      .eq('quote_id', contract.source_quote_id)
+    if (srcAttr) attributions = srcAttr
+  }
+
+  // Generate quote number
+  const year = new Date().getFullYear()
+  const qPrefix = `Q-${year}-`
+  const { data: lastQuote } = await supabase
+    .from('quotes')
+    .select('quote_number')
+    .eq('org_id', user.orgId)
+    .like('quote_number', `${qPrefix}%`)
+    .order('quote_number', { ascending: false })
+    .limit(1)
+
+  let nextSeq = 1
+  if (lastQuote && lastQuote.length > 0) {
+    const num = parseInt(lastQuote[0].quote_number.replace(qPrefix, ''), 10)
+    if (!isNaN(num)) nextSeq = num + 1
+  }
+  const quoteNumber = `${qPrefix}${String(nextSeq).padStart(4, '0')}`
+
+  // Create quote
+  const { data: quote, error: qErr } = await supabase
+    .from('quotes')
+    .insert({
+      org_id: user.orgId,
+      customer_id: contract.customer_id,
+      contact_id: contract.contact_id,
+      quote_number: quoteNumber,
+      status: 'draft',
+      quote_type: quoteType,
+      brand_id: brandId,
+      assigned_to: assignedTo || user.id,
+      internal_notes: `Renewal quote generated from contract ${contract.contract_number}`,
+      version: 1,
+    })
+    .select('id, quote_number')
+    .single()
+
+  if (qErr || !quote) return { success: false, error: qErr?.message || 'Failed to create quote' }
+
+  // Copy attributions
+  if (attributions.length > 0) {
+    await supabase.from('quote_attributions').insert(
+      attributions.map(a => ({ quote_id: quote.id, ...a }))
+    )
+  } else {
+    // Default attribution to assigned user
+    await supabase.from('quote_attributions').insert({
+      quote_id: quote.id,
+      user_id: assignedTo || user.id,
+      attribution_type: 'direct',
+      percentage: 100,
+    })
+  }
+
+  // Create default quote group
+  const { data: group } = await supabase
+    .from('quote_groups')
+    .insert({ quote_id: quote.id, name: 'Renewal Items', sort_order: 0 })
+    .select('id')
+    .single()
+
+  // Create quote lines from contract lines
+  if (contractLines && contractLines.length > 0 && group) {
+    const lineInserts = contractLines.map((cl: Record<string, unknown>, idx: number) => ({
+      quote_id: quote.id,
+      group_id: group.id,
+      product_id: cl.product_id || null,
+      description: cl.description,
+      quantity: Number(cl.quantity) || 1,
+      sell_price: Number(cl.unit_price) || 0,
+      buy_price: Number(cl.buy_price) || 0,
+      // TODO: When supplier price list module ships, refresh buy_price here
+      // from contract_line_supplier_prices where contract_line_id matches
+      // and use deal registration pricing if active deal reg exists
+      vat_rate: 20,
+      sort_order: idx,
+      is_optional: false,
+    }))
+    await supabase.from('quote_lines').insert(lineInserts)
+  }
+
+  // Create contract_renewals row
+  await supabase.from('contract_renewals').insert({
+    old_contract_id: contractId,
+    org_id: user.orgId,
+    previous_end_date: contract.end_date || new Date().toISOString().split('T')[0],
+    new_start_date: contract.end_date
+      ? new Date(new Date(contract.end_date).getTime() + 86400000).toISOString().split('T')[0]
+      : new Date().toISOString().split('T')[0],
+    new_end_date: contract.end_date
+      ? (() => { const d = new Date(contract.end_date); d.setFullYear(d.getFullYear() + 1); return d.toISOString().split('T')[0] })()
+      : new Date(Date.now() + 365 * 86400000).toISOString().split('T')[0],
+    renewal_quote_id: quote.id,
+    renewal_workflow_status: 'quote_generated',
+    renewed_by: user.id,
+  })
+
+  // Update contract renewal_status
+  await supabase
+    .from('customer_contracts')
+    .update({ renewal_status: 'renewal_in_progress', updated_at: new Date().toISOString() })
+    .eq('id', contractId)
+
+  logActivity({
+    supabase, user,
+    entityType: 'contract',
+    entityId: contractId,
+    action: 'renewal_quote_generated',
+    details: { quote_number: quoteNumber },
+  })
+
+  revalidatePath(`/contracts/${contractId}`)
+  return { success: true, quoteId: quote.id, quoteNumber: quote.quote_number }
+}
+
+export async function markRenewalQuoteSent(contractId: string): Promise<{ error?: string }> {
+  const user = await requirePermission('contracts', 'edit')
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('contract_renewals')
+    .update({ renewal_workflow_status: 'quote_sent' })
+    .eq('old_contract_id', contractId)
+    .not('renewal_quote_id', 'is', null)
+    .eq('renewal_workflow_status', 'quote_generated')
+
+  if (error) return { error: error.message }
+
+  logActivity({ supabase, user, entityType: 'contract', entityId: contractId, action: 'renewal_quote_sent', details: {} })
+  revalidatePath(`/contracts/${contractId}`)
+  return {}
+}
+
+export async function markRenewalQuoteAccepted(contractId: string): Promise<{ error?: string }> {
+  const user = await requirePermission('contracts', 'edit')
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('contract_renewals')
+    .update({ renewal_workflow_status: 'quote_accepted' })
+    .eq('old_contract_id', contractId)
+    .not('renewal_quote_id', 'is', null)
+    .eq('renewal_workflow_status', 'quote_sent')
+
+  if (error) return { error: error.message }
+
+  logActivity({ supabase, user, entityType: 'contract', entityId: contractId, action: 'renewal_quote_accepted', details: {} })
+  revalidatePath(`/contracts/${contractId}`)
+  return {}
+}
+
+export async function completeRenewalSigning(
+  contractId: string,
+  termMonths: number | null
+): Promise<{ success: boolean; newContractId?: string; newContractNumber?: string; error?: string }> {
+  const user = await requirePermission('contracts', 'edit')
+  const supabase = await createClient()
+
+  // Fetch the renewal row
+  const { data: renewal } = await supabase
+    .from('contract_renewals')
+    .select('*')
+    .eq('old_contract_id', contractId)
+    .not('renewal_quote_id', 'is', null)
+    .eq('renewal_workflow_status', 'quote_accepted')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single()
+
+  if (!renewal) return { success: false, error: 'No accepted renewal found' }
+
+  // Fetch old contract
+  const { data: oldContract } = await supabase
+    .from('customer_contracts')
+    .select('*')
+    .eq('id', contractId)
+    .single()
+
+  if (!oldContract) return { success: false, error: 'Contract not found' }
+
+  // Fetch renewal quote lines
+  const { data: quoteLines } = await supabase
+    .from('quote_lines')
+    .select('*')
+    .eq('quote_id', renewal.renewal_quote_id)
+    .order('sort_order')
+
+  // Create new contract
+  const contractNumber = await generateContractNumber(supabase, user.orgId)
+  const goLive = renewal.new_start_date
+  const endDate = termMonths
+    ? (() => { const d = new Date(goLive); d.setMonth(d.getMonth() + termMonths); d.setDate(d.getDate() - 1); return d.toISOString().split('T')[0] })()
+    : null
+
+  const annualValue = quoteLines
+    ? quoteLines.reduce((sum: number, ql: Record<string, unknown>) => sum + (Number(ql.quantity) || 1) * (Number(ql.sell_price) || 0), 0)
+    : oldContract.annual_value
+
+  const { data: newContract, error: createErr } = await supabase
+    .from('customer_contracts')
+    .insert({
+      org_id: user.orgId,
+      customer_id: oldContract.customer_id,
+      contract_type_id: oldContract.contract_type_id,
+      contact_id: oldContract.contact_id,
+      contract_number: contractNumber,
+      status: 'active',
+      parent_contract_id: contractId,
+      version: (oldContract.version || 1) + 1,
+      start_date: goLive,
+      end_date: endDate,
+      renewal_period: oldContract.renewal_period,
+      auto_renew: oldContract.auto_renew,
+      annual_value: annualValue,
+      billing_frequency: oldContract.billing_frequency,
+      source_quote_id: renewal.renewal_quote_id,
+      term_months: termMonths,
+      go_live_date: goLive,
+      invoice_schedule_start: (() => { const d = new Date(goLive); d.setMonth(d.getMonth() + 12); return d.toISOString().split('T')[0] })(),
+      esign_status: 'signed',
+      renewal_status: 'active',
+      auto_invoice: oldContract.auto_invoice,
+      invoice_frequency: oldContract.invoice_frequency,
+      calendar_id: oldContract.calendar_id,
+      sla_plan_id: oldContract.sla_plan_id,
+      monthly_hours: oldContract.monthly_hours,
+      created_by: user.id,
+    })
+    .select('id, contract_number')
+    .single()
+
+  if (createErr || !newContract) return { success: false, error: createErr?.message || 'Failed to create contract' }
+
+  // Copy lines from renewal quote
+  if (quoteLines && quoteLines.length > 0) {
+    const lineInserts = quoteLines.map((ql: Record<string, unknown>, idx: number) => ({
+      customer_contract_id: newContract.id,
+      description: ql.description as string,
+      quantity: Number(ql.quantity) || 1,
+      unit_price: Number(ql.sell_price) || 0,
+      buy_price: Number(ql.buy_price) || 0,
+      product_id: ql.product_id || null,
+      product_type: null,
+      line_type: 'recurring',
+      sort_order: idx,
+    }))
+    await supabase.from('contract_lines').insert(lineInserts)
+  }
+
+  // Generate invoice schedule for new contract
+  await generateInvoiceSchedule(newContract.id).catch(() => {})
+
+  // Update old contract
+  await supabase
+    .from('customer_contracts')
+    .update({ renewal_status: 'expired', status: 'expired', updated_at: new Date().toISOString() })
+    .eq('id', contractId)
+
+  // Update renewal row
+  await supabase
+    .from('contract_renewals')
+    .update({ renewal_workflow_status: 'completed', new_contract_id: newContract.id })
+    .eq('id', renewal.id)
+
+  logActivity({
+    supabase, user,
+    entityType: 'contract',
+    entityId: contractId,
+    action: 'contract_renewed',
+    details: { new_contract_number: newContract.contract_number },
+  })
+  logActivity({
+    supabase, user,
+    entityType: 'contract',
+    entityId: newContract.id,
+    action: 'contract_created_via_renewal',
+    details: { old_contract_number: oldContract.contract_number },
+  })
+
+  revalidatePath(`/contracts/${contractId}`)
+  revalidatePath(`/contracts/${newContract.id}`)
+  revalidatePath('/contracts')
+
+  return { success: true, newContractId: newContract.id, newContractNumber: newContract.contract_number }
+}
+
+// ============================================================
 // Contract Creation from Quote Lines (Phase 2)
 // ============================================================
 

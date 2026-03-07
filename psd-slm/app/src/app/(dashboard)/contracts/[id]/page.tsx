@@ -3,13 +3,14 @@ import Link from 'next/link'
 import { formatCurrency } from '@/lib/utils'
 import { requireAuth, hasPermission } from '@/lib/auth'
 import { Badge, CONTRACT_STATUS_CONFIG, CONTRACT_CATEGORY_CONFIG, RENEWAL_PERIOD_CONFIG } from '@/components/ui/badge'
-import { getCustomerContract, getFieldEngineers, getInvoiceSchedule } from '../actions'
+import { getCustomerContract, getFieldEngineers, getInvoiceSchedule, getLicensingRenewalState } from '../actions'
 import type { CustomerContractWithDetails } from '@/lib/contracts/types'
 import { ContractActions } from './contract-actions'
 import { EsignBanner } from './esign-banner'
 import { ContractLinesSection } from './contract-lines-section'
 import { InvoiceScheduleSection } from './invoice-schedule-section'
 import { UpgradeSection } from './upgrade-section'
+import { RenewalFlowSection } from './renewal-flow-section'
 import { ContractEntitlementsSection } from './contract-entitlements-section'
 import { VisitScheduleSection } from './visit-schedule-section'
 import { RenewalHistorySection } from './renewal-history-section'
@@ -27,11 +28,12 @@ function formatFrequency(f: string | null): string {
 
 export default async function ContractDetailPage({ params }: PageProps) {
   const { id } = await params
-  const [user, contract, engineers, invoiceSchedule] = await Promise.all([
+  const [user, contract, engineers, invoiceSchedule, renewalState] = await Promise.all([
     requireAuth(),
     getCustomerContract(id),
     getFieldEngineers(),
     getInvoiceSchedule(id),
+    getLicensingRenewalState(id),
   ])
 
   if (!contract) notFound()
@@ -192,6 +194,19 @@ export default async function ContractDetailPage({ params }: PageProps) {
       {/* Upgrade Section (service contracts only, active/rolling) */}
       {contract.category === 'service' && ['active', 'alert_180', 'alert_90', 'rolling'].includes(contract.renewal_status) && canEdit && (
         <UpgradeSection contractId={id} contractNumber={contract.contract_number} />
+      )}
+
+      {/* Licensing Renewal Section */}
+      {contract.category === 'licensing' && canEdit && (
+        <RenewalFlowSection
+          contractId={id}
+          contractNumber={contract.contract_number}
+          daysRemaining={contract.end_date
+            ? Math.floor((new Date(contract.end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+            : null}
+          isOpenEnded={!contract.end_date}
+          renewalState={renewalState}
+        />
       )}
 
       {/* Entitlements */}
