@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { Badge, INVOICE_STATUS_CONFIG, INVOICE_TYPE_CONFIG } from '@/components/ui/badge'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { XeroStatusPill } from '@/components/invoices/xero-status-pill'
+import { XeroPushToolbar } from '@/components/invoices/xero-push-toolbar'
 
 interface InvoiceRow {
   id: string
@@ -19,6 +21,10 @@ interface InvoiceRow {
   due_date: string | null
   paid_at: string | null
   created_at: string
+  xero_status: string | null
+  xero_pushed_at: string | null
+  xero_invoice_id: string | null
+  xero_error: string | null
   customers: { id: string; name: string } | null
   brands: { id: string; name: string; invoice_prefix: string } | null
   sales_orders: { id: string; so_number: string } | null
@@ -26,13 +32,16 @@ interface InvoiceRow {
 
 interface InvoicesTableProps {
   invoices: InvoiceRow[]
+  xeroEnabled?: boolean
+  canPushXero?: boolean
 }
 
-export function InvoicesTable({ invoices }: InvoicesTableProps) {
+export function InvoicesTable({ invoices, xeroEnabled = false, canPushXero = false }: InvoicesTableProps) {
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
 
   const filtered = useMemo(() => {
     let result = invoices
@@ -54,7 +63,55 @@ export function InvoicesTable({ invoices }: InvoicesTableProps) {
     return result
   }, [invoices, search, statusFilter, typeFilter])
 
+  // Pushable invoices: sent status, non-proforma, not currently pending
+  const pushableFiltered = filtered.filter(
+    (r) => r.effectiveStatus === 'sent' && r.invoice_type !== 'proforma' && r.xero_status !== 'pending'
+  )
+
+  const allPushableSelected = pushableFiltered.length > 0 && pushableFiltered.every((r) => selectedIds.includes(r.id))
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])
+  }
+
+  const toggleSelectAll = () => {
+    if (allPushableSelected) {
+      setSelectedIds([])
+    } else {
+      setSelectedIds(pushableFiltered.map((r) => r.id))
+    }
+  }
+
+  const showCheckboxes = xeroEnabled && canPushXero
+
   const columns: Column<InvoiceRow>[] = [
+    // Xero checkbox column (conditional)
+    ...(showCheckboxes ? [{
+      key: 'xero_select' as const,
+      label: (
+        <input
+          type="checkbox"
+          checked={allPushableSelected}
+          onChange={toggleSelectAll}
+          className="rounded border-slate-300"
+          title="Select all pushable invoices"
+        />
+      ) as unknown as string,
+      nowrap: true,
+      render: (r: InvoiceRow) => {
+        const canSelect = r.effectiveStatus === 'sent' && r.invoice_type !== 'proforma' && r.xero_status !== 'pending'
+        if (!canSelect) return null
+        return (
+          <input
+            type="checkbox"
+            checked={selectedIds.includes(r.id)}
+            onChange={(e) => { e.stopPropagation(); toggleSelect(r.id) }}
+            onClick={(e) => e.stopPropagation()}
+            className="rounded border-slate-300"
+          />
+        )
+      },
+    }] : []),
     {
       key: 'invoice_number',
       label: 'Invoice #',
@@ -142,6 +199,20 @@ export function InvoicesTable({ invoices }: InvoicesTableProps) {
           <span className="text-slate-300">\u2014</span>
         ),
     },
+    // Xero status column (conditional)
+    ...(xeroEnabled ? [{
+      key: 'xero' as const,
+      label: 'Xero',
+      nowrap: true,
+      render: (r: InvoiceRow) => (
+        <XeroStatusPill
+          xeroStatus={r.xero_status}
+          xeroPushedAt={r.xero_pushed_at}
+          xeroInvoiceId={r.xero_invoice_id}
+          xeroError={r.xero_error}
+        />
+      ),
+    }] : []),
   ]
 
   return (
@@ -153,12 +224,12 @@ export function InvoicesTable({ invoices }: InvoicesTableProps) {
           placeholder="Search invoices..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full sm:w-64 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+          className="w-full sm:w-64 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm outline-none focus:border-slate-400 dark:focus:border-slate-500 dark:text-slate-200"
         />
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="flex-1 sm:flex-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+          className="flex-1 sm:flex-none rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm outline-none focus:border-slate-400 dark:focus:border-slate-500 dark:text-slate-200"
         >
           <option value="">All Statuses</option>
           {Object.entries(INVOICE_STATUS_CONFIG).map(([key, cfg]) => (
@@ -168,7 +239,7 @@ export function InvoicesTable({ invoices }: InvoicesTableProps) {
         <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
-          className="flex-1 sm:flex-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+          className="flex-1 sm:flex-none rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm outline-none focus:border-slate-400 dark:focus:border-slate-500 dark:text-slate-200"
         >
           <option value="">All Types</option>
           {Object.entries(INVOICE_TYPE_CONFIG).map(([key, cfg]) => (
@@ -176,6 +247,18 @@ export function InvoicesTable({ invoices }: InvoicesTableProps) {
           ))}
         </select>
       </div>
+
+      {/* Xero Push Toolbar */}
+      {showCheckboxes && (
+        <XeroPushToolbar
+          selectedIds={selectedIds}
+          onComplete={() => {
+            setSelectedIds([])
+            router.refresh()
+          }}
+          onClear={() => setSelectedIds([])}
+        />
+      )}
 
       <DataTable
         columns={columns}

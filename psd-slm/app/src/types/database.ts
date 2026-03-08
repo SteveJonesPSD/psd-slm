@@ -831,8 +831,11 @@ export interface Invoice {
   customer_po: string | null
   payment_terms: number | null
   xero_invoice_id: string | null
-  xero_status: string | null
+  xero_status: 'pending' | 'synced' | 'failed' | null
   xero_last_synced: string | null
+  xero_pushed_at: string | null
+  xero_error: string | null
+  xero_push_attempts: number
   created_at: string
   updated_at: string
 }

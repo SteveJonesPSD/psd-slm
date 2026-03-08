@@ -9,6 +9,9 @@ import { getMarginThresholds } from '@/lib/margin-settings'
 import { getInvoice } from '../actions'
 import { InvoiceDetailActions } from './invoice-detail-actions'
 import { InvoiceActivity } from './invoice-activity'
+import { XeroStatusPill } from '@/components/invoices/xero-status-pill'
+import { InvoiceXeroActions } from './invoice-xero-actions'
+import { isXeroEnabled } from '@/lib/xero/xero-actions'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -18,9 +21,10 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
   const { id } = await params
   await requirePermission('invoices', 'view')
 
-  const [invoice, marginThresholds] = await Promise.all([
+  const [invoice, marginThresholds, xeroEnabled] = await Promise.all([
     getInvoice(id),
     getMarginThresholds(),
+    isXeroEnabled(),
   ])
   if (!invoice) notFound()
 
@@ -84,6 +88,14 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
             <h2 className="text-2xl font-bold text-slate-900">{invoice.invoice_number}</h2>
             {statusCfg && <Badge label={statusCfg.label} color={statusCfg.color} bg={statusCfg.bg} />}
             {typeCfg && <Badge label={typeCfg.label} color={typeCfg.color} bg={typeCfg.bg} />}
+            {xeroEnabled && invoice.xero_status && (
+              <XeroStatusPill
+                xeroStatus={invoice.xero_status}
+                xeroPushedAt={invoice.xero_pushed_at}
+                xeroInvoiceId={invoice.xero_invoice_id}
+                xeroError={invoice.xero_error}
+              />
+            )}
           </div>
           <div className="flex items-center gap-4 flex-wrap gap-y-1 text-sm text-slate-500">
             {invoice.customer && (
@@ -103,28 +115,36 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
           </div>
         </div>
 
-        <InvoiceDetailActions
-          invoiceId={invoice.id}
-          status={invoice.effectiveStatus}
-          invoiceType={invoice.invoice_type}
-          invoiceNumber={invoice.invoice_number}
-          parentInvoiceId={invoice.parent_invoice_id}
-          contactName={invoice.contact ? `${invoice.contact.first_name} ${invoice.contact.last_name}` : null}
-          contactEmail={invoice.contact?.email || null}
-          invoiceTotal={invoice.total}
-          salesOrderId={invoice.salesOrder?.id || null}
-          lines={lines.map((l) => ({
-            salesOrderLineId: l.id,
-            description: l.description,
-            quantity: l.quantity,
-            unitPrice: l.unit_price,
-            unitCost: l.unit_cost,
-            vatRate: l.vat_rate,
-            productId: l.products?.id || null,
-            sortOrder: l.sort_order,
-            groupName: l.group_name,
-          }))}
-        />
+        <div className="flex flex-col gap-2 items-end">
+          <InvoiceDetailActions
+            invoiceId={invoice.id}
+            status={invoice.effectiveStatus}
+            invoiceType={invoice.invoice_type}
+            invoiceNumber={invoice.invoice_number}
+            parentInvoiceId={invoice.parent_invoice_id}
+            contactName={invoice.contact ? `${invoice.contact.first_name} ${invoice.contact.last_name}` : null}
+            contactEmail={invoice.contact?.email || null}
+            invoiceTotal={invoice.total}
+            salesOrderId={invoice.salesOrder?.id || null}
+            lines={lines.map((l) => ({
+              salesOrderLineId: l.id,
+              description: l.description,
+              quantity: l.quantity,
+              unitPrice: l.unit_price,
+              unitCost: l.unit_cost,
+              vatRate: l.vat_rate,
+              productId: l.products?.id || null,
+              sortOrder: l.sort_order,
+              groupName: l.group_name,
+            }))}
+          />
+          {xeroEnabled && invoice.effectiveStatus === 'sent' && invoice.invoice_type !== 'proforma' && (
+            <InvoiceXeroActions
+              invoiceId={invoice.id}
+              xeroStatus={invoice.xero_status}
+            />
+          )}
+        </div>
       </div>
 
       {/* Address cards */}

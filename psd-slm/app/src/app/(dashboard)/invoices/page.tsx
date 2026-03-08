@@ -1,13 +1,19 @@
-import { requirePermission } from '@/lib/auth'
+import { requirePermission, requireAuth, hasAnyPermission } from '@/lib/auth'
 import { PageHeader } from '@/components/ui/page-header'
 import { StatCard } from '@/components/ui/stat-card'
 import { formatCurrency } from '@/lib/utils'
 import { getInvoices } from './actions'
 import { InvoicesTable } from './invoices-table'
+import { isXeroEnabled } from '@/lib/xero/xero-actions'
 
 export default async function InvoicesPage() {
-  await requirePermission('invoices', 'view')
-  const invoices = await getInvoices()
+  const user = await requirePermission('invoices', 'view')
+  const [invoices, xeroEnabled] = await Promise.all([
+    getInvoices(),
+    isXeroEnabled(),
+  ])
+
+  const canPushXero = ['super_admin', 'admin', 'finance'].includes(user.role.name)
 
   // Stats
   const now = new Date()
@@ -56,7 +62,11 @@ export default async function InvoicesPage() {
         />
       </div>
 
-      <InvoicesTable invoices={invoices} />
+      <InvoicesTable
+        invoices={invoices}
+        xeroEnabled={xeroEnabled}
+        canPushXero={canPushXero}
+      />
     </div>
   )
 }

@@ -6,6 +6,7 @@ import { decryptCustomerRow, decryptContactRow, decryptContactRows } from '@/lib
 import { revalidatePath } from 'next/cache'
 import { logActivity } from '@/lib/activity-log'
 import { generateInvoiceNumber, getEffectiveInvoiceStatus } from '@/lib/invoicing'
+import { pushInvoiceToXero } from '@/lib/xero/xero-actions'
 
 // --- List ---
 
@@ -540,6 +541,20 @@ export async function sendInvoice(invoiceId: string) {
     action: 'invoice.status_changed',
     details: { from: 'draft', to: 'sent' },
   })
+
+  // Auto-push to Xero if enabled (fire-and-forget)
+  const { data: pushModeRow } = await supabase
+    .from('org_settings')
+    .select('setting_value')
+    .eq('org_id', user.orgId)
+    .eq('setting_key', 'xero_push_mode')
+    .single()
+
+  if (pushModeRow?.setting_value === 'auto') {
+    pushInvoiceToXero(invoiceId, user.orgId).catch((err) => {
+      console.error('[Xero auto-push] Error:', err)
+    })
+  }
 
   revalidatePath('/invoices')
   revalidatePath(`/invoices/${invoiceId}`)
