@@ -151,11 +151,11 @@ export function OnsiteJobDetail({ item, audit, categories, canEdit, canNotifySal
                   </Link>
                 </div>
               )}
-              {(item as Record<string, unknown>).escalation_ticket && (
+              {item.escalation_ticket_id && (item as unknown as { escalation_ticket?: { id: string; ticket_number: string } }).escalation_ticket && (
                 <div>
                   <div className="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-0.5">Escalation Ticket</div>
-                  <Link href={`/helpdesk/tickets/${((item as Record<string, unknown>).escalation_ticket as Record<string, unknown>).id}`} className="text-red-600 dark:text-red-400 hover:text-red-800 no-underline">
-                    {((item as Record<string, unknown>).escalation_ticket as Record<string, unknown>).ticket_number as string}
+                  <Link href={`/helpdesk/tickets/${(item as unknown as { escalation_ticket: { id: string; ticket_number: string } }).escalation_ticket.id}`} className="text-red-600 dark:text-red-400 hover:text-red-800 no-underline">
+                    {(item as unknown as { escalation_ticket: { id: string; ticket_number: string } }).escalation_ticket.ticket_number}
                   </Link>
                 </div>
               )}
