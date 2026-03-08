@@ -127,5 +127,5 @@ export async function checkCustomerOnsiteContract(ctx: PortalContext): Promise<b
     .limit(1)
     .maybeSingle()
 
-  return !!(contract?.contract_types as Record<string, boolean> | null)?.includes_onsite
+  return !!(contract?.contract_types as unknown as Record<string, boolean> | null)?.includes_onsite
 }
