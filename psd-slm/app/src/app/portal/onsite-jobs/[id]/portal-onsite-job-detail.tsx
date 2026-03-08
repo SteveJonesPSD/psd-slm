@@ -119,7 +119,7 @@ export function PortalOnsiteJobDetail({ item, audit, portalUserId }: PortalOnsit
         <h2 className="text-sm font-semibold text-slate-900 dark:text-white mb-4">Activity</h2>
         <div className="space-y-3">
           {audit.map(entry => {
-            let label = entry.action
+            let label: string = entry.action
             if (entry.action === 'created') label = 'Logged'
             else if (entry.action === 'status_changed') label = `Status updated to ${entry.new_value}`
             else if (entry.action === 'engineer_note') label = 'Notes added by engineer'
