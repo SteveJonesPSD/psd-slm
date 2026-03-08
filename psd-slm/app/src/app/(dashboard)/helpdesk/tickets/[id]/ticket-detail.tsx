@@ -183,7 +183,7 @@ export function TicketDetail({ ticket, teamMembers, categories, tags, cannedResp
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {canPushToOji && t.status !== 'closed' && t.status !== 'cancelled' && t.customer_id && (
+          {canPushToOji && t.status !== 'closed' && t.status !== 'cancelled' && !!t.customer_id && (
             <button
               onClick={() => setShowPushToOji(true)}
               className="flex items-center gap-1.5 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-3 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
