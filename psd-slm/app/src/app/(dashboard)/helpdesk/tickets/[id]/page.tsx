@@ -49,7 +49,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
   const ticketEmails = ticketEmailsResult.data || []
   const emailContext = emailContextResult
   const canPushToOji = currentUser.permissions.includes('onsite_jobs.push_ticket')
-  const ojiCategories = ((ojiCatsResult as { data?: unknown[] }).data || []).filter((c: Record<string, unknown>) => c.is_active)
+  const ojiCategories = ((ojiCatsResult as { data?: { is_active: boolean }[] }).data || []).filter(c => c.is_active)
 
   return (
     <MobileDetector
