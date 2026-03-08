@@ -14,6 +14,7 @@ const BASE_NAV_ITEMS = [
   { href: '/portal/visits', label: 'Visits' },
   { href: '/portal/contracts', label: 'Contracts' },
   { href: '/portal/contacts', label: 'Contacts' },
+  { href: '/portal/onsite-jobs', label: 'Onsite Jobs' },
 ]
 
 export function PortalNav() {

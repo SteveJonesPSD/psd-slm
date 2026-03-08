@@ -47,13 +47,13 @@ export function ContractForm({ customers, contractTypes, opportunities, calendar
   })
 
   const [contacts, setContacts] = useState<{ id: string; first_name: string; last_name: string }[]>([])
-  const [pricebookLines, setPricebookLines] = useState<Array<PricebookLine & { included: boolean }>>([])
+  const [pricebookLines, setPricebookLines] = useState<Array<PricebookLine & { included: boolean; editBuyPrice: number | null }>>([])
 
   // Load pricebook lines when support contract type is selected
   useEffect(() => {
     if (selectedType?.category === 'support' && form.contract_type_id) {
       getPricebookLines(form.contract_type_id).then(lines => {
-        setPricebookLines(lines.filter(l => l.is_active).map(l => ({ ...l, included: true })))
+        setPricebookLines(lines.filter(l => l.is_active).map(l => ({ ...l, included: true, editBuyPrice: l.buy_price })))
       })
     } else {
       setPricebookLines([])
@@ -172,8 +172,10 @@ export function ContractForm({ customers, contractTypes, opportunities, calendar
         lines: pricebookLines
           .filter(l => l.included)
           .map((l, i) => ({
+            pricebook_line_id: l.id,
             description: l.description,
             annual_price: Number(l.annual_price),
+            buy_price: l.editBuyPrice,
             vat_rate: Number(l.vat_rate),
             sort_order: i,
           })),
@@ -319,6 +321,14 @@ export function ContractForm({ customers, contractTypes, opportunities, calendar
               Contract Lines (from pricebook)
             </p>
             <div className="space-y-2">
+              {/* Header row */}
+              <div className="flex items-center gap-3 text-xs font-medium text-slate-500 mb-1">
+                <div className="w-5" />
+                <span className="flex-1">Description</span>
+                <span className="w-28 text-right">Sell (£/yr)</span>
+                <span className="w-28 text-right">Buy (£/yr)</span>
+                <span className="w-12" />
+              </div>
               {pricebookLines.map((line, idx) => (
                 <div key={line.id} className="flex items-center gap-3 text-sm">
                   <input
@@ -341,6 +351,18 @@ export function ContractForm({ customers, contractTypes, opportunities, calendar
                       updated[idx] = { ...updated[idx], annual_price: Number(e.target.value) }
                       setPricebookLines(updated)
                     }}
+                    className="w-28 rounded border border-gray-200 px-2 py-1 text-sm text-right focus:border-indigo-400 focus:outline-none"
+                  />
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={line.editBuyPrice ?? ''}
+                    onChange={(e) => {
+                      const updated = [...pricebookLines]
+                      updated[idx] = { ...updated[idx], editBuyPrice: e.target.value === '' ? null : Number(e.target.value) }
+                      setPricebookLines(updated)
+                    }}
+                    placeholder="—"
                     className="w-28 rounded border border-gray-200 px-2 py-1 text-sm text-right focus:border-indigo-400 focus:outline-none"
                   />
                   <span className="text-xs text-slate-400 w-12">VAT {line.vat_rate}%</span>

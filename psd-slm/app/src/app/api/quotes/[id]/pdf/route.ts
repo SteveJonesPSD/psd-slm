@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission } from '@/lib/auth'
+import { decryptCustomerRow } from '@/lib/crypto-helpers'
 import { renderToBuffer } from '@react-pdf/renderer'
 import React from 'react'
 import { QuotePdfDocument } from './quote-pdf-document'
@@ -62,7 +63,8 @@ export async function GET(
     return NextResponse.json({ error: 'Quote not found' }, { status: 404 })
   }
 
-  const customer = quote.customers as { name: string; address_line1: string | null; address_line2: string | null; city: string | null; postcode: string | null } | null
+  const rawCustomer = quote.customers as { name: string; address_line1: string | null; address_line2: string | null; city: string | null; postcode: string | null } | null
+  const customer = rawCustomer ? decryptCustomerRow(rawCustomer) : null
   const contact = quote.contacts as { first_name: string; last_name: string } | null
   const brand = quote.brands as {
     name: string; legal_entity: string | null; logo_path: string | null; logo_width: number;

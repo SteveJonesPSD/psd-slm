@@ -36,6 +36,12 @@ export async function GET(
     return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
   }
 
+  const rawCustomer = invoice.customers as {
+    name: string; address_line1: string | null; address_line2: string | null;
+    city: string | null; postcode: string | null
+  } | null
+  const customer = rawCustomer ? decryptCustomerRow(rawCustomer) : null
+
   // Fetch delivery address from SO if it differs from billing
   let deliveryAddress = null
   if (invoice.sales_order_id) {
@@ -45,18 +51,11 @@ export async function GET(
       .eq('id', invoice.sales_order_id)
       .single()
     if (so && so.delivery_address_line1) {
-      const cust = invoice.customers as { address_line1: string | null; postcode: string | null } | null
-      if (so.delivery_address_line1 !== cust?.address_line1 || so.delivery_postcode !== cust?.postcode) {
+      if (so.delivery_address_line1 !== customer?.address_line1 || so.delivery_postcode !== customer?.postcode) {
         deliveryAddress = so
       }
     }
   }
-
-  const rawCustomer = invoice.customers as {
-    name: string; address_line1: string | null; address_line2: string | null;
-    city: string | null; postcode: string | null
-  } | null
-  const customer = rawCustomer ? decryptCustomerRow(rawCustomer) : null
 
   const contact = invoice.contacts as { first_name: string; last_name: string } | null
 

@@ -1,6 +1,7 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { decryptContactRow } from '@/lib/crypto-helpers'
 import type { PortalContext, PortalContactItem } from './types'
 
 function requirePortalAdmin(ctx: PortalContext): void {
@@ -29,7 +30,8 @@ export async function getPortalContacts(ctx: PortalContext): Promise<PortalConta
     (portalUsers || []).map((pu) => [pu.contact_id, pu])
   )
 
-  return (contacts || []).map((c) => {
+  return (contacts || []).map((rawC) => {
+    const c = decryptContactRow(rawC)
     const pu = portalMap.get(c.id)
     let portalStatus: 'active' | 'invited' | 'none' = 'none'
     if (pu?.is_active) {

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { useRouter } from 'next/navigation'
 import { Badge, JOB_STATUS_CONFIG, JOB_PRIORITY_CONFIG } from '@/components/ui/badge'
-import { changeJobStatus, addJobNote, getJobPhotoUrl, getJobSignatureUrl, validateJob, toggleJobTask, getJobGpsLog } from '../../actions'
+import { changeJobStatus, addJobNote, getJobPhotoUrl, getJobSignatureUrl, validateJob, toggleJobTask, saveJobTasks, getJobGpsLog } from '../../actions'
 import type { JobGpsLog, GpsEventType } from '@/types/database'
 import { CollectionSection } from './collection-section'
 
@@ -657,13 +657,55 @@ function TasksPanel({ tasks, canEdit, onRefresh }: {
   canEdit: boolean
   onRefresh: () => void
 }) {
-  const requiredTasks = tasks.filter(t => t.is_required)
-  const completedRequired = requiredTasks.filter(t => t.is_completed).length
-  const allCompleted = tasks.every(t => t.is_completed)
-  const completedCount = tasks.filter(t => t.is_completed).length
+  const [localTasks, setLocalTasks] = useState(() => tasks.map(t => ({ ...t })))
+  const [taskResponses, setTaskResponses] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {}
+    for (const t of tasks) {
+      if (t.response_value) init[t.id] = t.response_value
+    }
+    return init
+  })
+  const [saving, setSaving] = useState(false)
 
-  async function handleToggle(taskId: string) {
-    await toggleJobTask(taskId)
+  // Sync if tasks prop changes (e.g. after router.refresh)
+  useEffect(() => {
+    setLocalTasks(tasks.map(t => ({ ...t })))
+    const init: Record<string, string> = {}
+    for (const t of tasks) {
+      if (t.response_value) init[t.id] = t.response_value
+    }
+    setTaskResponses(init)
+  }, [tasks])
+
+  const requiredTasks = localTasks.filter(t => t.is_required)
+  const completedRequired = requiredTasks.filter(t => t.is_completed).length
+  const allCompleted = localTasks.every(t => t.is_completed)
+  const completedCount = localTasks.filter(t => t.is_completed).length
+  const hasChanges = JSON.stringify(localTasks.map(t => ({ id: t.id, is_completed: t.is_completed, response_value: t.response_value }))) !==
+    JSON.stringify(tasks.map(t => ({ id: t.id, is_completed: t.is_completed, response_value: t.response_value })))
+
+  function handleToggle(taskId: string) {
+    setLocalTasks(prev =>
+      prev.map(t => t.id === taskId ? { ...t, is_completed: !t.is_completed } : t)
+    )
+  }
+
+  function handleTaskResponse(taskId: string, value: string) {
+    setTaskResponses(prev => ({ ...prev, [taskId]: value }))
+    setLocalTasks(prev =>
+      prev.map(t => t.id === taskId ? { ...t, is_completed: !!value.trim(), response_value: value } : t)
+    )
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    const updates = localTasks.map(t => ({
+      id: t.id,
+      is_completed: t.is_completed,
+      response_value: taskResponses[t.id] ?? t.response_value ?? null,
+    }))
+    await saveJobTasks(tasks[0]?.job_id, updates)
+    setSaving(false)
     onRefresh()
   }
 
@@ -672,7 +714,7 @@ function TasksPanel({ tasks, canEdit, onRefresh }: {
       {/* Progress */}
       <div className="flex items-center justify-between">
         <span className="text-sm text-slate-600">
-          {completedCount}/{tasks.length} completed
+          {completedCount}/{localTasks.length} completed
           {requiredTasks.length > 0 && ` (${completedRequired}/${requiredTasks.length} required)`}
         </span>
         {allCompleted && (
@@ -684,13 +726,13 @@ function TasksPanel({ tasks, canEdit, onRefresh }: {
       <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
         <div
           className={`h-full rounded-full transition-all ${allCompleted ? 'bg-green-500' : 'bg-indigo-500'}`}
-          style={{ width: `${tasks.length > 0 ? (completedCount / tasks.length) * 100 : 0}%` }}
+          style={{ width: `${localTasks.length > 0 ? (completedCount / localTasks.length) * 100 : 0}%` }}
         />
       </div>
 
       {/* Task list */}
       <div className="divide-y divide-slate-100">
-        {tasks.map((task: { id: string; description: string; is_required: boolean; is_completed: boolean; completed_at: string | null; completed_by_user: { first_name: string; last_name: string } | null; notes: string | null; response_type: string; response_value: string | null }) => (
+        {localTasks.map((task: { id: string; job_id: string; description: string; is_required: boolean; is_completed: boolean; completed_at: string | null; notes: string | null; response_type: string; response_value: string | null }) => (
           <div key={task.id} className="flex items-start gap-3 py-3">
             {canEdit && task.response_type === 'yes_no' ? (
               <button
@@ -734,7 +776,24 @@ function TasksPanel({ tasks, canEdit, onRefresh }: {
                   </span>
                 )}
               </div>
-              {task.response_value && (
+              {canEdit && task.response_type === 'text' && (
+                <input
+                  type="text"
+                  value={taskResponses[task.id] || ''}
+                  onChange={e => handleTaskResponse(task.id, e.target.value)}
+                  placeholder="Enter response..."
+                  className="mt-1.5 w-full max-w-sm rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                />
+              )}
+              {canEdit && task.response_type === 'date' && (
+                <input
+                  type="date"
+                  value={taskResponses[task.id] || ''}
+                  onChange={e => handleTaskResponse(task.id, e.target.value)}
+                  className="mt-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                />
+              )}
+              {!canEdit && task.response_value && (
                 <p className="mt-0.5 text-xs text-indigo-600">
                   {task.response_type === 'date'
                     ? new Date(task.response_value + 'T00:00').toLocaleDateString('en-GB')
@@ -744,9 +803,6 @@ function TasksPanel({ tasks, canEdit, onRefresh }: {
               {task.is_completed && task.completed_at && (
                 <p className="mt-0.5 text-xs text-slate-400">
                   {new Date(task.completed_at).toLocaleString('en-GB')}
-                  {task.completed_by_user && (
-                    <span> by {task.completed_by_user.first_name} {task.completed_by_user.last_name}</span>
-                  )}
                 </p>
               )}
               {task.notes && (
@@ -756,6 +812,17 @@ function TasksPanel({ tasks, canEdit, onRefresh }: {
           </div>
         ))}
       </div>
+
+      {/* Save button */}
+      {canEdit && hasChanges && (
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="w-full rounded-lg bg-indigo-600 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+        >
+          {saving ? 'Saving...' : 'Save Tasks'}
+        </button>
+      )}
     </div>
   )
 }

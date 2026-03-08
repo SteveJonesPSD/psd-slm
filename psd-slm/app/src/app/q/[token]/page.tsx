@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { decryptCustomerRow, decryptContactRow } from '@/lib/crypto-helpers'
 import { PortalQuoteView } from './portal-quote-view'
 import { PortalAccepted } from './portal-accepted'
 import { PortalDeclined } from './portal-declined'
@@ -53,8 +54,8 @@ export default async function PortalPage({ params }: PageProps) {
   // Transform Supabase join results to proper types
   const quote = {
     ...rawQuote,
-    customers: rawQuote.customers as unknown as { name: string; address_line1: string | null; address_line2: string | null; city: string | null; postcode: string | null } | null,
-    contacts: rawQuote.contacts as unknown as { first_name: string; last_name: string; email: string | null } | null,
+    customers: rawQuote.customers ? decryptCustomerRow(rawQuote.customers as unknown as { name: string; address_line1: string | null; address_line2: string | null; city: string | null; postcode: string | null }) : null,
+    contacts: rawQuote.contacts ? decryptContactRow(rawQuote.contacts as unknown as { first_name: string; last_name: string; email: string | null }) : null,
     brands: rawQuote.brands as unknown as { name: string; logo_path: string | null; phone: string | null; email: string | null; website: string | null; footer_text: string | null } | null,
     quote_groups: (rawQuote.quote_groups || []) as { id: string; name: string; sort_order: number }[],
     quote_lines: ((rawQuote.quote_lines || []) as unknown as { id: string; group_id: string | null; sort_order: number; description: string; quantity: number; sell_price: number; is_optional: boolean; requires_contract: boolean; products: { product_type: string } | null }[])

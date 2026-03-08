@@ -5,6 +5,7 @@ import { getUserMfaStatus, verifyMfaLogin } from '@/lib/auth'
 import { isDeviceTrusted, trustDevice } from '@/lib/session'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { logAuthEvent } from '@/lib/auth-log'
 import { headers } from 'next/headers'
 
 export async function resolveLoginMethod(email: string): Promise<{
@@ -36,6 +37,8 @@ export async function sendMagicLink(email: string): Promise<{ error?: string }> 
   if (error) {
     return { error: error.message }
   }
+
+  logAuthEvent({ eventType: 'magic_link_requested', authMethod: 'magic_link' })
   return {}
 }
 
@@ -48,10 +51,21 @@ export async function signInWithPassword(email: string, password: string): Promi
 }> {
   const supabase = await createClient()
 
-  const { error } = await supabase.auth.signInWithPassword({ email, password })
+  const { data: signInData, error } = await supabase.auth.signInWithPassword({ email, password })
   if (error) {
     console.error('[login] signInWithPassword failed:', error.message, 'email:', email)
+    logAuthEvent({ eventType: 'login_failure', authMethod: 'password', success: false, failureReason: 'invalid_password' })
     return { error: error.message }
+  }
+
+  // Fire-and-forget login success
+  if (signInData.user) {
+    logAuthEvent({
+      orgId: signInData.user.user_metadata?.org_id ?? null,
+      userId: signInData.user.id,
+      eventType: 'login_success',
+      authMethod: 'password',
+    })
   }
 
   // Check if this role requires MFA
@@ -113,9 +127,11 @@ export async function verifyMfaCode(factorId: string, code: string): Promise<{
 
     if (verifyError) {
       console.error('[mfa] verify failed:', verifyError.message)
+      logAuthEvent({ eventType: 'mfa_failure', authMethod: 'mfa_totp', success: false, failureReason: 'invalid_code' })
       return { error: verifyError.message }
     }
 
+    logAuthEvent({ eventType: 'mfa_success', authMethod: 'mfa_totp' })
     return {}
   } catch (e) {
     console.error('[mfa] unexpected error:', e)

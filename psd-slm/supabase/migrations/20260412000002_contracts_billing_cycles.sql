@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS contract_type_pricebook_lines (
   contract_type_id  UUID NOT NULL REFERENCES contract_types(id) ON DELETE CASCADE,
   description       TEXT NOT NULL,
   annual_price      NUMERIC(12,2) NOT NULL,
+  buy_price         NUMERIC(12,2),
   vat_rate          NUMERIC(5,2) DEFAULT 20.00,
   sort_order        INTEGER DEFAULT 0,
   is_active         BOOLEAN DEFAULT true,

@@ -226,18 +226,27 @@ export function ChatPanel({ agentAvatars }: { agentAvatars?: AgentAvatars }) {
 
   const suggested = suggestedQuestionsByAgent[agent.id] || []
 
-  // Draggable FAB state
+  // Draggable FAB state (mobile only — desktop uses fixed CSS positioning)
   const fabRef = useRef<HTMLButtonElement>(null)
   const dragState = useRef<{ startX: number; startY: number; startLeft: number; startTop: number; moved: boolean } | null>(null)
   const [fabPos, setFabPos] = useState<{ x: number; y: number } | null>(null)
+  const [isMobile, setIsMobile] = useState(false)
 
-  // Initialise FAB position from localStorage or default (bottom-right, above bottom bar)
+  // Detect mobile (touch device or narrow viewport) for FAB positioning strategy
   useLayoutEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 640)
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
+  // Initialise mobile FAB position from localStorage or default
+  useLayoutEffect(() => {
+    if (!isMobile) return
     const saved = localStorage.getItem('chat-fab-pos')
     if (saved) {
       try {
         const pos = JSON.parse(saved)
-        // Clamp to viewport
         const maxX = window.innerWidth - 56
         const maxY = window.innerHeight - 56
         setFabPos({ x: Math.min(Math.max(0, pos.x), maxX), y: Math.min(Math.max(0, pos.y), maxY) })
@@ -246,9 +255,10 @@ export function ChatPanel({ agentAvatars }: { agentAvatars?: AgentAvatars }) {
     }
     // Default: bottom-right, 70px up to clear bottom bars
     setFabPos({ x: window.innerWidth - 64, y: window.innerHeight - 130 })
-  }, [])
+  }, [isMobile])
 
   const handleFabTouchStart = useCallback((e: React.TouchEvent) => {
+    if (!isMobile) return
     const touch = e.touches[0]
     dragState.current = {
       startX: touch.clientX,
@@ -257,10 +267,10 @@ export function ChatPanel({ agentAvatars }: { agentAvatars?: AgentAvatars }) {
       startTop: fabPos?.y ?? 0,
       moved: false,
     }
-  }, [fabPos])
+  }, [fabPos, isMobile])
 
   const handleFabTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!dragState.current) return
+    if (!isMobile || !dragState.current) return
     const touch = e.touches[0]
     const dx = touch.clientX - dragState.current.startX
     const dy = touch.clientY - dragState.current.startY
@@ -268,9 +278,10 @@ export function ChatPanel({ agentAvatars }: { agentAvatars?: AgentAvatars }) {
     const newX = Math.min(Math.max(0, dragState.current.startLeft + dx), window.innerWidth - 56)
     const newY = Math.min(Math.max(0, dragState.current.startTop + dy), window.innerHeight - 56)
     setFabPos({ x: newX, y: newY })
-  }, [])
+  }, [isMobile])
 
   const handleFabTouchEnd = useCallback(() => {
+    if (!isMobile) return
     if (dragState.current && !dragState.current.moved) {
       setIsOpen(true)
     }
@@ -278,23 +289,27 @@ export function ChatPanel({ agentAvatars }: { agentAvatars?: AgentAvatars }) {
       localStorage.setItem('chat-fab-pos', JSON.stringify(fabPos))
     }
     dragState.current = null
-  }, [fabPos])
+  }, [fabPos, isMobile])
 
   return (
     <>
-      {/* Toggle Button — colour-coded per agent, draggable on touch */}
-      {!isOpen && fabPos && (
+      {/* Toggle Button — fixed bottom-right on desktop, draggable on mobile */}
+      {!isOpen && (isMobile ? fabPos : true) && (
         <button
           ref={fabRef}
           onClick={() => {
-            // Desktop click — touch devices use touchEnd
-            if (!('ontouchstart' in window)) setIsOpen(true)
+            if (!isMobile) setIsOpen(true)
           }}
           onTouchStart={handleFabTouchStart}
           onTouchMove={handleFabTouchMove}
           onTouchEnd={handleFabTouchEnd}
-          className="fixed z-40 flex h-12 w-12 items-center justify-center rounded-full text-white shadow-lg transition-shadow hover:shadow-xl overflow-hidden touch-none"
-          style={{ backgroundColor: agent.color, left: fabPos.x, top: fabPos.y }}
+          className={`fixed z-40 flex h-12 w-12 items-center justify-center rounded-full text-white shadow-lg transition-shadow hover:shadow-xl overflow-hidden ${
+            isMobile ? 'touch-none' : 'bottom-6 right-6'
+          }`}
+          style={{
+            backgroundColor: agent.color,
+            ...(isMobile && fabPos ? { left: fabPos.x, top: fabPos.y } : {}),
+          }}
           title={`Chat with ${agent.name}`}
         >
           <AgentAvatar agent={agent} size={48} avatarUrl={agentAvatarUrl} />

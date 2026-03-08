@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePermission, requireAuth, hasPermission } from '@/lib/auth'
+import { decryptCustomerRow } from '@/lib/crypto-helpers'
 import { revalidatePath } from 'next/cache'
 import { logActivity } from '@/lib/activity-log'
 import { generatePoNumber } from '@/lib/sales-orders'
@@ -210,7 +211,8 @@ export async function generatePurchaseOrders(input: GeneratePOsInput) {
     // Determine delivery address
     let addressLine1 = null, addressLine2 = null, city = null, postcode = null
     if (batch.delivery_destination === 'customer_site') {
-      const customer = so.customers as unknown as { address_line1?: string; address_line2?: string; city?: string; postcode?: string } | null
+      const rawCustomer = so.customers as unknown as { address_line1?: string; address_line2?: string; city?: string; postcode?: string } | null
+      const customer = rawCustomer ? decryptCustomerRow(rawCustomer) : null
       addressLine1 = customer?.address_line1 || so.delivery_address_line1
       addressLine2 = customer?.address_line2 || so.delivery_address_line2
       city = customer?.city || so.delivery_city

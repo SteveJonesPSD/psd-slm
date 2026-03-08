@@ -1,16 +1,19 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useImperativeHandle, forwardRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Badge, JOB_STATUS_CONFIG, JOB_PRIORITY_CONFIG } from '@/components/ui/badge'
-import { changeJobStatus, addJobNote, toggleJobTask } from '@/app/(dashboard)/scheduling/actions'
+import { changeJobStatus, addJobNote, saveJobTasks } from '@/app/(dashboard)/scheduling/actions'
 import { useGeoCapture } from '@/lib/use-geo-capture'
+import { OnsiteJobsCard } from '@/components/onsite-jobs-card'
+import type { OnsiteJobItem } from '@/lib/onsite-jobs/types'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function FieldJobDetail({ job }: { job: any }) {
+export function FieldJobDetail({ job, onsiteJobItems = [] }: { job: any; onsiteJobItems?: OnsiteJobItem[] }) {
   const router = useRouter()
   const { capturePosition, captureWithReason } = useGeoCapture()
+  const tasksRef = useRef<FieldTasksCardHandle>(null)
   const [changing, setChanging] = useState(false)
   const [note, setNote] = useState('')
   const [savingNote, setSavingNote] = useState(false)
@@ -59,6 +62,16 @@ export function FieldJobDetail({ job }: { job: any }) {
 
   async function handleStatusAction(newStatus: string) {
     if (newStatus === 'completed') {
+      if (tasksRef.current && !tasksRef.current.allRequiredDone()) {
+        setGpsStatus('Complete all required tasks first')
+        return
+      }
+      if (tasksRef.current) {
+        setChanging(true)
+        const gps = await capturePosition()
+        await tasksRef.current.saveAll(gps)
+        setChanging(false)
+      }
       router.push(`/field/job/${job.id}/complete`)
       return
     }
@@ -326,7 +339,7 @@ export function FieldJobDetail({ job }: { job: any }) {
 
       {/* Section 4: Tasks */}
       {(job.tasks || []).length > 0 && (
-        <FieldTasksCard tasks={job.tasks} capturePosition={capturePosition} onRefresh={() => router.refresh()} />
+        <FieldTasksCard ref={tasksRef} jobId={job.id} tasks={job.tasks} />
       )}
 
       {/* Section 5: Parts */}
@@ -369,7 +382,16 @@ export function FieldJobDetail({ job }: { job: any }) {
         </div>
       )}
 
-      {/* Section 7: Notes */}
+      {/* Section 7: Onsite Jobs */}
+      {onsiteJobItems.length > 0 && (
+        <OnsiteJobsCard
+          items={onsiteJobItems}
+          customerId={job.customer_id || job.company?.id}
+          customerName={job.company?.name}
+        />
+      )}
+
+      {/* Section 8: Notes */}
       <div className="mb-4 rounded-xl border border-gray-200 bg-white p-4">
         <h3 className="mb-3 text-xs font-bold uppercase text-slate-400">
           Notes {(job.notes || []).length > 0 && `(${job.notes.length})`}
@@ -408,8 +430,17 @@ export function FieldJobDetail({ job }: { job: any }) {
   )
 }
 
+interface FieldTasksCardHandle {
+  saveAll: (gps?: import('@/types/database').GpsCoords | null) => Promise<void>
+  allRequiredDone: () => boolean
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function FieldTasksCard({ tasks, capturePosition, onRefresh }: { tasks: any[]; capturePosition: () => Promise<import('@/types/database').GpsCoords | null>; onRefresh: () => void }) {
+const FieldTasksCard = forwardRef<FieldTasksCardHandle, { jobId: string; tasks: any[] }>(
+  function FieldTasksCard({ jobId, tasks }, ref) {
+  const [localTasks, setLocalTasks] = useState(() =>
+    tasks.map(t => ({ ...t }))
+  )
   const [taskResponses, setTaskResponses] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {}
     for (const t of tasks) {
@@ -417,32 +448,37 @@ function FieldTasksCard({ tasks, capturePosition, onRefresh }: { tasks: any[]; c
     }
     return init
   })
-  const requiredTasks = tasks.filter((t: { is_required: boolean }) => t.is_required)
-  const completedRequired = requiredTasks.filter((t: { is_completed: boolean }) => t.is_completed).length
-  const completedCount = tasks.filter((t: { is_completed: boolean }) => t.is_completed).length
 
-  async function handleToggle(taskId: string) {
-    const gps = await capturePosition()
-    await toggleJobTask(taskId, { gps })
-    onRefresh()
+  const requiredTasks = localTasks.filter((t: { is_required: boolean }) => t.is_required)
+  const completedRequired = requiredTasks.filter((t: { is_completed: boolean }) => t.is_completed).length
+  const completedCount = localTasks.filter((t: { is_completed: boolean }) => t.is_completed).length
+
+  useImperativeHandle(ref, () => ({
+    async saveAll(gps) {
+      const updates = localTasks.map(t => ({
+        id: t.id,
+        is_completed: t.is_completed,
+        response_value: taskResponses[t.id] ?? t.response_value ?? null,
+      }))
+      await saveJobTasks(jobId, updates, gps)
+    },
+    allRequiredDone() {
+      const req = localTasks.filter(t => t.is_required)
+      return req.length === 0 || req.every(t => t.is_completed)
+    }
+  }), [localTasks, taskResponses, jobId])
+
+  function handleToggle(taskId: string) {
+    setLocalTasks(prev =>
+      prev.map(t => t.id === taskId ? { ...t, is_completed: !t.is_completed } : t)
+    )
   }
 
-  const debounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
-
-  const saveTaskResponse = useCallback(async (taskId: string, value: string) => {
-    const gps = await capturePosition()
-    await toggleJobTask(taskId, { response_value: value || '', gps })
-    onRefresh()
-  }, [capturePosition, onRefresh])
-
-  function handleTaskResponse(taskId: string, value: string, immediate?: boolean) {
+  function handleTaskResponse(taskId: string, value: string) {
     setTaskResponses(prev => ({ ...prev, [taskId]: value }))
-    if (debounceTimers.current[taskId]) clearTimeout(debounceTimers.current[taskId])
-    if (immediate) {
-      saveTaskResponse(taskId, value)
-    } else {
-      debounceTimers.current[taskId] = setTimeout(() => saveTaskResponse(taskId, value), 800)
-    }
+    setLocalTasks(prev =>
+      prev.map(t => t.id === taskId ? { ...t, is_completed: !!value.trim(), response_value: value } : t)
+    )
   }
 
   return (
@@ -462,7 +498,7 @@ function FieldTasksCard({ tasks, capturePosition, onRefresh }: { tasks: any[]; c
         />
       </div>
       <div className="space-y-1">
-        {tasks.map((task: { id: string; description: string; is_required: boolean; is_completed: boolean; response_type: string; response_value: string | null }) => (
+        {localTasks.map((task: { id: string; description: string; is_required: boolean; is_completed: boolean; response_type: string; response_value: string | null }) => (
           <div key={task.id} className="p-2 rounded-lg">
             {task.response_type === 'yes_no' ? (
               <button
@@ -520,7 +556,7 @@ function FieldTasksCard({ tasks, capturePosition, onRefresh }: { tasks: any[]; c
                     type="text"
                     value={taskResponses[task.id] || ''}
                     onChange={e => handleTaskResponse(task.id, e.target.value)}
-                    onBlur={e => handleTaskResponse(task.id, e.target.value, true)}
+                    onBlur={() => {}}
                     placeholder="Enter response..."
                     className="ml-7 w-[calc(100%-1.75rem)] rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                   />
@@ -528,7 +564,7 @@ function FieldTasksCard({ tasks, capturePosition, onRefresh }: { tasks: any[]; c
                   <input
                     type="date"
                     value={taskResponses[task.id] || ''}
-                    onChange={e => handleTaskResponse(task.id, e.target.value, true)}
+                    onChange={e => handleTaskResponse(task.id, e.target.value)}
                     className="ml-7 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                   />
                 )}
@@ -539,4 +575,4 @@ function FieldTasksCard({ tasks, capturePosition, onRefresh }: { tasks: any[]; c
       </div>
     </div>
   )
-}
+})

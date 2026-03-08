@@ -312,7 +312,10 @@ function VisitSlotModal({
         }
       }
     } else {
-      if (form.cycle_weeks.length === 0) { setError('At least one cycle week must be selected'); return }
+      if (form.cycle_weeks.length < maxWeeks) {
+        setError(`This contract type requires ${maxWeeks} cycle week${maxWeeks !== 1 ? 's' : ''} — ${maxWeeks - form.cycle_weeks.length} more needed`)
+        return
+      }
     }
 
     setSaving(true)
@@ -649,13 +652,13 @@ function VisitSlotModal({
                     )
                   })}
                 </div>
-                {maxWeeks < 4 && (
-                  <p className="text-xs text-slate-400 mb-2">
-                    {maxWeeks === 1 ? 'Monthly — select 1 cycle week' :
-                     maxWeeks === 2 ? 'Fortnightly — select up to 2 cycle weeks' :
-                     `Select up to ${maxWeeks} cycle weeks`}
-                  </p>
-                )}
+                <p className={`text-xs mb-2 ${form.cycle_weeks.length < maxWeeks ? 'text-amber-600 font-medium dark:text-amber-400' : 'text-slate-400'}`}>
+                  {maxWeeks === 1 ? 'Monthly — select 1 cycle week' :
+                   maxWeeks === 2 ? `Fortnightly — select ${2 - form.cycle_weeks.length > 0 ? `${2 - form.cycle_weeks.length} more of ` : ''}2 cycle weeks` :
+                   maxWeeks === 3 ? `Select ${3 - form.cycle_weeks.length > 0 ? `${3 - form.cycle_weeks.length} more of ` : ''}3 cycle weeks` :
+                   `Select ${4 - form.cycle_weeks.length > 0 ? `${4 - form.cycle_weeks.length} more of ` : 'all '}4 cycle weeks`}
+                  {form.cycle_weeks.length === maxWeeks && ' ✓'}
+                </p>
                 {/* Quick-fill buttons */}
                 <div className="flex gap-2 flex-wrap">
                   <span className="text-xs text-slate-400 self-center">Quick-fill:</span>
@@ -693,7 +696,7 @@ function VisitSlotModal({
           <Button
             onClick={handleSave}
             variant="primary"
-            disabled={saving}
+            disabled={saving || (!differentDays && form.cycle_weeks.length < maxWeeks)}
           >
             {saving ? 'Saving...' : differentDays ? `Create ${dayRows.length} Slots` : isWeekdays ? 'Create 5 Slots' : 'Save'}
           </Button>

@@ -20,6 +20,7 @@ import { WatchersSection } from './watchers-section'
 import { MergedBanner } from './merged-banner'
 import { MergedTicketsSection } from './merged-tickets-section'
 import { MergeTicketModal } from './merge-ticket-modal'
+import { PushToOjiModal } from './push-to-oji-modal'
 import { useTicketPresence } from './use-ticket-presence'
 import { PresenceBanner } from './presence-banner'
 import { AutogrumpBanner } from '@/components/helpdesk/autogrump-badge'
@@ -52,9 +53,11 @@ interface TicketDetailProps {
   helenAvatarUrl?: string | null
   ticketEmails?: TicketEmail[]
   emailContext?: { hasEmailContext: boolean; recipientAddress?: string; recipientName?: string | null; channelId?: string }
+  canPushToOji?: boolean
+  ojiCategories?: { id: string; name: string; colour: string | null; is_active: boolean; sort_order: number; org_id: string; created_at: string }[]
 }
 
-export function TicketDetail({ ticket, teamMembers, categories, tags, cannedResponses, drafts, departments, scratchpadNotes, assistHistory, mergedTickets, mergedMessages, mergeRecordId, currentUserId, helenAvatarUrl, ticketEmails, emailContext }: TicketDetailProps) {
+export function TicketDetail({ ticket, teamMembers, categories, tags, cannedResponses, drafts, departments, scratchpadNotes, assistHistory, mergedTickets, mergedMessages, mergeRecordId, currentUserId, helenAvatarUrl, ticketEmails, emailContext, canPushToOji, ojiCategories }: TicketDetailProps) {
   const t = ticket as Record<string, unknown>
   const statusCfg = TICKET_STATUS_CONFIG[t.status as string]
   const priorityCfg = TICKET_PRIORITY_CONFIG[t.priority as string]
@@ -76,6 +79,7 @@ export function TicketDetail({ ticket, teamMembers, categories, tags, cannedResp
   const viewers = useTicketPresence(t.id as string)
   const [showAssistModal, setShowAssistModal] = useState(false)
   const [showMergeModal, setShowMergeModal] = useState(false)
+  const [showPushToOji, setShowPushToOji] = useState(false)
   const composeRef = useRef<((text: string) => void) | null>(null)
 
   const isMergedSource = Boolean(t.merged_into_ticket_id)
@@ -179,6 +183,17 @@ export function TicketDetail({ ticket, teamMembers, categories, tags, cannedResp
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {canPushToOji && t.status !== 'closed' && t.status !== 'cancelled' && t.customer_id && (
+            <button
+              onClick={() => setShowPushToOji(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-3 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z" />
+              </svg>
+              Push to Onsite Jobs
+            </button>
+          )}
           {canMerge && (
             <button
               onClick={() => setShowMergeModal(true)}
@@ -309,6 +324,17 @@ export function TicketDetail({ ticket, teamMembers, categories, tags, cannedResp
           ticketNumber={t.ticket_number as string}
           customerId={(customer?.id as string) || (t.customer_id as string)}
           onClose={() => setShowMergeModal(false)}
+        />
+      )}
+
+      {showPushToOji && (
+        <PushToOjiModal
+          ticketId={t.id as string}
+          ticketSubject={t.subject as string}
+          ticketDescription={(t.description as string) || null}
+          ticketPriority={t.priority as string}
+          categories={(ojiCategories || []) as import('@/lib/onsite-jobs/types').OnsiteJobCategory[]}
+          onClose={() => setShowPushToOji(false)}
         />
       )}
     </div>

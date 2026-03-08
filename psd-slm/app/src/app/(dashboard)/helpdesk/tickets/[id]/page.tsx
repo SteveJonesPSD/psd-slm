@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/auth'
 import { getTicket, getTeamMembers, getCategories, getTags, getCannedResponses, getDraftResponses, getDepartments, getScratchpadNotes, getAssistHistory, getMergedTickets, getMergedMessages, getMergeRecordForSource } from '../../actions'
 import { getAgentAvatars } from '@/lib/agent-avatars'
 import { getTicketEmails, getTicketEmailContext } from '@/lib/email/actions'
+import { getOnsiteJobCategories } from '../../onsite-jobs/actions'
 import { TicketDetail } from './ticket-detail'
 import { MobileTicketDetail } from './mobile-ticket-detail'
 
@@ -11,7 +12,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
   const { id } = await params
   const currentUser = await requireAuth()
 
-  const [ticketResult, teamMembers, catResult, tagResult, cannedResult, draftResult, deptResult, scratchpadResult, assistHistoryResult, mergedTicketsResult, mergedMessagesResult, mergeRecordResult, agentAvatars, ticketEmailsResult, emailContextResult] = await Promise.all([
+  const [ticketResult, teamMembers, catResult, tagResult, cannedResult, draftResult, deptResult, scratchpadResult, assistHistoryResult, mergedTicketsResult, mergedMessagesResult, mergeRecordResult, agentAvatars, ticketEmailsResult, emailContextResult, ojiCatsResult] = await Promise.all([
     getTicket(id),
     getTeamMembers(),
     getCategories(),
@@ -27,6 +28,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
     getAgentAvatars(currentUser.orgId),
     getTicketEmails(id),
     getTicketEmailContext(id),
+    getOnsiteJobCategories().catch(() => ({ data: [] })),
   ])
 
   if (ticketResult.error || !ticketResult.data) return notFound()
@@ -46,6 +48,8 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
   const mergeRecordId = mergeRecordResult.data?.id || null
   const ticketEmails = ticketEmailsResult.data || []
   const emailContext = emailContextResult
+  const canPushToOji = currentUser.permissions.includes('onsite_jobs.push_ticket')
+  const ojiCategories = ((ojiCatsResult as { data?: unknown[] }).data || []).filter((c: Record<string, unknown>) => c.is_active)
 
   return (
     <MobileDetector
@@ -67,6 +71,8 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
           helenAvatarUrl={agentAvatars.helen}
           ticketEmails={ticketEmails}
           emailContext={emailContext}
+          canPushToOji={canPushToOji}
+          ojiCategories={ojiCategories as never[]}
         />
       }
       mobile={

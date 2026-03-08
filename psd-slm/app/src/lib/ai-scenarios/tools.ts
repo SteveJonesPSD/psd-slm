@@ -7,6 +7,7 @@
 import crypto from 'crypto'
 import Anthropic from '@anthropic-ai/sdk'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { decryptCustomerRow } from '@/lib/crypto-helpers'
 import { getEffectiveInvoiceStatus } from '@/lib/invoicing'
 import { deriveSoStatus } from '@/lib/sales-orders'
 
@@ -1070,7 +1071,8 @@ async function handleFindCustomerByEmail(
 
   if (domainMatch && domainMatch.length > 0) {
     const results = domainMatch.map((d) => {
-      const customer = d.customers as unknown as { id: string; name: string; customer_type: string; account_number: string | null; city: string | null; postcode: string | null } | null
+      const rawCustomer = d.customers as unknown as { id: string; name: string; customer_type: string; account_number: string | null; city: string | null; postcode: string | null } | null
+      const customer = rawCustomer ? decryptCustomerRow(rawCustomer) : null
       return {
         id: customer?.id || d.customer_id,
         name: customer?.name || 'Unknown',

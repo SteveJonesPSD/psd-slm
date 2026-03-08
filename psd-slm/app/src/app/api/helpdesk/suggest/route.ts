@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
+import { decrypt } from '@/lib/crypto'
 import type { AuthUser } from '@/lib/auth'
 
 interface SuggestMessage {
@@ -70,7 +71,7 @@ async function getApiUser(supabase: Awaited<ReturnType<typeof createClient>>): P
     id: appUser.id,
     authId: authUser.id,
     orgId: appUser.org_id,
-    email: appUser.email,
+    email: typeof appUser.email === 'string' && appUser.email ? decrypt(appUser.email) : appUser.email,
     firstName: appUser.first_name,
     lastName: appUser.last_name,
     initials: appUser.initials,

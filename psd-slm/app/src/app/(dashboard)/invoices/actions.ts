@@ -168,6 +168,32 @@ export async function getSalesOrderForInvoice(soId: string) {
     .eq('is_active', true)
     .order('first_name')
 
+  // Check if customer is a group member — fetch parent company contacts
+  let groupContacts: { id: string; first_name: string; last_name: string; email: string | null; group_name: string }[] = []
+  const { data: memberships } = await supabase
+    .from('company_group_members')
+    .select('group_id, company_groups!inner(id, name, parent_company_id)')
+    .eq('company_id', so.customer_id)
+
+  if (memberships && memberships.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const firstGroup = (memberships[0] as any).company_groups
+    if (firstGroup?.parent_company_id) {
+      const { data: parentContacts } = await supabase
+        .from('contacts')
+        .select('id, first_name, last_name, email')
+        .eq('customer_id', firstGroup.parent_company_id)
+        .eq('is_active', true)
+        .order('first_name')
+      if (parentContacts) {
+        groupContacts = decryptContactRows(parentContacts).map(c => ({
+          ...c,
+          group_name: firstGroup.name as string,
+        }))
+      }
+    }
+  }
+
   return {
     ...so,
     lines: (so.sales_order_lines || []).sort((a: { group_sort: number; sort_order: number }, b: { group_sort: number; sort_order: number }) =>
@@ -176,6 +202,7 @@ export async function getSalesOrderForInvoice(soId: string) {
     brand,
     quoteId,
     contacts: decryptContactRows(rawContacts || []),
+    groupContacts,
   }
 }
 

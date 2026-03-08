@@ -129,6 +129,7 @@ export interface ContractLine {
   notes: string | null
   // Expansion fields
   source_quote_line_id: string | null
+  source_pricebook_line_id: string | null
   product_type: string | null
   unit_price: number | null
   buy_price: number | null
@@ -309,6 +310,7 @@ export interface PricebookLine {
   contract_type_id: string
   description: string
   annual_price: number
+  buy_price: number | null
   vat_rate: number
   sort_order: number
   is_active: boolean
@@ -420,8 +422,10 @@ export interface CreateSupportContractPayload {
   billing_month?: number
   annual_value: number
   lines: Array<{
+    pricebook_line_id?: string
     description: string
     annual_price: number
+    buy_price?: number | null
     vat_rate: number
     sort_order: number
   }>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
+import { decryptContactRow } from '@/lib/crypto-helpers'
 
 interface SearchResult {
   type: string
@@ -51,7 +52,7 @@ export async function GET(
       .select('id, first_name, last_name, email, job_title')
       .eq('customer_id', customerId)
       .eq('is_active', true)
-      .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,email.ilike.%${q}%,job_title.ilike.%${q}%`)
+      .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,job_title.ilike.%${q}%`)
       .limit(5),
 
     // Quotes
@@ -138,7 +139,8 @@ export async function GET(
   ])
 
   // Map contacts
-  for (const c of contactsRes.data || []) {
+  for (const rawC of contactsRes.data || []) {
+    const c = decryptContactRow(rawC)
     results.push({
       type: 'Contact',
       id: c.id,

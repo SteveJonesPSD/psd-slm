@@ -255,8 +255,10 @@ export function InvoiceScheduleSection({ contractId, schedule, editable }: Invoi
       {/* Billing cycle note */}
       <div className="px-5 py-3 border-t border-gray-100 text-xs text-slate-400">
         {schedule.some(r => r.is_prorata)
-          ? 'Year 1 is pro-rata from activation date to the next billing date.'
-          : 'Year 1 is invoiced via the Sales Order. This schedule covers Year 2 onwards.'}
+          ? 'Year 1 is pro-rata from contract start to first billing date. Year 2 onwards billed at full annual value.'
+          : schedule.length > 0 && schedule[0].period_label?.startsWith('Year 1')
+            ? 'All invoices are at full annual value, billed on the contract start date anniversary.'
+            : 'Year 1 invoiced via Sales Order. This schedule covers Year 2 onwards.'}
       </div>
 
       {/* Skip modal */}

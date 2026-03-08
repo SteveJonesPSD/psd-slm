@@ -1,6 +1,6 @@
 import { requirePermission } from '@/lib/auth'
 import { PageHeader } from '@/components/ui/page-header'
-import { getJob, getCompaniesForSelect, getJobTypes, getEngineers, getLinkedSalesOrders } from '../../../actions'
+import { getJob, getCompaniesForSelect, getJobTypes, getEngineers, getLinkedSalesOrders, getSchedulingSettings } from '../../../actions'
 import { JobForm } from '../../../job-form'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -9,12 +9,13 @@ export default async function EditJobPage({ params }: { params: Promise<{ id: st
   await requirePermission('scheduling', 'edit')
   const { id } = await params
 
-  const [jobResult, companiesResult, typesResult, engineersResult, linkedSos] = await Promise.all([
+  const [jobResult, companiesResult, typesResult, engineersResult, linkedSos, schedulingSettings] = await Promise.all([
     getJob(id),
     getCompaniesForSelect(),
     getJobTypes(),
     getEngineers(),
     getLinkedSalesOrders(id),
+    getSchedulingSettings(),
   ])
 
   if (jobResult.error || !jobResult.data) return notFound()
@@ -31,6 +32,7 @@ export default async function EditJobPage({ params }: { params: Promise<{ id: st
       <PageHeader title={`Edit ${job.job_number}`} />
       <JobForm
         companies={companiesResult.data || []}
+        orgWorkingHours={{ working_day_start: schedulingSettings.working_day_start, working_day_end: schedulingSettings.working_day_end }}
         jobTypes={(typesResult.data || []).map(t => ({
           id: t.id,
           name: t.name,

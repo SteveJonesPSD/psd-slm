@@ -12,9 +12,10 @@ interface ContractLinesSectionProps {
   contractId: string
   lines: ContractLine[]
   editable: boolean
+  showMargin?: boolean
 }
 
-export function ContractLinesSection({ contractId, lines, editable }: ContractLinesSectionProps) {
+export function ContractLinesSection({ contractId, lines, editable, showMargin = false }: ContractLinesSectionProps) {
   const router = useRouter()
   const [showAdd, setShowAdd] = useState(false)
   const [editingLine, setEditingLine] = useState<ContractLine | null>(null)
@@ -42,25 +43,39 @@ export function ContractLinesSection({ contractId, lines, editable }: ContractLi
     },
     {
       key: 'unit_price_annual',
-      label: 'Unit Price (Annual)',
+      label: 'Sell Price (Annual)',
       nowrap: true,
       align: 'right',
       render: (r) => r.unit_price_annual ? formatCurrency(Number(r.unit_price_annual)) : '\u2014',
     },
+    ...(showMargin ? [
+      {
+        key: 'buy_price',
+        label: 'Buy Price (Annual)',
+        nowrap: true,
+        align: 'right' as const,
+        render: (r: ContractLine) => r.buy_price != null ? formatCurrency(Number(r.buy_price)) : '\u2014',
+      },
+      {
+        key: 'margin',
+        label: 'Margin',
+        nowrap: true,
+        align: 'right' as const,
+        render: (r: ContractLine) => {
+          const sell = Number(r.unit_price_annual) || 0
+          const buy = r.buy_price != null ? Number(r.buy_price) : null
+          if (buy == null || sell === 0) return <span className="text-slate-400">&mdash;</span>
+          const margin = sell - buy
+          const pct = (margin / sell) * 100
+          const color = pct >= 30 ? 'text-green-600' : pct >= 15 ? 'text-amber-600' : 'text-red-600'
+          return <span className={color}>{formatCurrency(margin)} ({pct.toFixed(0)}%)</span>
+        },
+      },
+    ] as Column<ContractLine>[] : []),
     {
       key: 'location',
       label: 'Location',
       render: (r) => r.location || '\u2014',
-    },
-    {
-      key: 'supplier_price',
-      label: 'Supplier Price',
-      nowrap: true,
-      render: () => (
-        <span className="text-xs italic text-slate-300" title="Supplier price integration coming soon. This will auto-populate buy prices on renewal.">
-          Not configured
-        </span>
-      ),
     },
     ...(editable
       ? [
@@ -152,6 +167,7 @@ function LineModal({
     unit_type: line?.unit_type || '',
     quantity: String(line?.quantity ?? 1),
     unit_price_annual: line?.unit_price_annual ? String(line.unit_price_annual) : '',
+    buy_price: line?.buy_price != null ? String(line.buy_price) : '',
     location: line?.location || '',
     notes: line?.notes || '',
   })
@@ -206,10 +222,14 @@ function LineModal({
               <input type="number" min="0" step="1" value={form.quantity} onChange={upd('quantity')} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none" />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Unit Price (Annual)</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Sell Price (Annual)</label>
               <input type="number" step="0.01" min="0" value={form.unit_price_annual} onChange={upd('unit_price_annual')} placeholder="0.00" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Buy Price (Annual)</label>
+              <input type="number" step="0.01" min="0" value={form.buy_price} onChange={upd('buy_price')} placeholder="Optional" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none" />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Location</label>

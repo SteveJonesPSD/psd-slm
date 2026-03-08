@@ -53,11 +53,17 @@ interface LinkedSo {
   requires_install: boolean
 }
 
+interface WorkingHoursConfig {
+  working_day_start: string // HH:MM
+  working_day_end: string   // HH:MM
+}
+
 interface JobFormProps {
   companies: Company[]
   jobTypes: JobTypeOption[]
   engineers: Engineer[]
   workingDays?: number[]
+  orgWorkingHours?: WorkingHoursConfig
   // Pre-fill for edit mode
   initialData?: {
     id: string
@@ -104,12 +110,30 @@ const DURATION_OPTIONS = [
   { value: 120, label: '2 hours' },
   { value: 180, label: '3 hours' },
   { value: 240, label: '4 hours (Half Day)' },
-  { value: 480, label: '8 hours (Full Day)' },
+  { value: 480, label: 'Full Day' },
+  { value: -1, label: 'Custom' },
 ]
 
-export function JobForm({ companies, jobTypes, engineers, workingDays = [1, 2, 3, 4, 5], initialData, sourceType, sourceId, sourceRef, prefill, initialLinkedSos }: JobFormProps) {
+/** Calculate minutes between two HH:MM strings */
+function timeDiffMinutes(start: string, end: string): number {
+  const [sh, sm] = start.split(':').map(Number)
+  const [eh, em] = end.split(':').map(Number)
+  return (eh * 60 + em) - (sh * 60 + sm)
+}
+
+/** Add minutes to HH:MM string, return HH:MM */
+function addMinutesToTime(time: string, minutes: number): string {
+  const [h, m] = time.split(':').map(Number)
+  const total = h * 60 + m + minutes
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
+}
+
+export function JobForm({ companies, jobTypes, engineers, workingDays = [1, 2, 3, 4, 5], orgWorkingHours, initialData, sourceType, sourceId, sourceRef, prefill, initialLinkedSos }: JobFormProps) {
   const router = useRouter()
   const isEdit = !!initialData
+
+  const defaultStart = orgWorkingHours?.working_day_start || '08:00'
+  const defaultEnd = orgWorkingHours?.working_day_end || '17:30'
 
   const [form, setForm] = useState({
     company_id: initialData?.company_id || prefill?.company_id || '',
@@ -130,6 +154,22 @@ export function JobForm({ companies, jobTypes, engineers, workingDays = [1, 2, 3
     site_county: initialData?.site_county || '',
     site_postcode: initialData?.site_postcode || prefill?.site_postcode || '',
   })
+
+  // Duration mode state
+  const initDuration = initialData?.estimated_duration_minutes || 60
+  const isInitFullDay = initDuration === 480
+  const isInitCustom = !isInitFullDay && !DURATION_OPTIONS.some(d => d.value === initDuration && d.value > 0)
+  const [isFullDay, setIsFullDay] = useState(isInitFullDay)
+  const [isCustomDuration, setIsCustomDuration] = useState(isInitCustom)
+  const [customEndTime, setCustomEndTime] = useState(() => {
+    if (isInitCustom && initialData?.scheduled_time) {
+      return addMinutesToTime(initialData.scheduled_time.substring(0, 5), initDuration)
+    }
+    return ''
+  })
+
+  // Engineer working hours (fetched when engineer changes)
+  const [engineerHours, setEngineerHours] = useState<{ start: string; end: string } | null>(null)
 
   // Multi-engineer selection (create mode only — edit mode uses single assigned_to)
   const [selectedEngineers, setSelectedEngineers] = useState<Engineer[]>(
@@ -218,14 +258,63 @@ export function JobForm({ companies, jobTypes, engineers, workingDays = [1, 2, 3
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [salesOrders])
 
-  // Auto-fill duration from job type
+  // Fetch engineer working hours when engineer selection changes
+  const activeEngineerId = isEdit ? form.assigned_to : (selectedEngineers.length > 0 ? selectedEngineers[0].id : '')
+  const activeDate = isEdit ? form.scheduled_date : (selectedDates.length > 0 ? selectedDates[0] : '')
   useEffect(() => {
-    if (isEdit) return
+    if (!activeEngineerId || !activeDate) {
+      setEngineerHours(null)
+      return
+    }
+    const dayOfWeek = new Date(activeDate + 'T12:00:00').getDay() // 0=Sun
+    const isoDow = dayOfWeek === 0 ? 7 : dayOfWeek // 1=Mon...7=Sun
+    fetch(`/api/scheduling/engineer-hours?engineerId=${activeEngineerId}&dayOfWeek=${isoDow}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data) {
+          setEngineerHours({ start: data.start_time || defaultStart, end: data.end_time || defaultEnd })
+        } else {
+          setEngineerHours(null)
+        }
+      })
+      .catch(() => setEngineerHours(null))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeEngineerId, activeDate])
+
+  // When Full Day is selected, auto-set time from working hours
+  const effectiveStart = engineerHours?.start || defaultStart
+  const effectiveEnd = engineerHours?.end || defaultEnd
+  useEffect(() => {
+    if (isFullDay) {
+      const duration = timeDiffMinutes(effectiveStart, effectiveEnd)
+      setForm(prev => ({
+        ...prev,
+        scheduled_time: effectiveStart,
+        estimated_duration_minutes: duration > 0 ? duration : 480,
+      }))
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFullDay, effectiveStart, effectiveEnd])
+
+  // When Custom end time changes, recalculate duration
+  useEffect(() => {
+    if (isCustomDuration && form.scheduled_time && customEndTime) {
+      const duration = timeDiffMinutes(form.scheduled_time, customEndTime)
+      if (duration > 0) {
+        setForm(prev => ({ ...prev, estimated_duration_minutes: duration }))
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCustomDuration, form.scheduled_time, customEndTime])
+
+  // Auto-fill duration from job type (skip if Full Day or Custom is active)
+  useEffect(() => {
+    if (isEdit || isFullDay || isCustomDuration) return
     const jt = jobTypes.find(t => t.id === form.job_type_id)
     if (jt) {
       setForm(prev => ({ ...prev, estimated_duration_minutes: jt.default_duration_minutes }))
     }
-  }, [form.job_type_id, jobTypes, isEdit])
+  }, [form.job_type_id, jobTypes, isEdit, isFullDay, isCustomDuration])
 
   // Auto-suggest title
   useEffect(() => {
@@ -236,6 +325,15 @@ export function JobForm({ companies, jobTypes, engineers, workingDays = [1, 2, 3
       setForm(prev => ({ ...prev, title: `${jt.name} — ${company.name}` }))
     }
   }, [form.job_type_id, form.company_id, jobTypes, companies, isEdit])
+
+  // Auto-set chargeable type to 'contract' when job type slug contains 'contract'
+  useEffect(() => {
+    if (isEdit) return
+    const jt = jobTypes.find(t => t.id === form.job_type_id)
+    if (jt && jt.slug.includes('contract')) {
+      setForm(prev => ({ ...prev, chargeable_type: 'contract' }))
+    }
+  }, [form.job_type_id, jobTypes, isEdit])
 
   // Conflict check: fires when engineer + date + time are set
   // In create mode with multiple engineers/dates, check for the first engineer + first date
@@ -293,6 +391,19 @@ export function JobForm({ companies, jobTypes, engineers, workingDays = [1, 2, 3
     const durationMs = endDate.getTime() - startDate.getTime()
     const durationMinutes = Math.round(durationMs / 60000)
 
+    // Check if the resulting duration matches a standard option
+    const matchesStandard = DURATION_OPTIONS.some(d => d.value === durationMinutes && d.value > 0)
+    if (matchesStandard) {
+      setIsFullDay(durationMinutes === 480)
+      setIsCustomDuration(false)
+      setCustomEndTime('')
+    } else {
+      // Use custom mode for non-standard durations
+      setIsFullDay(false)
+      setIsCustomDuration(true)
+      setCustomEndTime(`${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`)
+    }
+
     if (isEdit) {
       setForm(prev => ({
         ...prev,
@@ -340,6 +451,14 @@ export function JobForm({ companies, jobTypes, engineers, workingDays = [1, 2, 3
     try {
       if (form.scheduled_time && !form.scheduled_date) {
         setError('If time is set, date must also be set')
+        return
+      }
+      if (form.scheduled_date && !form.scheduled_time) {
+        setError('Start time is required when a date is set')
+        return
+      }
+      if (isCustomDuration && form.scheduled_time && customEndTime && timeDiffMinutes(form.scheduled_time, customEndTime) <= 0) {
+        setError('Finish time must be after start time')
         return
       }
 
@@ -675,16 +794,45 @@ export function JobForm({ companies, jobTypes, engineers, workingDays = [1, 2, 3
           )}
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Estimated Duration</label>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Duration</label>
               <select
-                value={form.estimated_duration_minutes}
-                onChange={e => setForm({ ...form, estimated_duration_minutes: parseInt(e.target.value) })}
+                value={isFullDay ? 480 : isCustomDuration ? -1 : form.estimated_duration_minutes}
+                onChange={e => {
+                  const val = parseInt(e.target.value)
+                  if (val === 480) {
+                    // Full Day
+                    setIsFullDay(true)
+                    setIsCustomDuration(false)
+                    setCustomEndTime('')
+                  } else if (val === -1) {
+                    // Custom
+                    setIsFullDay(false)
+                    setIsCustomDuration(true)
+                    // Default end time = start + 1hr if start is set
+                    if (form.scheduled_time) {
+                      const end = addMinutesToTime(form.scheduled_time, 60)
+                      setCustomEndTime(end)
+                      setForm(prev => ({ ...prev, estimated_duration_minutes: 60 }))
+                    }
+                  } else {
+                    setIsFullDay(false)
+                    setIsCustomDuration(false)
+                    setCustomEndTime('')
+                    setForm(prev => ({ ...prev, estimated_duration_minutes: val }))
+                  }
+                }}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               >
                 {DURATION_OPTIONS.map(d => (
                   <option key={d.value} value={d.value}>{d.label}</option>
                 ))}
               </select>
+              {isFullDay && (
+                <p className="mt-1.5 text-xs text-indigo-600">
+                  {effectiveStart} – {effectiveEnd} ({timeDiffMinutes(effectiveStart, effectiveEnd)} min)
+                  {engineerHours ? ' (engineer hours)' : ' (org default)'}
+                </p>
+              )}
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700">Is Job Chargeable?</label>
@@ -699,15 +847,38 @@ export function JobForm({ companies, jobTypes, engineers, workingDays = [1, 2, 3
                 <option value="hourly">Hourly</option>
               </select>
             </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Scheduled Time</label>
-              <input
-                type="time"
-                value={form.scheduled_time}
-                onChange={e => setForm({ ...form, scheduled_time: e.target.value })}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              />
-            </div>
+            {!isFullDay && (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Start Time *</label>
+                <input
+                  type="time"
+                  value={form.scheduled_time}
+                  onChange={e => setForm({ ...form, scheduled_time: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+            )}
+            {isCustomDuration && !isFullDay && (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Finish Time *</label>
+                <input
+                  type="time"
+                  value={customEndTime}
+                  onChange={e => setCustomEndTime(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+                {form.scheduled_time && customEndTime && timeDiffMinutes(form.scheduled_time, customEndTime) > 0 && (
+                  <p className="mt-1.5 text-xs text-slate-500">
+                    Duration: {timeDiffMinutes(form.scheduled_time, customEndTime)} min
+                  </p>
+                )}
+                {form.scheduled_time && customEndTime && timeDiffMinutes(form.scheduled_time, customEndTime) <= 0 && (
+                  <p className="mt-1.5 text-xs text-red-600">
+                    Finish time must be after start time
+                  </p>
+                )}
+              </div>
+            )}
           </div>
           {/* Date picker + Conflict panel side by side */}
           <div className="flex gap-4 items-start">

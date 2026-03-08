@@ -1,16 +1,19 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useImperativeHandle, forwardRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Badge, JOB_STATUS_CONFIG, JOB_PRIORITY_CONFIG } from '@/components/ui/badge'
-import { changeJobStatus, addJobNote, toggleJobTask } from '../../actions'
+import { changeJobStatus, addJobNote, saveJobTasks } from '../../actions'
 import { useGeoCapture } from '@/lib/use-geo-capture'
+import { OnsiteJobsCard } from '@/components/onsite-jobs-card'
+import type { OnsiteJobItem } from '@/lib/onsite-jobs/types'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function MobileJobDetail({ job }: { job: any }) {
+export function MobileJobDetail({ job, onsiteJobItems = [] }: { job: any; onsiteJobItems?: OnsiteJobItem[] }) {
   const router = useRouter()
   const { capturePosition, captureWithReason } = useGeoCapture()
+  const tasksRef = useRef<TasksCardHandle>(null)
   const [changing, setChanging] = useState(false)
   const [note, setNote] = useState('')
   const [savingNote, setSavingNote] = useState(false)
@@ -59,6 +62,16 @@ export function MobileJobDetail({ job }: { job: any }) {
 
   async function handleStatusAction(newStatus: string) {
     if (newStatus === 'completed') {
+      if (tasksRef.current && !tasksRef.current.allRequiredDone()) {
+        setGpsStatus('Complete all required tasks first')
+        return
+      }
+      if (tasksRef.current) {
+        setChanging(true)
+        const gps = await capturePosition()
+        await tasksRef.current.saveAll(gps)
+        setChanging(false)
+      }
       router.push(`/scheduling/jobs/${job.id}/complete`)
       return
     }
@@ -276,7 +289,7 @@ export function MobileJobDetail({ job }: { job: any }) {
 
       {/* Tasks */}
       {(job.tasks || []).length > 0 && (
-        <MobileTasksCard tasks={job.tasks} capturePosition={capturePosition} onRefresh={() => router.refresh()} />
+        <MobileTasksCard ref={tasksRef} jobId={job.id} tasks={job.tasks} />
       )}
 
       {/* Parts */}
@@ -319,6 +332,15 @@ export function MobileJobDetail({ job }: { job: any }) {
         </div>
       )}
 
+      {/* Onsite Jobs */}
+      {onsiteJobItems.length > 0 && (
+        <OnsiteJobsCard
+          items={onsiteJobItems}
+          customerId={job.customer_id || job.company?.id}
+          customerName={job.company?.name}
+        />
+      )}
+
       {/* Notes */}
       <div className="mb-4 rounded-xl border border-gray-200 bg-white p-4">
         <h3 className="mb-3 text-xs font-bold uppercase text-slate-400">
@@ -358,16 +380,55 @@ export function MobileJobDetail({ job }: { job: any }) {
   )
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function MobileTasksCard({ tasks, capturePosition, onRefresh }: { tasks: any[]; capturePosition: () => Promise<import('@/types/database').GpsCoords | null>; onRefresh: () => void }) {
-  const requiredTasks = tasks.filter((t: { is_required: boolean }) => t.is_required)
-  const completedRequired = requiredTasks.filter((t: { is_completed: boolean }) => t.is_completed).length
-  const completedCount = tasks.filter((t: { is_completed: boolean }) => t.is_completed).length
+interface TasksCardHandle {
+  saveAll: (gps?: import('@/types/database').GpsCoords | null) => Promise<void>
+  allRequiredDone: () => boolean
+}
 
-  async function handleToggle(taskId: string) {
-    const gps = await capturePosition()
-    await toggleJobTask(taskId, { gps })
-    onRefresh()
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const MobileTasksCard = forwardRef<TasksCardHandle, { jobId: string; tasks: any[] }>(
+  function MobileTasksCard({ jobId, tasks }, ref) {
+  const [localTasks, setLocalTasks] = useState(() =>
+    tasks.map(t => ({ ...t }))
+  )
+  const [taskResponses, setTaskResponses] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {}
+    for (const t of tasks) {
+      if (t.response_value) init[t.id] = t.response_value
+    }
+    return init
+  })
+
+  const requiredTasks = localTasks.filter((t: { is_required: boolean }) => t.is_required)
+  const completedRequired = requiredTasks.filter((t: { is_completed: boolean }) => t.is_completed).length
+  const completedCount = localTasks.filter((t: { is_completed: boolean }) => t.is_completed).length
+
+  useImperativeHandle(ref, () => ({
+    async saveAll(gps) {
+      const updates = localTasks.map(t => ({
+        id: t.id,
+        is_completed: t.is_completed,
+        response_value: taskResponses[t.id] ?? t.response_value ?? null,
+      }))
+      await saveJobTasks(jobId, updates, gps)
+    },
+    allRequiredDone() {
+      const req = localTasks.filter(t => t.is_required)
+      return req.length === 0 || req.every(t => t.is_completed)
+    }
+  }), [localTasks, taskResponses, jobId])
+
+  function handleToggle(taskId: string) {
+    setLocalTasks(prev =>
+      prev.map(t => t.id === taskId ? { ...t, is_completed: !t.is_completed } : t)
+    )
+  }
+
+  function handleTaskResponse(taskId: string, value: string) {
+    setTaskResponses(prev => ({ ...prev, [taskId]: value }))
+    setLocalTasks(prev =>
+      prev.map(t => t.id === taskId ? { ...t, is_completed: !!value.trim(), response_value: value } : t)
+    )
   }
 
   return (
@@ -387,7 +448,7 @@ function MobileTasksCard({ tasks, capturePosition, onRefresh }: { tasks: any[]; 
         />
       </div>
       <div className="space-y-1">
-        {tasks.map((task: { id: string; description: string; is_required: boolean; is_completed: boolean; response_type: string; response_value: string | null }) => (
+        {localTasks.map((task: { id: string; description: string; is_required: boolean; is_completed: boolean; response_type: string; response_value: string | null }) => (
           <div key={task.id} className="p-2 rounded-lg">
             {task.response_type === 'yes_no' ? (
               <button
@@ -415,40 +476,48 @@ function MobileTasksCard({ tasks, capturePosition, onRefresh }: { tasks: any[]; 
                 </span>
               </button>
             ) : (
-              <div className="flex items-start gap-3">
-                <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${
-                  task.is_completed
-                    ? 'bg-green-600 border-green-600 text-white'
-                    : 'border-slate-300 bg-white'
-                }`}>
-                  {task.is_completed && (
-                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className={`text-sm ${task.is_completed ? 'text-slate-400' : 'text-slate-700'}`}>
-                      {task.description}
-                    </span>
-                    {task.is_required && !task.is_completed && (
-                      <span className="inline-flex items-center rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
-                        Required
-                      </span>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${
+                    task.is_completed
+                      ? 'bg-green-600 border-green-600 text-white'
+                      : 'border-slate-300 bg-white'
+                  }`}>
+                    {task.is_completed && (
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
                     )}
-                    <span className="inline-flex items-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
-                      {task.response_type === 'text' ? 'Text' : 'Date'}
-                    </span>
                   </div>
-                  {task.response_value && (
-                    <p className="text-xs text-slate-500">
-                      {task.response_type === 'date'
-                        ? new Date(task.response_value + 'T00:00').toLocaleDateString('en-GB')
-                        : task.response_value}
-                    </p>
+                  <span className={`text-sm ${task.is_completed ? 'text-slate-400' : 'text-slate-700'}`}>
+                    {task.description}
+                  </span>
+                  {task.is_required && !task.is_completed && (
+                    <span className="inline-flex items-center rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                      Required
+                    </span>
                   )}
+                  <span className="inline-flex items-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
+                    {task.response_type === 'text' ? 'Text' : 'Date'}
+                  </span>
                 </div>
+                {task.response_type === 'text' ? (
+                  <input
+                    type="text"
+                    value={taskResponses[task.id] || ''}
+                    onChange={e => handleTaskResponse(task.id, e.target.value)}
+                    onBlur={() => {}}
+                    placeholder="Enter response..."
+                    className="ml-7 w-[calc(100%-1.75rem)] rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  />
+                ) : (
+                  <input
+                    type="date"
+                    value={taskResponses[task.id] || ''}
+                    onChange={e => handleTaskResponse(task.id, e.target.value)}
+                    className="ml-7 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  />
+                )}
               </div>
             )}
           </div>
@@ -456,4 +525,4 @@ function MobileTasksCard({ tasks, capturePosition, onRefresh }: { tasks: any[]; 
       </div>
     </div>
   )
-}
+})

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { blindIndex } from '@/lib/crypto'
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,12 +26,12 @@ export async function POST(request: NextRequest) {
     }
     const orgId = org.id
 
-    // Find contact by email (case-insensitive, scoped to org via customer)
+    // Find contact by email blind index (scoped to org via customer)
     const { data: contacts, error: contactsErr } = await supabase
       .from('contacts')
       .select('id, first_name, customer_id, customers!inner(org_id)')
       .eq('customers.org_id', orgId)
-      .ilike('email', normalised)
+      .eq('email_blind', blindIndex(normalised))
       .eq('is_active', true)
 
     if (contactsErr) {

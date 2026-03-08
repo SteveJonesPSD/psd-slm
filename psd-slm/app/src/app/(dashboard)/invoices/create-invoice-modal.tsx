@@ -212,7 +212,16 @@ export function CreateInvoiceModal({ soId, onClose }: CreateInvoiceModalProps) {
           <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1">Contact</label>
           <SearchableSelect
             value={contactId}
-            options={(soData.contacts || []).map((c: { id: string; first_name: string; last_name: string }) => ({ value: c.id, label: `${c.first_name} ${c.last_name}` }))}
+            options={[
+              ...(soData.contacts || []).map((c: { id: string; first_name: string; last_name: string }) => ({
+                value: c.id,
+                label: `${c.first_name} ${c.last_name}`,
+              })),
+              ...(soData.groupContacts || []).map((c: { id: string; first_name: string; last_name: string; group_name: string }) => ({
+                value: c.id,
+                label: `${c.first_name} ${c.last_name} [${c.group_name}]`,
+              })),
+            ]}
             placeholder="Search contacts..."
             onChange={setContactId}
           />

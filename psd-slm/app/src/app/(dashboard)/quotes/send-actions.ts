@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAuth, hasPermission } from '@/lib/auth'
+import { decryptCustomerRow } from '@/lib/crypto-helpers'
 import { revalidatePath } from 'next/cache'
 import { logActivity } from '@/lib/activity-log'
 import { UserGraphClient } from '@/lib/email/user-graph-client'
@@ -311,7 +312,7 @@ async function generateQuotePdfBase64(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pdfBrand = fullQuote.brands as any
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const pdfCustomer = fullQuote.customers as any
+  const pdfCustomer = fullQuote.customers ? decryptCustomerRow(fullQuote.customers as any) : null
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pdfContact = fullQuote.contacts as any
   const pdfGroups = (fullQuote.quote_groups || []) as unknown as { id: string; name: string; sort_order: number }[]

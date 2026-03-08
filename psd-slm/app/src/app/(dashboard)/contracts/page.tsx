@@ -4,11 +4,18 @@ import { Button } from '@/components/ui/button'
 import { StatCard } from '@/components/ui/stat-card'
 import { formatCurrency } from '@/lib/utils'
 import { requireAuth, hasPermission } from '@/lib/auth'
-import { getCustomerContracts, getContractStats, getContractAlerts, syncContractAlertStatuses, processExpiredFixedTermContracts } from './actions'
+import { getCustomerContracts, getContractStats, getContractAlerts, syncContractAlertStatuses, processExpiredFixedTermContracts, getSupportContractsForInvoicing } from './actions'
 import { ContractsTable } from './contracts-table'
 import { ContractAlertBanner } from './contracts-alert-banner'
+import { ContractsPageTabs } from './contracts-page-tabs'
 
-export default async function ContractsPage() {
+interface PageProps {
+  searchParams: Promise<{ tab?: string }>
+}
+
+export default async function ContractsPage({ searchParams }: PageProps) {
+  const { tab } = await searchParams
+
   // Sync alert statuses and process expired fixed-term contracts
   await Promise.all([syncContractAlertStatuses(), processExpiredFixedTermContracts()])
 
@@ -20,6 +27,12 @@ export default async function ContractsPage() {
   ])
 
   const canCreate = hasPermission(user, 'contracts', 'create')
+  const canInvoice = ['super_admin', 'admin', 'finance'].includes(user.role.name)
+
+  // Only fetch invoicing data when tab is active
+  const invoicingData = (tab === 'invoicing' && canInvoice)
+    ? await getSupportContractsForInvoicing()
+    : null
 
   return (
     <div>
@@ -65,7 +78,12 @@ export default async function ContractsPage() {
       </div>
 
       <ContractAlertBanner alerts={alerts} />
-      <ContractsTable contracts={contracts} />
+      <ContractsPageTabs
+        activeTab={tab || 'all'}
+        contracts={contracts}
+        invoicingData={invoicingData}
+        showInvoicingTab={canInvoice}
+      />
     </div>
   )
 }

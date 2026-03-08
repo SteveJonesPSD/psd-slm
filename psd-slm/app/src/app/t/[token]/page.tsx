@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { decryptContactRow } from '@/lib/crypto-helpers'
 import { TicketPortalNotFound } from './ticket-portal-not-found'
 import { TicketPortalClosed } from './ticket-portal-closed'
 import { TicketPortalMerged } from './ticket-portal-merged'
@@ -96,7 +97,8 @@ export default async function TicketPortalPage({ params }: PageProps) {
     .select('id, message_id, file_name, file_size, mime_type')
     .eq('ticket_id', ticket.id)
 
-  const contact = ticket.contacts as unknown as { first_name: string; last_name: string; email: string | null } | null
+  const rawContact = ticket.contacts as unknown as { first_name: string; last_name: string; email: string | null } | null
+  const contact = rawContact ? decryptContactRow(rawContact) : null
 
   return (
     <TicketPortalView

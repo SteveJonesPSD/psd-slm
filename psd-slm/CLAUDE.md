@@ -43,7 +43,7 @@ Stock must never be auto-allocated to an SO from general inventory — the purch
 ---
 
 ## Database
-Schema deployed to Supabase (EU region). Key tables: `companies`, `contacts`, `products`, `suppliers`, `deal_registrations`, `deal_registration_lines`, `opportunities`, `quotes`, `quote_groups`, `quote_lines`, `quote_attributions`, `sales_orders`, `sales_order_lines`, `purchase_orders`, `purchase_order_lines`, `invoices`, `invoice_lines`, `commission_entries`, `commission_rates`, `activity_log`, `tickets` (includes `auto_nudge_sent_at`), `ticket_emails`, `mail_connections`, `mail_channels`, `customer_email_domains`, `chat_sessions`, `chat_messages`, `system_presence`, `customer_contracts`, `contract_types`, `contract_visit_slots`, `contract_invoice_schedule`, `contract_line_supplier_prices`, `jobs`, `job_tasks`, `api_keys`, `user_mail_credentials`, `quote_email_sends`, `user_working_hours`, `portal_users` (includes `is_group_admin`), `portal_magic_links`, `contract_esign_requests`, `contract_renewal_flags`, `user_passkeys`, `passkey_challenges`, `company_groups`, `company_group_members`.
+Schema deployed to Supabase (EU region). Key tables: `companies`, `contacts`, `products`, `suppliers`, `deal_registrations`, `deal_registration_lines`, `opportunities`, `quotes`, `quote_groups`, `quote_lines`, `quote_attributions`, `sales_orders`, `sales_order_lines`, `purchase_orders`, `purchase_order_lines`, `invoices`, `invoice_lines`, `commission_entries`, `commission_rates`, `activity_log`, `auth_events` (90-day retention, truncated IPs only), `user_sessions` (heartbeat-based idle detection), `tickets` (includes `auto_nudge_sent_at`), `ticket_emails`, `mail_connections`, `mail_channels`, `customer_email_domains`, `chat_sessions`, `chat_messages`, `system_presence`, `customer_contracts`, `contract_types`, `contract_type_pricebook_lines`, `contract_visit_slots`, `contract_invoice_schedule`, `contract_line_supplier_prices`, `jobs` (includes `departed_at`, `return_arrived_at`), `job_tasks`, `job_gps_log`, `api_keys`, `user_mail_credentials`, `quote_email_sends`, `user_working_hours`, `portal_users` (includes `is_group_admin`), `portal_magic_links`, `contract_esign_requests`, `contract_renewal_flags`, `user_passkeys`, `passkey_challenges`, `company_groups`, `company_group_members`, `onsite_job_items`, `onsite_job_categories`, `onsite_job_audit`.
 
 Key views: `v_margin_traceability`, `v_commission_summary`, `v_active_deal_pricing`, `v_ticket_summary`, `v_contract_invoice_schedule`, `v_contract_renewal_pipeline`, `v_pending_invoice_alerts`, `v_expiring_contracts`, `v_contract_line_costs`.
 
@@ -57,19 +57,36 @@ Key views: `v_margin_traceability`, `v_commission_summary`, `v_active_deal_prici
 
 **Key tables:**
 - `customer_contracts` — one contract per customer engagement. Key columns: `contract_type_id` (FK → `contract_types`), `sla_plan_id` (FK → `sla_plans`, nullable), `monthly_hours` (nullable), `calendar_id` (FK → `visit_calendars`, nullable), `status` ('draft'/'active'/'expired'/'cancelled'/'pending_signature'/'declined_signature'/'awaiting_activation'/'renewal_flagged'/'renewal_sent'/'renewal_accepted'/'schedule_pending'/'not_renewing'/'renewed'), `source_quote_id` (FK → `quotes`, nullable — links to the quote from which contract was created), `esign_status` ('not_required'/'pending'/'signed'/'waived'), `renewal_status` ('active'/'alert_180'/'alert_90'/'notice_given'/'renewal_in_progress'/'rolling'/'superseded'/'expired'/'cancelled'), `is_rolling` (bool), `rolling_frequency` ('monthly'/'annual'), `term_months` (nullable), `go_live_date`, `invoice_schedule_start`, `auto_invoice` (bool), `invoice_frequency` ('annual'/'monthly'/'quarterly'), `upgrade_go_live_date` (nullable — set when superseded), `superseded_by` (nullable).
-- `contract_types` — defines what a contract includes: `name`, `category` ('support'/'service'/'licensing'), `includes_remote_support/telephone/onsite` (bools), `allowed_schedule_weeks` (int array), `default_sla_plan_id`, `default_monthly_hours`, `default_term_months`, `default_notice_alert_days`, `secondary_alert_days`, `auto_invoice` (bool), `invoice_frequency`. ProFlex 1–4 are the standard support types. COALESCE pattern: contract field → contract_type default.
-- `contract_invoice_schedule` — invoice schedule rows for Year 2+ billing. Columns: `contract_id`, `scheduled_date`, `period_label`, `period_start`, `period_end`, `base_amount`, `amount_override` (nullable), `invoice_id` (FK → `invoices`, nullable), `status` ('pending'/'draft_created'/'sent'/'skipped'/'cancelled'). Year 1 invoiced via Sales Order.
+- `contract_types` — defines what a contract includes: `name`, `category` ('support'/'service'/'licensing'), `includes_remote_support/telephone/onsite` (bools), `allowed_schedule_weeks` (int array), `default_sla_plan_id`, `default_monthly_hours`, `default_term_months`, `default_notice_alert_days`, `secondary_alert_days`, `auto_invoice` (bool), `invoice_frequency`, `billing_cycle_type` ('fixed_date'/'start_date'/'go_live_date'), `default_billing_month` (nullable, 4=April/9=September). ProFlex 1–4 are the standard support types. COALESCE pattern: contract field → contract_type default.
+- `contract_type_pricebook_lines` — soft-default line items per contract type (support category). Columns: `contract_type_id`, `description`, `annual_price`, `buy_price` (nullable), `vat_rate`, `sort_order`, `is_active`. Copied into `contract_lines` on support contract creation — independent from that point. RLS scoped by org via contract_types join.
+- `customer_contracts` billing columns: `billing_cycle_type` ('fixed_date'/'start_date'/'go_live_date', nullable — inherited from contract_type), `billing_month` (nullable, for fixed_date), `billing_day` (default 1).
+- `contract_invoice_schedule` — invoice schedule rows. Columns: `contract_id`, `scheduled_date`, `period_label`, `period_start`, `period_end`, `base_amount`, `amount_override` (nullable), `invoice_id` (FK → `invoices`, nullable), `status` ('pending'/'draft_created'/'sent'/'skipped'/'cancelled'), `is_prorata` (bool), `prorata_days` (nullable), `prorata_total_days` (nullable). Year 1 invoiced via Sales Order for service/licensing; support contracts generate full schedule including Year 1.
 - `contract_line_supplier_prices` — stub table for future supplier price list integration. Populated on contract creation, not yet read from.
-- `contract_lines` — extended with `source_quote_line_id`, `product_type`, `unit_price`, `buy_price`, `line_type` ('recurring'/'one_off'/'usage').
+- `contract_lines` — extended with `source_quote_line_id`, `source_pricebook_line_id`, `product_type`, `unit_price`, `buy_price`, `line_type` ('recurring'/'one_off'/'usage').
 - `contract_renewals` — extended with `renewal_quote_id` (FK → `quotes`), `renewal_workflow_status` ('pending'/'quote_generated'/'quote_sent'/'quote_accepted'/'signed'/'completed').
 - `tickets.customer_contract_id` — FK linking a ticket to its customer contract (for SLA resolution and entitlement badges). The old `tickets.contract_id` (→ `support_contracts`) is deprecated.
 - Entitlement badges on ticket detail derive from `contract_types.includes_remote_support/telephone/onsite` — not from an enum.
 
 **Product types:** `goods`, `service`, `hardware`, `labour`, `consumable`, `software`, `subscription`, `license`, `warranty`. The last three are "contractable" types — quote lines with these product types can be selected to create contracts.
 
-**Invoice schedule engine:** `generateInvoiceSchedule()` creates schedule rows from Year 2 onwards when a contract is signed/activated. `processPendingContractInvoices()` creates draft invoices for rows where `scheduled_date <= today`. Schedule supports amount overrides and skip with reason.
+**Billing cycle types:**
+- `fixed_date` — ICT/ProFlex support contracts. Billing anchored to a fixed month (April or September). Year 1 is pro-rata: `(daysRemaining / daysInYear) * annualValue` using calendar days. Year 2+ full annual amounts on the billing month anniversary.
+- `start_date` — AC/CCTV support contracts. Billing on the contract start date anniversary. No pro-rata — every year is a full annual period.
+- `go_live_date` — service/licensing contracts created from quotes. Year 1 invoiced via Sales Order; Year 2+ schedule generated from go-live anniversary.
+
+**Pricebook lines:** `contract_type_pricebook_lines` stores default line items per support contract type. Managed in contract type settings (General/Pricebook tabs). Lines include annual sell price, buy price, and VAT rate. On support contract creation, selected pricebook lines are copied into `contract_lines` with `source_pricebook_line_id` tracing the origin. Lines are independent after creation — pricebook changes don't retroactively affect existing contracts.
+
+**Support contract creation:** `createSupportContract()` creates a contract + lines from pricebook selection in one operation. Contract form auto-loads pricebook lines when a support type is selected, with checkboxes to include/exclude and auto-calculated annual value. Buy price tracked alongside sell price for margin visibility.
+
+**Invoice schedule engine:** `generateInvoiceSchedule()` creates schedule rows based on billing cycle type. For `fixed_date`: pro-rata Year 1 row + full annual rows from Year 2. For `start_date`: full annual rows from Year 1. For `go_live_date`: Year 2+ rows only (Year 1 via SO). Called automatically on: `createSupportContract()`, `updateContractStatus('active')`, `signContract()`, `waiveEsign()`. `processPendingContractInvoices()` creates draft invoices for rows where `scheduled_date <= today`. Schedule supports amount overrides and skip with reason.
+
+**Support contract invoicing tab:** Contracts list page has an "Invoicing" tab (admin/finance only) for raising annual invoices on support contracts. Shows active support contracts with due status calculated per billing cycle type. Per-row modal allows line price editing before creating draft invoice. Bulk "Create All Due Invoices" button. Prevents duplicate drafts. Server actions: `getSupportContractsForInvoicing()`, `createSupportContractInvoice()`, `bulkCreateSupportInvoices()`.
 
 **Rolling contracts:** Service contracts with `auto_invoice = true` automatically transition to rolling after `end_date` passes. `extendRollingSchedule()` generates 3 years of additional rows. Can be cancelled with a date via `cancelRollingContract()`.
+
+**Contract cancellation cascades:** When a contract is cancelled (`updateContractStatus('cancelled')`) or a rolling contract is stopped (`cancelRollingContract()`), `cancelFutureScheduledWork()` automatically cancels all future visit instances linked to the contract, their linked jobs (via `job_id` bridge), any pending onsite job items on those visits, and any jobs created directly from the contract (`source_type = 'contract'`). Only affects items from the cancellation date onwards; completed/closed items are preserved.
+
+**Visit slot cycle week validation:** When adding visit slots, the number of cycle weeks selected must exactly match the contract type requirement (`maxWeeks` derived from ProFlex level or visit frequency). The Save button is disabled until the required number is met. Different-days mode enforces this structurally (grid always has `maxWeeks` rows). Hint text shows amber "X more needed" feedback.
 
 **Upgrade flow (service):** `upgradeContract()` calculates pro-rata credit from the most recent invoice period, creates a draft credit note, cancels remaining schedule rows, and marks the contract as superseded.
 
@@ -257,6 +274,32 @@ If either key must be rotated: run `scripts/rotate-keys.ts` (dry-run first), whi
 - Data retention: 7 years for financial records (tax), 2 years for inactive prospect contacts
 - Breach notification procedure documented in ops runbook (72-hour ICO notification window)
 
+### Audit Logging Architecture
+
+Two-layer audit system:
+
+**`activity_log`** — operational CRUD across all modules. Fire-and-forget via `logActivity()` in `lib/activity-log.ts`. 7-year retention (aligns with financial records). ~47 files use this across all modules.
+
+**`auth_events`** — authentication events only. Fire-and-forget via `logAuthEvent()` in `lib/auth-log.ts`. 90-day rolling retention. Legal basis: legitimate interest (security monitoring). Documented in Article 30. IP addresses stored truncated only (last octet zeroed) — never full IPs.
+
+**`user_sessions`** — session heartbeats for idle detection and engagement reporting. Updated in-place per heartbeat (no new row per ping). Idle periods >15 min written to `activity_log` on return. 30-day retention.
+
+**IP address policy (updated):**
+- Operational data: never stored
+- Auth events: truncated IP only (`192.168.1.0` — last octet zeroed), 90-day retention, Article 30 documented
+- Raw IPs: never persisted anywhere
+
+**Key logging points per module:**
+- Quotes: sent, accepted (all 3 methods), rejected, revision created, attribution changed
+- Sales Orders: customer PO updated, stock allocated/unallocated (with reason), line status changed, DN created
+- Purchase Orders: goods received (full/partial), price variance on receipt, sent to supplier, cancelled
+- Invoices: sent, paid, voided (highest accountability), credit note created, Xero push
+- Stock: serials registered, dispatched, engineer collection confirmed, pick confirmed
+- Helpdesk: viewed (debounced 30 min), first response (with response time in minutes)
+- Auth: all login/logout/MFA/passkey/magic link/portal events
+
+**Audit Log UI:** `/settings/audit-log` — admin/super_admin only. Three tabs: Activity (filterable `activity_log` browser), Authentication (`auth_events` with brute-force alerts), Engagement (per-user summary with online status, action counts, idle time).
+
 ---
 
 ## Portability & Vendor Independence
@@ -434,7 +477,7 @@ Single source of truth: `app/src/lib/version.ts` exports `APP_VERSION` and `BUIL
 7b. ~~Inbound PO Processing~~ ✅ (PDF upload, AI extraction via Claude, quote matching pipeline)
 7c. ~~Helpdesk & Ticketing~~ ✅ (ticket queue, SLA, contracts, canned responses, categories, tags, departments, KB, reports, customer portal, mobile views, Helen AI with triage/drafts/diagnostic assist/AI nudge, scratchpad, AutoGRUMP, ticket presence, contract entitlement badges). **UI label: "Service Desk" — internal code/routes/permissions remain `/helpdesk/` and `helpdesk.*`**. Ticket detail shows support entitlement badges (Remote/Telephone/Onsite) from `customer_contracts` → `contract_types.includes_remote_support/telephone/onsite`, or a red "No Contract" badge if none linked. Dynamic contract resolution: if ticket has no `customer_contract_id` but has a `customer_id`, `getTicket()` looks up the active contract at render time. SLA resolution: contract direct `sla_plan_id` → `contract_types.default_sla_plan_id` → org default SLA → null. Queries `customer_contracts` (not the deprecated `support_contracts`).
 8. ~~Sales Orders~~ ✅ (SO from accepted quote, line status transitions, receive goods with serial capture, delivery summary). **Service detection:** `isServiceItem()` in `lib/sales-orders.ts` checks `product_type === 'service'` — do NOT use `is_stocked`/`is_serialised` heuristics. All queries feeding SO creation must include `product_type` in the product select.
-8b. ~~Onsite Scheduling~~ ✅ (dispatch calendar, field engineer mobile app, job task templates, e-signatures, PDF reports, GPS logging, conflict detection with travel gap checks, Smart Schedule with OSRM travel estimation)
+8b. ~~Onsite Scheduling~~ ✅ (dispatch calendar, field engineer mobile app, job task templates, e-signatures, PDF reports, GPS logging, conflict detection with travel gap checks, Smart Schedule with OSRM travel estimation, return travel tracking with full timestamp timeline)
 9. ~~Purchase Orders~~ ✅ (PO from SO, draft-first, receiving goods, price variance, PDF, stock-aware quantities, customer PO gate, auto-allocation on receipt, stocking orders)
 9b. ~~Stock & Fulfilment~~ ✅ (stock locations/levels, allocations, picking, delivery notes, fulfilment view, serial uniqueness, tablet-optimised picking, PO-linked serial pre-selection, stock unallocation with reason)
 10. ~~Invoicing~~ ✅ (full/partial invoicing, stat cards, credit notes, branded PDF, overdue detection, `quantity_invoiced` tracking)
@@ -446,6 +489,8 @@ Single source of truth: `app/src/lib/version.ts` exports `APP_VERSION` and `BUIL
 13. ~~Email Integration~~ ✅ (Microsoft 365 Graph API, inbound polling, ticket creation/threading, outbound replies, auto-polling, domain matching, processing log)
 14. ~~Customer Portal~~ ✅ (magic link auth, dashboard, tickets, contracts, visits, quotes, orders, KB, admin impersonation, portal access management)
 15. ~~Company Groups~~ ✅ (parent-child company relationships, group membership UI, group badges on customer list, quote builder group contact picker, portal group dashboard + group ticket view, internal group ticket view, group admin portal flag)
+16. ~~Audit Logging~~ ✅ (auth_events table, user_sessions with heartbeat, gap-fill logging across all modules, 3-tab audit UI with activity/auth/engagement views, brute-force alerts, idle detection)
+17. ~~Onsite Jobs~~ ✅ (portal + internal OJI creation, ticket push, urgent escalation with auto-ticket, visit auto-linking, engineer notes, sales notification, category management, 4 email notifications, customer/job detail badges)
 
 **Upcoming / Planned:**
 - Xero integration (outbound invoice push, inbound payment polling — Engage is single source of truth)
@@ -453,7 +498,6 @@ Single source of truth: `app/src/lib/version.ts` exports `APP_VERSION` and `BUIL
 - HaloPSA integration
 - Quote Templates module
 - Multi-tenancy (org isolation already in schema via `org_id`)
-- Encryption (field-level AES-256-GCM via DAL — see Security & GDPR section)
 
 ---
 
@@ -471,6 +515,7 @@ Single source of truth: `app/src/lib/version.ts` exports `APP_VERSION` and `BUIL
 - **Notification bell:** Polls `/api/notifications/unread-count` every 30s. Server actions only for user-initiated interactions.
 - **Queue presence:** `ticket-queue.tsx` polls `/api/helpdesk/queue-presence` every 30s.
 - **Email auto-poll:** `use-email-polling.ts` polls every 60s with concurrency guard. Toggle via `org_settings` key `email_auto_poll_enabled`.
+- **Session heartbeat:** `use-session-heartbeat.ts` — 5-min interval via `fetch()` to `/api/session/heartbeat`. Tracks activity via passive event listeners (mousemove/keydown/click/touchstart). No state — uses `useRef` only. Mounted via `<SessionHeartbeat />` in dashboard layout.
 - No WebSockets/Realtime anywhere — pure polling via API routes, portable.
 
 ---
@@ -554,15 +599,46 @@ Generates context-aware follow-up messages for tickets awaiting customer respons
 
 ## Scheduling Module
 - **Job number format:** `JOB-{YEAR}-{NNNN}`
+- **Job statuses (8):** `unscheduled`, `scheduled`, `travelling`, `on_site`, `completed`, `return_travelling`, `closed`, `cancelled`. Flow: scheduled → travelling → on_site → completed → return_travelling → closed.
 - **RLS:** Uses `auth_org_id()` and `auth_has_permission()` helpers — NOT raw `user_roles` joins. `auth_has_permission()` takes TWO arguments: `auth_has_permission('scheduling', 'admin')` — NOT dot-notation.
 - **SO → Job integration:** `requires_install` flag on SO; red icon if no linked job, green if linked
-- **Task response types:** `yes_no`, `text`, `date` — materialised from templates on job creation
+- **Task response types:** `yes_no`, `text`, `date` — materialised from templates on job creation. All three types editable on field job detail page (not just at completion).
 - **Conflict detection:** `POST /api/scheduling/check-conflicts` checks `jobs`, `activities`, AND `user_working_hours` for time overlaps, insufficient travel gaps (gap < `travel_buffer_minutes`), non-working days (hard block), and outside individual working hours (overridable). Conflict types: `time_overlap`, `no_travel_gap`, `annual_leave` (hard block), `training`, `other_non_job`. Annual leave + non-working days = hard block, no override. Job form fires conflict check with 500ms debounce when engineer + date + time are set.
 - **Smart Schedule:** `POST /api/scheduling/smart-schedule` computes suggested start times factoring in travel duration (OSRM) + buffer + individual working hours. Uses each engineer's individual end time (not just org default). Returns `hard_block` for non-working days. Skips non-working engineers in team suggestions. Modal UI with purple branding. Travel estimation: `lib/scheduling/travel.ts` uses Nominatim geocoding (postcode-first strategy for UK) + OSRM driving time — keyless, portable, self-hostable.
 - **Working hours (org-level):** `org_settings` keys `working_day_start`, `working_day_end`, `travel_buffer_minutes` (category: `scheduling`). Config UI at `/scheduling/config/working-hours`. `org_settings` unique constraint is `(org_id, setting_key)` — category is NOT part of the unique constraint.
 - **Working hours (individual):** `user_working_hours` table stores per-user, per-day overrides (day_of_week 1–7 ISO, is_working_day, start_time, end_time). If no row exists for a user+day, org defaults apply. Config UI at `/scheduling/config/individual-hours` (admin only). Calendar display: non-working days show hatched grey overlay (no override, drag disabled); reduced hours show amber hatched blocks before/after custom times (overridable).
 - **Conflict panel layout:** Sticky right sidebar (w-80) on the job form, hidden on mobile (`hidden lg:block`). Form expands from `max-w-3xl` to `max-w-5xl` when conflicts present.
 - **Field engineer view:** `field_engineer` role sees "My Schedule" on both desktop and mobile — uses `MobileScheduleView` with `getMyScheduleRange()` (own assigned jobs, 2-week window). Full dispatch calendar (`WeekView`) is only rendered for other roles. This avoids loading all jobs/engineers/activities data for field staff.
+
+### Return Travel Tracking
+Tracks the full engineer journey: travel to site, on-site work, and return travel. All timestamps logged for future overtime reporting.
+
+**Timestamp columns on `jobs`:**
+| Event | Column | GPS Event Type |
+|---|---|---|
+| Travel to customer | `travel_started_at` | `travel_started` |
+| Arrive on site | `arrived_at` | `arrived` |
+| Job completed | `completed_at` | `completed` |
+| Leave customer site | `departed_at` | `departed` |
+| End return travel | `return_arrived_at` | `return_arrived` |
+
+**Migration:** `20260307000001_return_travel.sql`
+
+**Field engineer flow:**
+1. "Start Travel" → status `travelling`
+2. "I've Arrived" → status `on_site`
+3. "Complete Job" → completion form (tasks, notes, photos, signatures) → status `completed`
+4. "Start Return Travel" → status `return_travelling`
+5. "End Travel" → status `closed`
+
+After completion, the engineer is redirected to the job detail page (not the jobs list) to see the return travel buttons. A timeline card shows all logged timestamps.
+
+**Schedule block icons:**
+- Van (SVG) for `travelling` and `return_travelling` — amber left border, pulsing
+- Wrench (SVG) for `on_site` — purple left border, pulsing
+- Checkmark for `completed`, double-check for `validated`, blue bg for `closed`
+
+**Validation:** Jobs can be validated in both `completed` and `closed` status. Reopen clears `departed_at` and `return_arrived_at`.
 
 ---
 
@@ -604,23 +680,31 @@ Contract e-signing engine — type-agnostic, works for any contract type (ICT vi
 ---
 
 ## Contracts Expansion Module
-Extends the base contracts module with three contract categories, invoice scheduling, and lifecycle management.
+Extends the base contracts module with three contract categories, billing cycles, pricebook management, invoice scheduling, and lifecycle management.
 
-- **Migration:** `20260411000001_contracts_expansion_phase1.sql`
+- **Migrations:** `20260411000001_contracts_expansion_phase1.sql`, `20260412000002_contracts_billing_cycles.sql`
 - **Product types added:** `subscription`, `license`, `warranty` (contractable), `hardware`, `labour`, `consumable`, `software` (alongside existing `goods`/`service`)
 - **Contract categories:** `support` (existing), `service` (subscriptions, fixed/rolling), `licensing` (licenses/warranties, renewal)
-- **Contract type billing fields:** `default_term_months`, `default_notice_alert_days`, `secondary_alert_days`, `auto_invoice`, `invoice_frequency`
+- **Contract type billing fields:** `billing_cycle_type` ('fixed_date'/'start_date'/'go_live_date'), `default_billing_month` (4=April/9=September), `default_term_months`, `default_notice_alert_days`, `secondary_alert_days`, `auto_invoice`, `invoice_frequency`
+- **Billing cycle types:** `fixed_date` (ICT/ProFlex — pro-rata Year 1, fixed billing month), `start_date` (AC/CCTV — anniversary billing, no pro-rata), `go_live_date` (service/licensing — Year 1 via SO, Year 2+ from go-live). Pro-rata formula: `(daysRemaining / daysInYear) * annualValue`.
+- **Pricebook management:** `contract_type_pricebook_lines` table — soft defaults per contract type (support only). Managed in contract type settings (General/Pricebook tabs). Stores annual sell price, buy price, VAT rate. Lines copied into `contract_lines` on creation with `source_pricebook_line_id` tracing origin. Server actions: `getPricebookLines()`, `savePricebookLines()`.
+- **Support contract creation:** `createSupportContract()` — creates contract + lines from pricebook selection in one operation, then calls `generateInvoiceSchedule()` to create schedule rows immediately. Contract form auto-loads pricebook lines with checkboxes, auto-calculates annual value. Buy price tracked for margin visibility.
 - **Contract creation from quote lines:** Contractable quote lines (subscription/license/warranty) can be selected to create a draft contract. Mixed-type validation prevents combining subscription + license in one contract. Two-step modal: configure → preview → create.
 - **E-sign gate:** Service/licensing contracts with `esign_status = 'pending'` block SO creation on linked quotes. `signContract()`/`waiveEsign()` server actions. Blue banner on contract detail page.
-- **Invoice schedule engine:** `generateInvoiceSchedule()` creates Year 2+ schedule rows on contract activation. Supports annual/monthly/quarterly. `processPendingContractInvoices()` auto-creates draft invoices. Override amount and skip with reason per row. Auto-processes on contract detail page load.
+- **Invoice schedule engine:** `generateInvoiceSchedule()` supports all 3 billing cycle types. `fixed_date`: pro-rata Year 1 + full annual Year 2+. `start_date`: full annual from Year 1. `go_live_date`: Year 2+ only. `processPendingContractInvoices()` auto-creates draft invoices. Override amount and skip with reason per row. Pro-rata column with amber pill badge on schedule UI.
 - **Alerts dashboard:** `syncContractAlertStatuses()` updates `renewal_status` at 180/90 day thresholds. Alert banner on contracts list (expiring, pending invoices, e-sign pending). Days Remaining column + Renewal Status column in contracts table. Days-remaining card on detail page.
 - **Upgrade flow (service only):** Pro-rata credit calculation from most recent invoice period. Creates draft credit note with negative amounts. Cancels remaining schedule rows. Marks contract as superseded.
 - **Licensing renewal workflow:** `generateRenewalQuote()` → mark sent → mark accepted → `completeRenewalSigning()` with term selection. Creates new contract with inherited settings and invoice schedule.
 - **Rolling contracts:** `processExpiredFixedTermContracts()` auto-transitions expired service contracts with `auto_invoice=true` to rolling. `extendRollingSchedule()` generates 3 years additional rows. `cancelRollingContract()` with date picker.
+- **Cancellation cascade:** `cancelFutureScheduledWork()` helper — on contract cancellation or rolling contract stop, cancels future visit instances, linked jobs, onsite job items, and direct contract-source jobs from the cancellation date onwards.
+- **Visit slot validation:** Cycle week selection enforced to exactly match contract type requirement (e.g. ProFlex 3 = 3 weeks). Save button disabled until met. Different-days mode structurally enforces via fixed row count.
+- **Support contract invoicing tab:** Dedicated "Invoicing" tab on contracts list (admin/finance only). Lists active support contracts with Last Invoiced, Invoice Due, Annual Value columns. Invoice due logic for `fixed_date` (April/September billing date check) and `start_date` (anniversary check). Per-row "Create Invoice" button opens modal with editable lines and date. "Create All Due Invoices" bulk action creates drafts for all due contracts, skips those with existing drafts or no lines. Server actions: `getSupportContractsForInvoicing()`, `createSupportContractInvoice()`, `bulkCreateSupportInvoices()`.
+- **Schedule generation on activation:** `updateContractStatus()` calls `generateInvoiceSchedule()` when activating a contract. `signContract()` and `waiveEsign()` also trigger schedule generation.
+- **Renewal copies billing fields:** `renewContract()` copies `billing_cycle_type`, `billing_month`, `billing_day`, `sla_plan_id`, `monthly_hours`, `calendar_id` to the new contract, and copies `buy_price` + `source_pricebook_line_id` on lines.
 - **Supplier price stubs:** `contract_line_supplier_prices` table populated on creation, not yet read from. TODO hooks in renewal quote generator for future supplier price list integration.
 - **Server actions:** All in `app/(dashboard)/contracts/actions.ts`
-- **UI components:** `esign-banner.tsx`, `invoice-schedule-section.tsx`, `upgrade-section.tsx`, `renewal-flow-section.tsx`, `contracts-alert-banner.tsx`
-- **Types:** `lib/contracts/types.ts` — `ContractCategory`, `EsignStatus`, `RenewalStatus`, `InvoiceFrequency`, `ScheduleStatus`, `ContractInvoiceSchedule`, `ContractLineSupplierPrice`
+- **UI components:** `esign-banner.tsx`, `invoice-schedule-section.tsx`, `upgrade-section.tsx`, `renewal-flow-section.tsx`, `contracts-alert-banner.tsx`, `contracts-page-tabs.tsx`, `invoicing-tab.tsx`
+- **Types:** `lib/contracts/types.ts` — `ContractCategory`, `BillingCycleType`, `EsignStatus`, `RenewalStatus`, `InvoiceFrequency`, `ScheduleStatus`, `ContractInvoiceSchedule`, `ContractLineSupplierPrice`, `PricebookLine`, `CreateSupportContractPayload`, `BILLING_CYCLE_LABELS`, `BILLING_MONTH_OPTIONS`
 
 ---
 
@@ -653,6 +737,67 @@ Parent–child company relationships. Domain-agnostic — supports MATs, franchi
 - Centralised billing model behaviour
 - Group-level deal registrations / quotes
 - Portal job/visit grid colour coding
+
+---
+
+## Onsite Jobs Module
+Lightweight job-logging system for tracking onsite work items raised by portal users, pushed from service desk tickets, or created internally. Distinct from the Scheduling module (dispatch calendar) — OJIs are tracked items, not calendar-scheduled jobs.
+
+- **Migration:** `20260307000002_onsite_jobs.sql`
+- **Tables:** `onsite_job_items` (main items table), `onsite_job_categories` (configurable categories with colour swatches), `onsite_job_audit` (immutable audit trail)
+- **Ref number format:** `OJI-{YYYY}-{NNNN}` (auto-incrementing via `generate_oji_ref_number` trigger)
+- **Statuses (5):** `pending`, `in_progress`, `complete`, `escalated`, `cancelled`. State machine in `STATUS_TRANSITIONS` with `canTransition()` guard.
+- **Priorities (4):** `low`, `medium`, `high`, `urgent`. Portal users can only select low/medium/high; urgent reserved for escalations.
+- **Source types (4):** `portal` (customer-raised), `ticket_push` (pushed from service desk), `internal` (staff-created), `escalation` (urgent portal escalation)
+- **Permissions:** `onsite_jobs.view/create/edit/push_ticket/notify_sales/cancel/admin`
+- **Role grants:** super_admin/admin=all; tech/field_engineer=view/create/edit/cancel; sales=view/notify_sales; finance=view
+
+### Server Actions
+- **Location:** `app/(dashboard)/helpdesk/onsite-jobs/actions.ts`
+- **CRUD:** `getOnsiteJobItems(filters?)`, `getOnsiteJobItem(id)`, `getOnsiteJobCountForCustomer(customerId)`, `getTotalOpenOjiCount()`
+- **Create:** `createOnsiteJobItem(input)` (internal), `createOnsiteJobItemFromPortal(input, orgId)` (portal — admin client)
+- **Status:** `updateOnsiteJobStatus(id, newStatus, engineerNote?)` — enforces `canTransition()`, requires notes for completion
+- **Notes:** `addEngineerNote(id, note)` — appends to `engineer_notes` text field
+- **Sales:** `notifySales(id)` — idempotent (checks `notify_sales_at`), sends email via `sales_alert_email` org setting
+- **Push from ticket:** `pushTicketToOji(input)` — creates OJI from ticket, closes ticket, sends email to contact
+- **Escalation:** `createEscalation(input)` — creates urgent OJI + auto-creates service desk ticket, sends acknowledgement with contract status
+- **Cancel:** `cancelOnsiteJobItem(id, reason?)` (internal), `cancelPortalOnsiteJobItem(id, portalUserId, customerId, orgId)` (portal — ownership check)
+- **Categories:** `getOnsiteJobCategories()`, `createOnsiteJobCategory(input)`, `updateOnsiteJobCategory(id, input)`
+
+### Portal Actions
+- **Location:** `lib/portal/onsite-job-actions.ts` + `app/portal/onsite-jobs/portal-actions.ts` (thin wrappers)
+- **Functions:** `getPortalOnsiteJobItems(ctx)`, `getPortalOnsiteJobItem(id, ctx)`, `getPortalOpenOjiCount(ctx)`, `getNextVisitForPortal(ctx)`, `getPortalOnsiteJobCategories(ctx)`, `checkCustomerOnsiteContract(ctx)`
+- **Audit filtering:** Portal detail view hides `internal_note` and `notify_sales` audit actions
+
+### org_settings (category: `onsite_jobs`)
+- `sales_alert_email` — email address for sales notifications
+- `portal_enabled` — enable/disable portal OJI submission
+- `auto_link_visit` — auto-link new OJIs to next upcoming visit instance
+
+### Email Notifications (4 types)
+All sent via `GraphClient` from first active `mail_channel` (fire-and-forget):
+1. **Portal confirmation** — sent to contact on portal OJI creation
+2. **Sales alert** — sent to `sales_alert_email` on "Notify Sales" action
+3. **Ticket push notification** — sent to ticket contact when ticket pushed to OJI
+4. **Escalation acknowledgement** — sent to contact on urgent escalation (includes contract status)
+
+### Internal UI Routes
+- `/helpdesk/onsite-jobs` — list page with stat cards, tab filters (open/complete/all), data table
+- `/helpdesk/onsite-jobs/[id]` — detail page with 2-col layout (details+notes | audit timeline), status action buttons
+- `/helpdesk/onsite-jobs/customer/[customerId]` — customer-filtered view
+- `/helpdesk/onsite-jobs/config` — admin-only categories management (colour swatches, sort order, active toggle)
+
+### Portal UI Routes
+- `/portal/onsite-jobs` — list with visit banner (next scheduled visit), "Log New" + "Report Urgent" buttons, tabbed item cards
+- `/portal/onsite-jobs/new` — form with subject, on-behalf-of, room, priority (low/medium/high), category, description, preferred datetime
+- `/portal/onsite-jobs/[id]` — read-only detail with filtered audit trail, cancel button for own pending items
+
+### Integration Points
+- **Service desk → OJI push:** "Push to Onsite Jobs" button on ticket detail (requires `onsite_jobs.push_ticket` permission). `PushToOjiModal` with editable fields.
+- **Scheduling badge:** Job detail page shows amber "X Onsite Jobs Awaiting" badge when customer has open OJIs
+- **Customer detail:** `OnsiteJobsSection` — CollapsibleCard with compact table (last 10 items), link to full customer view
+- **Auto-link visits:** On OJI creation, queries `visit_instances` for next upcoming scheduled/confirmed visit and links via `visit_instance_id`
+- **Types:** `lib/onsite-jobs/types.ts` — `OjiStatus`, `OjiPriority`, `OjiSourceType`, `OnsiteJobItem`, `OnsiteJobCategory`, `OnsiteJobAuditEntry`, `OJI_STATUS_CONFIG`, `OJI_PRIORITY_CONFIG`, `STATUS_TRANSITIONS`, `canTransition()`
 
 ---
 

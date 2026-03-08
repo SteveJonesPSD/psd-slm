@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { requirePermission, requireAuth } from '@/lib/auth'
+import { decryptCustomerRow, decryptContactRow } from '@/lib/crypto-helpers'
 import { revalidatePath } from 'next/cache'
 import { logActivity } from '@/lib/activity-log'
 import type { JobStatus, JobTaskTemplate, JobTaskTemplateItem, JobTask, TaskResponseType, GpsCoords, GpsEventType } from '@/types/database'
@@ -483,6 +484,50 @@ export async function deleteTaskTemplate(id: string) {
 // JOB TASKS (toggle completion)
 // ============================================================================
 
+export async function saveJobTasks(
+  jobId: string,
+  taskUpdates: { id: string; is_completed: boolean; response_value?: string | null }[],
+  gps?: GpsCoords | null
+) {
+  const user = await requireAuth()
+  const supabase = await createClient()
+
+  const now = new Date().toISOString()
+
+  console.log('[saveJobTasks] saving', taskUpdates.length, 'tasks for job', jobId, 'user', user.id)
+
+  for (const task of taskUpdates) {
+    const { data: updated, error: updateErr } = await supabase
+      .from('job_tasks')
+      .update({
+        is_completed: task.is_completed,
+        completed_at: task.is_completed ? now : null,
+        completed_by: task.is_completed ? user.authId : null,
+        ...(task.response_value !== undefined ? { response_value: task.response_value || null } : {}),
+      })
+      .eq('id', task.id)
+      .select('id')
+
+    if (updateErr) {
+      console.error('[saveJobTasks] update failed for task', task.id, ':', updateErr.message)
+      return { error: `Failed to save task: ${updateErr.message}` }
+    }
+
+    if (!updated || updated.length === 0) {
+      console.error('[saveJobTasks] update returned 0 rows for task', task.id, '- RLS may be blocking')
+    } else {
+      console.log('[saveJobTasks] updated task', task.id, 'is_completed:', task.is_completed)
+    }
+  }
+
+  logGpsEvent(supabase, user, jobId, 'tasks_saved', gps, { count: taskUpdates.length })
+
+  revalidatePath(`/scheduling/jobs/${jobId}`)
+  revalidatePath(`/field/job/${jobId}`)
+  revalidatePath(`/field/job/${jobId}/complete`)
+  return { success: true }
+}
+
 export async function toggleJobTask(taskId: string, opts?: { notes?: string; response_value?: string; gps?: GpsCoords | null }) {
   const user = await requireAuth()
   const supabase = await createClient()
@@ -504,7 +549,7 @@ export async function toggleJobTask(taskId: string, opts?: { notes?: string; res
   const updates: Record<string, any> = {
     is_completed: newCompleted,
     completed_at: newCompleted ? new Date().toISOString() : null,
-    completed_by: newCompleted ? user.id : null,
+    completed_by: newCompleted ? user.authId : null,
   }
   if (opts?.notes !== undefined) updates.notes = opts.notes || null
   if (opts?.response_value !== undefined) updates.response_value = opts.response_value || null
@@ -705,7 +750,10 @@ export async function getJobs(filters?: {
 
   if (error) return { error: error.message }
 
-  const jobs = data || []
+  const jobs = (data || []).map((j: Record<string, unknown>) => ({
+    ...j,
+    contact: j.contact ? decryptContactRow(j.contact as Record<string, unknown>) : j.contact,
+  }))
   return { data: await attachCollectionStatus(supabase, jobs) }
 }
 
@@ -745,7 +793,7 @@ export async function getJob(id: string) {
       .order('created_at', { ascending: true }),
     supabase
       .from('job_tasks')
-      .select('*, completed_by_user:completed_by(id, first_name, last_name)')
+      .select('*')
       .eq('job_id', id)
       .order('sort_order', { ascending: true }),
     supabase
@@ -759,6 +807,15 @@ export async function getJob(id: string) {
 
   if (jobResult.error) return { error: jobResult.error.message }
 
+  // Decrypt encrypted fields on company and contact joins
+  const jobData = jobResult.data
+  if (jobData.company) {
+    jobData.company = decryptCustomerRow(jobData.company as Record<string, unknown>)
+  }
+  if (jobData.contact) {
+    jobData.contact = decryptContactRow(jobData.contact as Record<string, unknown>)
+  }
+
   // Filter history to same company
   const companyHistory = (historyResult.data || []).filter(
     (h: { company_id: string }) => h.company_id === jobResult.data.company_id
@@ -766,7 +823,7 @@ export async function getJob(id: string) {
 
   return {
     data: {
-      ...jobResult.data,
+      ...jobData,
       notes: notesResult.data || [],
       photos: photosResult.data || [],
       parts: partsResult.data || [],
@@ -1499,7 +1556,10 @@ export async function getMyTodayJobs() {
 
   if (error) return { error: error.message }
 
-  const jobs = data || []
+  const jobs = (data || []).map((j: Record<string, unknown>) => ({
+    ...j,
+    contact: j.contact ? decryptContactRow(j.contact as Record<string, unknown>) : j.contact,
+  }))
   return { data: await attachCollectionStatus(supabase, jobs) }
 }
 
@@ -1543,7 +1603,12 @@ export async function getMyScheduleRange() {
       .order('scheduled_time', { ascending: true, nullsFirst: false }),
   ])
 
-  const jobs = await attachCollectionStatus(supabase, jobsResult.data || [])
+  const rawJobs = (jobsResult.data || []).map((j: Record<string, unknown>) => ({
+    ...j,
+    company: j.company ? decryptCustomerRow(j.company as Record<string, unknown>) : j.company,
+    contact: j.contact ? decryptContactRow(j.contact as Record<string, unknown>) : j.contact,
+  }))
+  const jobs = await attachCollectionStatus(supabase, rawJobs)
 
   return {
     jobs,
@@ -1588,7 +1653,7 @@ export async function getCompaniesForSelect() {
     .order('name')
 
   if (error) return { error: error.message }
-  return { data: data || [] }
+  return { data: (data || []).map(c => decryptCustomerRow(c)) }
 }
 
 export async function getContactsForCompany(companyId: string) {
@@ -1622,9 +1687,10 @@ export async function getContactsForCompany(companyId: string) {
     })
 
   // Direct contacts are considered primary; linked contacts use their is_primary flag
-  const directWithPrimary = (direct || []).map(c => ({ ...c, is_primary: true }))
+  const directDecrypted = (direct || []).map(c => ({ ...decryptContactRow(c), is_primary: true }))
+  const linkedDecrypted = linked.map(c => ({ ...decryptContactRow(c), is_primary: c.is_primary }))
 
-  return { data: [...directWithPrimary, ...linked] }
+  return { data: [...directDecrypted, ...linkedDecrypted] }
 }
 
 export async function getSalesOrdersForCompany(companyId: string) {
@@ -1816,6 +1882,14 @@ export async function getJobReportData(jobId: string) {
     .single()
 
   if (!job) return { error: 'Job not found' }
+
+  // Decrypt encrypted fields on company and contact joins
+  if (job.company) {
+    job.company = decryptCustomerRow(job.company as Record<string, unknown>) as typeof job.company
+  }
+  if (job.contact) {
+    job.contact = decryptContactRow(job.contact as Record<string, unknown>) as typeof job.contact
+  }
 
   // Fetch notes, photos, parts, tasks in parallel
   const [notesResult, photosResult, partsResult, tasksResult] = await Promise.all([

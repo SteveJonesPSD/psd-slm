@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createPortalSession } from '@/lib/portal/session'
+import { logAuthEvent } from '@/lib/auth-log'
 
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get('token')
@@ -51,6 +52,7 @@ export async function GET(request: NextRequest) {
     .single()
 
   if (!portalUser || !portalUser.is_active) {
+    logAuthEvent({ orgId: portalUser?.org_id, portalUserId: magicLink.portal_user_id, eventType: 'portal_login_failure', authMethod: 'magic_link', success: false, failureReason: 'inactive_user', request })
     return NextResponse.redirect(`${baseUrl}/portal/login?error=inactive`)
   }
 
@@ -70,6 +72,8 @@ export async function GET(request: NextRequest) {
     .from('portal_users')
     .update({ last_login_at: new Date().toISOString() })
     .eq('id', portalUser.id)
+
+  logAuthEvent({ orgId: portalUser.org_id, portalUserId: portalUser.id, eventType: 'portal_login_success', authMethod: 'magic_link', request })
 
   // Set cookie and redirect
   const response = NextResponse.redirect(`${baseUrl}/portal/dashboard`)

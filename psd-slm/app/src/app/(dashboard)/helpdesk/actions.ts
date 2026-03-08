@@ -696,6 +696,23 @@ export async function getTicket(id: string) {
     .eq('ticket_id', id)
     .order('created_at', { ascending: false })
 
+  // Debounced view log — once per 30 min per user per ticket
+  const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString()
+  const { data: recentView } = await supabase
+    .from('activity_log')
+    .select('id')
+    .eq('entity_type', 'ticket')
+    .eq('entity_id', id)
+    .eq('user_id', user.id)
+    .eq('action', 'viewed')
+    .gte('created_at', thirtyMinsAgo)
+    .limit(1)
+    .maybeSingle()
+
+  if (!recentView) {
+    logActivity({ supabase, user, entityType: 'ticket', entityId: id, action: 'viewed', details: { ticket_number: ticket.ticket_number, status: ticket.status } })
+  }
+
   // Decrypt contact PII in nested join
   const decryptedTicket = {
     ...ticket,
@@ -1123,7 +1140,7 @@ export async function addMessage(ticketId: string, formData: {
   if (!formData.is_internal) {
     const { data: ticket } = await supabase
       .from('tickets')
-      .select('id, status, first_responded_at, sla_response_due_at')
+      .select('id, status, created_at, first_responded_at, sla_response_due_at')
       .eq('id', ticketId)
       .single()
 
@@ -1136,6 +1153,8 @@ export async function addMessage(ticketId: string, formData: {
       // SLA first response tracking
       if (!ticket.first_responded_at) {
         updates.first_responded_at = now.toISOString()
+        const responseMinutes = ticket.created_at ? Math.round((now.getTime() - new Date(ticket.created_at).getTime()) / 60000) : null
+        logActivity({ supabase, user, entityType: 'ticket', entityId: ticketId, action: 'first_response', details: { response_minutes: responseMinutes, agent_id: user.id } })
 
         if (ticket.sla_response_due_at) {
           updates.sla_response_met = now <= new Date(ticket.sla_response_due_at)

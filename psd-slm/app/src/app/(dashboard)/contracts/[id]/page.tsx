@@ -180,6 +180,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
         contractId={id}
         lines={contract.lines || []}
         editable={isEditable}
+        showMargin={['super_admin', 'admin', 'sales'].includes(user.role.name)}
       />
 
       {/* Invoice Schedule (all contract categories) */}

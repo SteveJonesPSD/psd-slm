@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePortalSession } from '@/lib/portal/session'
+import { decryptCustomerRow } from '@/lib/crypto-helpers'
 import { renderToBuffer } from '@react-pdf/renderer'
 import React from 'react'
 import { InvoicePdfDocument } from '@/app/api/invoices/[id]/pdf/invoice-pdf-document'
@@ -38,6 +39,12 @@ export async function GET(
     return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
   }
 
+  const rawCustomer = invoice.customers as {
+    name: string; address_line1: string | null; address_line2: string | null;
+    city: string | null; postcode: string | null
+  } | null
+  const customer = rawCustomer ? decryptCustomerRow(rawCustomer) : null
+
   // Fetch delivery address from SO if different from billing
   let deliveryAddress = null
   if (invoice.sales_order_id) {
@@ -47,17 +54,11 @@ export async function GET(
       .eq('id', invoice.sales_order_id)
       .single()
     if (so && so.delivery_address_line1) {
-      const cust = invoice.customers as { address_line1: string | null; postcode: string | null } | null
-      if (so.delivery_address_line1 !== cust?.address_line1 || so.delivery_postcode !== cust?.postcode) {
+      if (so.delivery_address_line1 !== customer?.address_line1 || so.delivery_postcode !== customer?.postcode) {
         deliveryAddress = so
       }
     }
   }
-
-  const customer = invoice.customers as {
-    name: string; address_line1: string | null; address_line2: string | null;
-    city: string | null; postcode: string | null
-  } | null
 
   const contact = invoice.contacts as { first_name: string; last_name: string } | null
 

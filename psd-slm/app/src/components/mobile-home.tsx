@@ -57,6 +57,7 @@ const TILE_SECTIONS: TileSection[] = [
     label: 'Support',
     items: [
       { href: '/helpdesk', label: 'Service Desk', icon: '🎫', permission: { module: 'helpdesk', action: 'view' } },
+      { href: '/helpdesk/onsite-jobs', label: 'Onsite Jobs', icon: '🔧', permission: { module: 'onsite_jobs', action: 'view' } },
     ],
   },
   {

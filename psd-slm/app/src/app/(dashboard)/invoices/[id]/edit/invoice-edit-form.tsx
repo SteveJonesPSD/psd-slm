@@ -42,6 +42,7 @@ interface InvoiceEditFormProps {
   soData: {
     lines: SoLine[]
     contacts: { id: string; first_name: string; last_name: string }[]
+    groupContacts?: { id: string; first_name: string; last_name: string; group_name: string }[]
     vat_rate: number
   }
 }
@@ -148,7 +149,16 @@ export function InvoiceEditForm({ invoiceId, invoice, soData }: InvoiceEditFormP
         <SearchableSelect
           label="Contact"
           value={contactId}
-          options={soData.contacts.map((c) => ({ value: c.id, label: `${c.first_name} ${c.last_name}` }))}
+          options={[
+            ...soData.contacts.map((c) => ({
+              value: c.id,
+              label: `${c.first_name} ${c.last_name}`,
+            })),
+            ...(soData.groupContacts || []).map((c) => ({
+              value: c.id,
+              label: `${c.first_name} ${c.last_name} [${c.group_name}]`,
+            })),
+          ]}
           placeholder="Search contacts..."
           onChange={setContactId}
         />

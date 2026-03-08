@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { requirePermission } from '@/lib/auth'
+import { decryptContactRow } from '@/lib/crypto-helpers'
 import { revalidatePath } from 'next/cache'
 import { logActivity } from '@/lib/activity-log'
 
@@ -196,17 +197,20 @@ export async function searchContactsForLinking(
     .select('id, first_name, last_name, email, customers!inner(name)')
     .eq('is_active', true)
     .neq('customer_id', excludeCustomerId)
-    .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%,email.ilike.%${query}%`)
+    .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%`)
     .limit(20)
 
   return (data || [])
     .filter(row => !excludeIds.has(row.id))
     .slice(0, 15)
-    .map(row => ({
-      id: row.id,
-      first_name: row.first_name,
-      last_name: row.last_name,
-      email: row.email,
-      customer_name: (row.customers as unknown as { name: string })?.name || '',
-    }))
+    .map(row => {
+      const decrypted = decryptContactRow(row)
+      return {
+        id: decrypted.id,
+        first_name: decrypted.first_name,
+        last_name: decrypted.last_name,
+        email: decrypted.email,
+        customer_name: (row.customers as unknown as { name: string })?.name || '',
+      }
+    })
 }

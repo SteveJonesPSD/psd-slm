@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useRef, useEffect, useOptimistic, useTransition } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { completeJob, toggleJobTask } from '@/app/(dashboard)/scheduling/actions'
+import { completeJob } from '@/app/(dashboard)/scheduling/actions'
 import { SignaturePadComponent } from '@/components/ui/signature-pad'
 import { useGeoCapture } from '@/lib/use-geo-capture'
 import type { GpsCoords } from '@/types/database'
@@ -25,46 +25,6 @@ export function CompletionForm({ job, currentUserName }: { job: any; currentUser
     capturePosition().then(setGps)
   }, [capturePosition])
 
-  // Task state
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const tasks: any[] = job.tasks || []
-  const [taskResponses, setTaskResponses] = useState<Record<string, string>>(() => {
-    const init: Record<string, string> = {}
-    for (const t of tasks) {
-      if (t.response_value) init[t.id] = t.response_value
-    }
-    return init
-  })
-  const [optimisticTasks, setOptimisticTask] = useOptimistic(
-    tasks,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (state: any[], update: { id: string; is_completed: boolean; response_value?: string }) =>
-      state.map(t => t.id === update.id ? { ...t, is_completed: update.is_completed, response_value: update.response_value ?? t.response_value } : t)
-  )
-  const [, startTransition] = useTransition()
-
-  const requiredTasks = optimisticTasks.filter((t: { is_required: boolean }) => t.is_required)
-  const completedRequired = requiredTasks.filter((t: { is_completed: boolean }) => t.is_completed).length
-  const allRequiredDone = requiredTasks.length === 0 || completedRequired === requiredTasks.length
-
-  async function handleToggleTask(taskId: string) {
-    startTransition(() => {
-      setOptimisticTask({ id: taskId, is_completed: !optimisticTasks.find(t => t.id === taskId)?.is_completed })
-    })
-    const taskGps = await capturePosition()
-    await toggleJobTask(taskId, { gps: taskGps })
-  }
-
-  async function handleTaskResponse(taskId: string, value: string) {
-    setTaskResponses(prev => ({ ...prev, [taskId]: value }))
-    const hasValue = value.trim().length > 0
-    startTransition(() => {
-      setOptimisticTask({ id: taskId, is_completed: hasValue, response_value: value })
-    })
-    const taskGps = await capturePosition()
-    await toggleJobTask(taskId, { response_value: value || '', gps: taskGps })
-  }
-
   // Signature state
   const [engineerSignature, setEngineerSignature] = useState<string | null>(null)
   const [engineerName, setEngineerName] = useState(currentUserName || '')
@@ -83,10 +43,6 @@ export function CompletionForm({ job, currentUserName }: { job: any; currentUser
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!allRequiredDone) {
-      setError('Complete all required tasks before submitting')
-      return
-    }
     if (!completionNotes.trim()) {
       setError('Completion notes are required')
       return
@@ -168,112 +124,6 @@ export function CompletionForm({ job, currentUserName }: { job: any; currentUser
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Task Checklist */}
-        {optimisticTasks.length > 0 && (
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-slate-700">Task Checklist</h3>
-              {requiredTasks.length > 0 && (
-                <span className={`text-xs font-medium ${allRequiredDone ? 'text-green-600' : 'text-amber-600'}`}>
-                  {completedRequired}/{requiredTasks.length} required
-                </span>
-              )}
-            </div>
-            {/* Progress bar */}
-            {requiredTasks.length > 0 && (
-              <div className="mb-3 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all ${allRequiredDone ? 'bg-green-500' : 'bg-amber-500'}`}
-                  style={{ width: `${(completedRequired / requiredTasks.length) * 100}%` }}
-                />
-              </div>
-            )}
-            <div className="space-y-2">
-              {optimisticTasks.map((task: { id: string; description: string; is_required: boolean; is_completed: boolean; response_type: string; response_value: string | null }) => (
-                <div key={task.id} className="p-2 rounded-lg">
-                  {task.response_type === 'yes_no' ? (
-                    <button
-                      type="button"
-                      onClick={() => handleToggleTask(task.id)}
-                      className="flex items-start gap-3 w-full text-left hover:bg-slate-50 transition-colors rounded-lg p-1"
-                    >
-                      <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${
-                        task.is_completed
-                          ? 'bg-green-600 border-green-600 text-white'
-                          : 'border-slate-300 bg-white'
-                      }`}>
-                        {task.is_completed && (
-                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <span className={`text-sm ${task.is_completed ? 'text-slate-400 line-through' : 'text-slate-700'}`}>
-                          {task.description}
-                        </span>
-                        {task.is_required && !task.is_completed && (
-                          <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
-                            Required
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  ) : (
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-2">
-                        <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${
-                          task.is_completed
-                            ? 'bg-green-600 border-green-600 text-white'
-                            : 'border-slate-300 bg-white'
-                        }`}>
-                          {task.is_completed && (
-                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                            </svg>
-                          )}
-                        </div>
-                        <span className={`text-sm ${task.is_completed ? 'text-slate-400' : 'text-slate-700'}`}>
-                          {task.description}
-                        </span>
-                        {task.is_required && !task.is_completed && (
-                          <span className="inline-flex items-center rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
-                            Required
-                          </span>
-                        )}
-                        <span className="inline-flex items-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
-                          {task.response_type === 'text' ? 'Text' : 'Date'}
-                        </span>
-                      </div>
-                      {task.response_type === 'text' ? (
-                        <input
-                          type="text"
-                          value={taskResponses[task.id] || ''}
-                          onChange={e => handleTaskResponse(task.id, e.target.value)}
-                          placeholder="Enter response..."
-                          className="ml-7 w-[calc(100%-1.75rem)] rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                        />
-                      ) : (
-                        <input
-                          type="date"
-                          value={taskResponses[task.id] || ''}
-                          onChange={e => handleTaskResponse(task.id, e.target.value)}
-                          className="ml-7 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                        />
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-            {!allRequiredDone && (
-              <p className="mt-3 text-xs text-amber-600">
-                Complete all required tasks before submitting
-              </p>
-            )}
-          </div>
-        )}
-
         {/* Completion Notes */}
         <div>
           <label className="mb-2 block text-sm font-semibold text-slate-700">
@@ -440,7 +290,7 @@ export function CompletionForm({ job, currentUserName }: { job: any; currentUser
           </Link>
           <button
             type="submit"
-            disabled={submitting || !completionNotes.trim() || !allRequiredDone}
+            disabled={submitting || !completionNotes.trim()}
             className="flex-1 rounded-xl bg-green-600 py-3 text-sm font-bold text-white shadow-sm hover:bg-green-700 disabled:opacity-50"
           >
             {submitting ? 'Completing...' : 'Complete Job'}

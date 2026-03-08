@@ -218,6 +218,7 @@ export async function savePricebookLines(
     id?: string
     description: string
     annual_price: number
+    buy_price?: number | null
     vat_rate: number
     sort_order: number
     is_active: boolean
@@ -256,6 +257,7 @@ export async function savePricebookLines(
         .update({
           description: line.description,
           annual_price: line.annual_price,
+          buy_price: line.buy_price ?? null,
           vat_rate: line.vat_rate,
           sort_order: line.sort_order,
           is_active: line.is_active,
@@ -271,6 +273,7 @@ export async function savePricebookLines(
           contract_type_id: contractTypeId,
           description: line.description,
           annual_price: line.annual_price,
+          buy_price: line.buy_price ?? null,
           vat_rate: line.vat_rate,
           sort_order: line.sort_order,
           is_active: line.is_active,
@@ -685,6 +688,8 @@ export async function createSupportContract(payload: import('@/lib/contracts/typ
       unit_type: null as string | null,
       quantity: 1,
       unit_price_annual: l.annual_price,
+      buy_price: l.buy_price ?? null,
+      source_pricebook_line_id: l.pricebook_line_id || null,
       sort_order: l.sort_order ?? i,
       notes: null as string | null,
     }))
@@ -704,6 +709,9 @@ export async function createSupportContract(payload: import('@/lib/contracts/typ
       source: 'direct_support',
     },
   })
+
+  // Generate invoice schedule for support contracts
+  await generateInvoiceSchedule(data.id).catch(() => {})
 
   revalidatePath('/contracts')
   return { data }
@@ -744,6 +752,61 @@ export async function updateCustomerContract(id: string, formData: FormData): Pr
   return { data }
 }
 
+// Cancel future visit instances, linked jobs, and onsite job items for a contract
+// Called when a contract is cancelled or a rolling contract is stopped
+async function cancelFutureScheduledWork(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  contractId: string,
+  fromDate: string,
+  reason: string
+): Promise<void> {
+  const now = new Date().toISOString()
+
+  // 1. Find future visit instances linked to this contract that aren't already done
+  const { data: visits } = await supabase
+    .from('visit_instances')
+    .select('id, job_id')
+    .eq('customer_contract_id', contractId)
+    .gte('visit_date', fromDate)
+    .not('status', 'in', '(completed,cancelled)')
+
+  if (visits && visits.length > 0) {
+    const visitIds = visits.map(v => v.id)
+
+    // Cancel the visit instances
+    await supabase
+      .from('visit_instances')
+      .update({ status: 'cancelled', cancellation_reason: reason, updated_at: now })
+      .in('id', visitIds)
+
+    // Cancel linked jobs (from visit bridge)
+    const jobIds = visits.map(v => v.job_id).filter(Boolean) as string[]
+    if (jobIds.length > 0) {
+      await supabase
+        .from('jobs')
+        .update({ status: 'cancelled', cancelled_at: now, cancel_reason: reason })
+        .in('id', jobIds)
+        .not('status', 'in', '(completed,closed,cancelled)')
+    }
+
+    // Cancel pending onsite job items linked to those visit instances
+    await supabase
+      .from('onsite_job_items')
+      .update({ status: 'cancelled', updated_at: now })
+      .in('visit_instance_id', visitIds)
+      .not('status', 'in', '(complete,cancelled)')
+  }
+
+  // 2. Cancel jobs created directly from this contract (source_type = 'contract')
+  await supabase
+    .from('jobs')
+    .update({ status: 'cancelled', cancelled_at: now, cancel_reason: reason })
+    .eq('source_type', 'contract')
+    .eq('source_id', contractId)
+    .gte('scheduled_date', fromDate)
+    .not('status', 'in', '(completed,closed,cancelled)')
+}
+
 export async function updateContractStatus(id: string, status: string): Promise<{ error?: string }> {
   const user = await requirePermission('contracts', 'edit')
   const supabase = await createClient()
@@ -758,6 +821,19 @@ export async function updateContractStatus(id: string, status: string): Promise<
     .eq('id', id)
 
   if (error) return { error: error.message }
+
+  // Generate invoice schedule when activating a contract
+  if (status === 'active') {
+    await generateInvoiceSchedule(id).catch(() => {})
+  }
+
+  // Cancel future visits, jobs, and onsite job items when contract is cancelled
+  if (status === 'cancelled') {
+    const today = new Date().toISOString().split('T')[0]
+    await cancelFutureScheduledWork(supabase, id, today, 'Contract cancelled').catch(() => {})
+    revalidatePath('/scheduling')
+    revalidatePath('/visit-scheduling')
+  }
 
   logActivity({ supabase, user, entityType: 'contract', entityId: id, action: 'status_changed', details: { status } })
   revalidatePath('/contracts')
@@ -815,6 +891,12 @@ export async function renewContract(id: string, formData: FormData): Promise<{ e
       auto_renew: old.auto_renew,
       annual_value: newAnnualValue,
       billing_frequency: old.billing_frequency,
+      billing_cycle_type: old.billing_cycle_type,
+      billing_month: old.billing_month,
+      billing_day: old.billing_day,
+      sla_plan_id: old.sla_plan_id,
+      monthly_hours: old.monthly_hours,
+      calendar_id: old.calendar_id,
       opportunity_id: null,
       quote_id: null,
       notes,
@@ -840,6 +922,8 @@ export async function renewContract(id: string, formData: FormData): Promise<{ e
         unit_type: l.unit_type,
         quantity: l.quantity,
         unit_price_annual: l.unit_price_annual,
+        buy_price: l.buy_price,
+        source_pricebook_line_id: l.source_pricebook_line_id,
         location: l.location,
         product_id: l.product_id,
         sort_order: l.sort_order,
@@ -943,6 +1027,7 @@ export async function addContractLine(contractId: string, formData: FormData): P
       unit_type: (formData.get('unit_type') as string) || null,
       quantity: formData.get('quantity') ? Number(formData.get('quantity')) : 1,
       unit_price_annual: formData.get('unit_price_annual') ? Number(formData.get('unit_price_annual')) : null,
+      buy_price: formData.get('buy_price') ? Number(formData.get('buy_price')) : null,
       location: (formData.get('location') as string) || null,
       product_id: (formData.get('product_id') as string) || null,
       notes: (formData.get('notes') as string) || null,
@@ -967,6 +1052,7 @@ export async function updateContractLine(id: string, contractId: string, formDat
   if (formData.get('unit_type') !== null) payload.unit_type = (formData.get('unit_type') as string) || null
   if (formData.get('quantity') !== null) payload.quantity = Number(formData.get('quantity')) || 1
   if (formData.get('unit_price_annual') !== null) payload.unit_price_annual = formData.get('unit_price_annual') ? Number(formData.get('unit_price_annual')) : null
+  if (formData.get('buy_price') !== null) payload.buy_price = formData.get('buy_price') ? Number(formData.get('buy_price')) : null
   if (formData.get('location') !== null) payload.location = (formData.get('location') as string) || null
   if (formData.get('notes') !== null) payload.notes = (formData.get('notes') as string) || null
 
@@ -2823,6 +2909,9 @@ export async function cancelRollingContract(
 
   if (conErr) return { error: conErr.message }
 
+  // Cancel future visits, jobs, and onsite job items from the cancellation date
+  await cancelFutureScheduledWork(supabase, contractId, cancelDate, 'Rolling contract cancelled').catch(() => {})
+
   const { data: c } = await supabase.from('customer_contracts').select('contract_number').eq('id', contractId).single()
 
   logActivity({
@@ -2835,6 +2924,8 @@ export async function cancelRollingContract(
 
   revalidatePath(`/contracts/${contractId}`)
   revalidatePath('/contracts')
+  revalidatePath('/scheduling')
+  revalidatePath('/visit-scheduling')
   return {}
 }
 
@@ -3035,4 +3126,306 @@ export async function getContractsBySourceQuote(quoteId: string): Promise<{
     esign_status: c.esign_status || 'not_required',
     status: c.status,
   }))
+}
+
+// ============================================================
+// Support Contract Invoicing Tab
+// ============================================================
+
+export interface SupportContractInvoicingRow {
+  id: string
+  contract_number: string
+  customer_id: string
+  customer_name: string
+  contract_type_name: string
+  start_date: string
+  annual_value: number
+  billing_cycle_type: string
+  billing_month: number | null
+  last_invoiced_date: string | null
+  invoice_due: boolean
+  next_invoice_date: string | null
+  has_draft_invoice: boolean
+  lines: Array<{
+    id: string
+    description: string
+    unit_price_annual: number | null
+    buy_price: number | null
+    quantity: number
+  }>
+}
+
+export async function getSupportContractsForInvoicing(): Promise<SupportContractInvoicingRow[]> {
+  await requirePermission('contracts', 'view')
+  const supabase = await createClient()
+  const user = await requireAuth()
+
+  // Only admin/finance can see invoicing tab
+  if (!['super_admin', 'admin', 'finance'].includes(user.role.name)) return []
+
+  const { data, error } = await supabase
+    .from('customer_contracts')
+    .select(`
+      id, contract_number, customer_id, start_date, annual_value,
+      billing_cycle_type, billing_month,
+      customers(name),
+      contract_types(name, category, billing_cycle_type, default_billing_month),
+      contract_lines(id, description, unit_price_annual, buy_price, quantity)
+    `)
+    .eq('org_id', user.orgId)
+    .eq('status', 'active')
+    .order('contract_number')
+
+  if (error || !data) return []
+
+  // Filter to support category only
+  const supportContracts = data.filter(c => {
+    const ct = (Array.isArray(c.contract_types) ? c.contract_types[0] : c.contract_types) as Record<string, unknown> | null
+    return ct?.category === 'support'
+  })
+
+  // Get last invoice date per contract from schedule
+  const contractIds = supportContracts.map(c => c.id)
+  const { data: scheduleRows } = await supabase
+    .from('contract_invoice_schedule')
+    .select('contract_id, scheduled_date, status, invoice_id')
+    .in('contract_id', contractIds.length > 0 ? contractIds : ['__none__'])
+    .order('scheduled_date', { ascending: false })
+
+  // Also check for existing draft invoices (to prevent duplicates)
+  const { data: draftInvoices } = await supabase
+    .from('contract_invoice_schedule')
+    .select('contract_id')
+    .in('contract_id', contractIds.length > 0 ? contractIds : ['__none__'])
+    .eq('status', 'draft_created')
+
+  const draftContractIds = new Set((draftInvoices || []).map(d => d.contract_id))
+
+  const scheduleByContract = new Map<string, typeof scheduleRows>()
+  for (const row of (scheduleRows || [])) {
+    const existing = scheduleByContract.get(row.contract_id) || []
+    existing.push(row)
+    scheduleByContract.set(row.contract_id, existing)
+  }
+
+  const today = new Date()
+  const todayStr = today.toISOString().split('T')[0]
+
+  return supportContracts.map(c => {
+    const ct = (Array.isArray(c.contract_types) ? c.contract_types[0] : c.contract_types) as Record<string, unknown> | null
+    const customers = (Array.isArray(c.customers) ? c.customers[0] : c.customers) as Record<string, string> | null
+    const lines = (Array.isArray(c.contract_lines) ? c.contract_lines : []) as Array<{ id: string; description: string; unit_price_annual: number | null; buy_price: number | null; quantity: number }>
+
+    const billingCycleType = (c.billing_cycle_type as string) ?? (ct?.billing_cycle_type as string) ?? 'fixed_date'
+    const billingMonth = (c.billing_month as number) ?? (ct?.default_billing_month as number) ?? 4
+
+    // Find last invoiced schedule row (sent or draft_created)
+    const schedule = scheduleByContract.get(c.id) || []
+    const invoicedRows = schedule.filter(r => r.status === 'sent' || r.status === 'draft_created')
+    const lastInvoicedRow = invoicedRows.length > 0 ? invoicedRows[0] : null
+
+    // Calculate invoice due status and next invoice date
+    let invoiceDue = false
+    let nextInvoiceDate: string | null = null
+
+    if (billingCycleType === 'fixed_date') {
+      const billingDateThisYear = new Date(today.getFullYear(), billingMonth - 1, 1)
+      const billingDateStr = billingDateThisYear.toISOString().split('T')[0]
+      nextInvoiceDate = billingDateStr
+
+      if (today < billingDateThisYear) {
+        // Before this year's billing date — check if last year's was invoiced
+        const lastYearBilling = new Date(today.getFullYear() - 1, billingMonth - 1, 1)
+        nextInvoiceDate = lastYearBilling.toISOString().split('T')[0]
+        if (!lastInvoicedRow || new Date(lastInvoicedRow.scheduled_date) < lastYearBilling) {
+          invoiceDue = true
+        } else {
+          nextInvoiceDate = billingDateStr
+        }
+      } else {
+        // After this year's billing date — check if this year's was invoiced
+        if (!lastInvoicedRow) {
+          invoiceDue = true
+        } else if (new Date(lastInvoicedRow.scheduled_date) < billingDateThisYear) {
+          invoiceDue = true
+        }
+      }
+    } else if (billingCycleType === 'start_date') {
+      const startDate = new Date(c.start_date)
+      const anniversaryThisYear = new Date(today.getFullYear(), startDate.getMonth(), startDate.getDate())
+      nextInvoiceDate = anniversaryThisYear.toISOString().split('T')[0]
+
+      if (today < anniversaryThisYear) {
+        const lastYearAnniversary = new Date(today.getFullYear() - 1, startDate.getMonth(), startDate.getDate())
+        nextInvoiceDate = lastYearAnniversary.toISOString().split('T')[0]
+        if (!lastInvoicedRow || new Date(lastInvoicedRow.scheduled_date) < lastYearAnniversary) {
+          invoiceDue = true
+        } else {
+          nextInvoiceDate = anniversaryThisYear.toISOString().split('T')[0]
+        }
+      } else {
+        if (!lastInvoicedRow) {
+          invoiceDue = true
+        } else if (new Date(lastInvoicedRow.scheduled_date) < anniversaryThisYear) {
+          invoiceDue = true
+        }
+      }
+    }
+
+    // Check for pending schedule rows that are due
+    const pendingDue = schedule.filter(r => r.status === 'pending' && r.scheduled_date <= todayStr)
+    if (pendingDue.length > 0) invoiceDue = true
+
+    return {
+      id: c.id,
+      contract_number: c.contract_number,
+      customer_id: c.customer_id,
+      customer_name: customers?.name || 'Unknown',
+      contract_type_name: (ct?.name as string) || 'Unknown',
+      start_date: c.start_date,
+      annual_value: Number(c.annual_value) || 0,
+      billing_cycle_type: billingCycleType,
+      billing_month: billingMonth,
+      last_invoiced_date: lastInvoicedRow?.scheduled_date || null,
+      invoice_due: invoiceDue,
+      next_invoice_date: nextInvoiceDate,
+      has_draft_invoice: draftContractIds.has(c.id),
+      lines,
+    }
+  })
+}
+
+export async function createSupportContractInvoice(
+  contractId: string,
+  invoiceDate: string,
+  lines: Array<{ description: string; unit_price: number; vat_rate: number; quantity: number }>
+): Promise<{ success: boolean; invoiceId?: string; invoiceNumber?: string; error?: string }> {
+  const user = await requirePermission('invoices', 'create')
+  const supabase = await createClient()
+
+  // Fetch contract
+  const { data: contract, error: fetchErr } = await supabase
+    .from('customer_contracts')
+    .select('*, customers(name), contract_types(name, category)')
+    .eq('id', contractId)
+    .single()
+
+  if (fetchErr || !contract) return { success: false, error: 'Contract not found' }
+
+  const ct = (Array.isArray(contract.contract_types) ? contract.contract_types[0] : contract.contract_types) as Record<string, unknown> | null
+  if ((ct?.category as string) !== 'support') return { success: false, error: 'Only support contracts can use this action' }
+
+  const subtotal = lines.reduce((s, l) => s + (l.quantity * l.unit_price), 0)
+  const vatRate = lines.length > 0 ? lines[0].vat_rate : 20
+  const vatAmount = Math.round(subtotal * (vatRate / 100) * 100) / 100
+  const total = Math.round((subtotal + vatAmount) * 100) / 100
+
+  const invoiceNumber = await generateInvoiceNumber(supabase, user.orgId, 'INV')
+
+  const dueDate = new Date(invoiceDate)
+  dueDate.setDate(dueDate.getDate() + 30)
+
+  const { data: invoice, error: invErr } = await supabase
+    .from('invoices')
+    .insert({
+      org_id: user.orgId,
+      customer_id: contract.customer_id,
+      invoice_number: invoiceNumber,
+      status: 'draft',
+      invoice_type: 'standard',
+      invoice_date: invoiceDate,
+      subtotal,
+      vat_amount: vatAmount,
+      total,
+      vat_rate: vatRate,
+      due_date: dueDate.toISOString().split('T')[0],
+      internal_notes: `Support contract invoice — ${contract.contract_number}`,
+      payment_terms: 30,
+    })
+    .select('id')
+    .single()
+
+  if (invErr || !invoice) return { success: false, error: invErr?.message || 'Failed to create invoice' }
+
+  // Create invoice lines
+  const invoiceLines = lines.map((l, idx) => ({
+    invoice_id: invoice.id,
+    description: l.description,
+    quantity: l.quantity,
+    unit_price: l.unit_price,
+    unit_cost: 0,
+    vat_rate: l.vat_rate,
+    sort_order: idx + 1,
+  }))
+  await supabase.from('invoice_lines').insert(invoiceLines)
+
+  // Update any pending schedule row for this period
+  const { data: pendingRows } = await supabase
+    .from('contract_invoice_schedule')
+    .select('id')
+    .eq('contract_id', contractId)
+    .eq('status', 'pending')
+    .lte('scheduled_date', invoiceDate)
+    .order('scheduled_date', { ascending: false })
+    .limit(1)
+
+  if (pendingRows && pendingRows.length > 0) {
+    await supabase
+      .from('contract_invoice_schedule')
+      .update({ invoice_id: invoice.id, status: 'draft_created', updated_at: new Date().toISOString() })
+      .eq('id', pendingRows[0].id)
+  }
+
+  logActivity({
+    supabase, user,
+    entityType: 'contract',
+    entityId: contractId,
+    action: 'support_invoice_created',
+    details: { invoice_number: invoiceNumber, contract_number: contract.contract_number, amount: total },
+  })
+
+  revalidatePath('/contracts')
+  revalidatePath(`/contracts/${contractId}`)
+  revalidatePath('/invoices')
+  return { success: true, invoiceId: invoice.id, invoiceNumber }
+}
+
+export async function bulkCreateSupportInvoices(): Promise<{ created: number; skipped: number; errors: string[] }> {
+  const user = await requirePermission('invoices', 'create')
+  if (!['super_admin', 'admin', 'finance'].includes(user.role.name)) {
+    return { created: 0, skipped: 0, errors: ['Insufficient permissions'] }
+  }
+
+  const contracts = await getSupportContractsForInvoicing()
+  const due = contracts.filter(c => c.invoice_due && !c.has_draft_invoice)
+
+  let created = 0
+  let skipped = 0
+  const errors: string[] = []
+
+  for (const c of due) {
+    if (c.lines.length === 0) {
+      skipped++
+      continue
+    }
+
+    const invoiceLines = c.lines.map(l => ({
+      description: l.description,
+      unit_price: Number(l.unit_price_annual) || 0,
+      vat_rate: 20,
+      quantity: Number(l.quantity) || 1,
+    }))
+
+    const invoiceDate = c.next_invoice_date || new Date().toISOString().split('T')[0]
+    const result = await createSupportContractInvoice(c.id, invoiceDate, invoiceLines)
+
+    if (result.success) {
+      created++
+    } else {
+      errors.push(`${c.contract_number}: ${result.error}`)
+    }
+  }
+
+  revalidatePath('/contracts')
+  return { created, skipped, errors }
 }

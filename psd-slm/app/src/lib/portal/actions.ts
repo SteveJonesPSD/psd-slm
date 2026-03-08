@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { requirePortalAuth } from './auth'
+import { decryptContactRows } from '@/lib/crypto-helpers'
 import { revalidatePath } from 'next/cache'
 import { calculateSlaDeadline } from '@/lib/sla'
 import { formatTicketNumber } from '@/lib/helpdesk'
@@ -82,7 +83,7 @@ export async function getPortalContacts() {
     .eq('is_active', true)
     .order('first_name')
 
-  return data || []
+  return decryptContactRows(data || [])
 }
 
 // ============================================================================

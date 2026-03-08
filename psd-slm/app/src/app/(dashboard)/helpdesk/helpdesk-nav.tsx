@@ -13,7 +13,7 @@ const mainLinks = [
   { href: '/helpdesk', label: 'Ticket Queue', exact: true },
   { href: '/helpdesk/tickets/new', label: 'New Ticket' },
   { href: '/helpdesk/dashboard', label: 'Dashboard' },
-  { href: '/helpdesk/onsite', label: 'Onsite Jobs' },
+  { href: '/helpdesk/onsite-jobs', label: 'Onsite Jobs' },
   { href: '/helpdesk/knowledge-base', label: 'Knowledge Base' },
   { href: '/helpdesk/reports', label: 'Reports', exact: true },
   { href: '/helpdesk/reports/assist-usage', label: 'AI Assist Usage', adminOnly: true },

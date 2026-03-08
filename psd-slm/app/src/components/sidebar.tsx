@@ -65,6 +65,7 @@ const NAV_SECTIONS: NavSection[] = [
     label: 'Support',
     items: [
       { href: '/helpdesk', label: 'Service Desk', icon: '🎫', permission: { module: 'helpdesk', action: 'view' }, badgeKey: 'helpdesk' },
+      { href: '/helpdesk/onsite-jobs', label: 'Onsite Jobs', icon: '🔧', permission: { module: 'onsite_jobs', action: 'view' } },
     ],
   },
   {
@@ -134,14 +135,20 @@ function usePolledCount(enabled: boolean, fetcher: () => Promise<number>) {
 
 function useSectionState(key: string, defaultOpen: boolean) {
   const storageKey = `sidebar-section-${key}`
-  // Initialize from localStorage synchronously to avoid flash, fall back to default
-  const [open, setOpen] = useState(() => {
-    if (typeof window !== 'undefined') {
+  const [open, setOpen] = useState(defaultOpen)
+  const hydrated = useRef(false)
+
+  // Sync from localStorage after mount to avoid hydration mismatch
+  useEffect(() => {
+    if (!hydrated.current) {
+      hydrated.current = true
       const stored = localStorage.getItem(storageKey)
-      if (stored !== null) return stored === 'true'
+      if (stored !== null) {
+        const val = stored === 'true'
+        setOpen(val)
+      }
     }
-    return defaultOpen
-  })
+  }, [storageKey])
 
   const toggle = useCallback(() => {
     setOpen((prev) => {
@@ -202,6 +209,8 @@ export function Sidebar({ agentAvatars, portalLogoUrl }: { agentAvatars?: AgentA
     if (href === '/') return pathname === '/'
     if (href === '/pipeline' && pathname.startsWith('/opportunities')) return true
     if (href === '/scheduling' && pathname.startsWith('/scheduling')) return true
+    // Exact match for /helpdesk so it doesn't match /helpdesk/onsite-jobs
+    if (href === '/helpdesk') return pathname === '/helpdesk' || (pathname.startsWith('/helpdesk') && !pathname.startsWith('/helpdesk/onsite-jobs'))
     return pathname.startsWith(href)
   }
 

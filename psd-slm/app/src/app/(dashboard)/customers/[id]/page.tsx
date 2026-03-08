@@ -19,8 +19,10 @@ import { LinkedContactsSection } from './linked-contacts-section'
 import { CustomerSearch } from './customer-search'
 import { PortalAccessSection } from './portal-access-section'
 import { GroupMembershipSection } from './group-membership-section'
+import { OnsiteJobsSection } from './onsite-jobs-section'
 import { getCompanyTickets } from '../../helpdesk/actions'
 import { getContractsByCompany } from '../../contracts/actions'
+import { getOnsiteJobItems } from '../../helpdesk/onsite-jobs/actions'
 import { getCompanyVisits } from '../../visit-scheduling/actions'
 import { getCustomerDomains } from '../domain-actions'
 import { getLinkedContacts } from '../link-actions'
@@ -108,6 +110,15 @@ export default async function CustomerDetailPage({ params }: PageProps) {
     linkedContacts = await getLinkedContacts(id)
   } catch {
     // Multi-company contacts migration may not be applied yet
+  }
+
+  // Fetch onsite job items
+  let onsiteJobItems: Awaited<ReturnType<typeof getOnsiteJobItems>>['data'] = []
+  try {
+    const ojiResult = await getOnsiteJobItems({ customerId: id })
+    onsiteJobItems = ojiResult.data || []
+  } catch {
+    // Onsite jobs module may not be deployed yet
   }
 
   // Fetch all customers for group member picker
@@ -293,6 +304,11 @@ export default async function CustomerDetailPage({ params }: PageProps) {
           timeUsedThisMonth={supportData.timeUsedThisMonth}
           customerId={id}
         />
+      )}
+
+      {/* Onsite Jobs */}
+      {onsiteJobItems && onsiteJobItems.length > 0 && (
+        <OnsiteJobsSection items={onsiteJobItems} customerId={id} />
       )}
     </div>
   )

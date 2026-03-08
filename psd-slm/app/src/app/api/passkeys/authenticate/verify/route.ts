@@ -1,5 +1,6 @@
 import { verifyPasskeyAuthentication } from '@/lib/passkeys'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { logAuthEvent } from '@/lib/auth-log'
 import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
@@ -8,6 +9,7 @@ export async function POST(request: Request) {
   const result = await verifyPasskeyAuthentication(challengeId, response)
 
   if (!result.success || !result.userId) {
+    logAuthEvent({ eventType: 'passkey_auth_failure', authMethod: 'passkey', success: false, failureReason: result.error ?? 'authentication_failed', request })
     return NextResponse.json({ error: result.error ?? 'Authentication failed' }, { status: 401 })
   }
 
@@ -42,6 +44,8 @@ export async function POST(request: Request) {
     console.error('[passkey-auth] no token data in generateLink response')
     return NextResponse.json({ error: 'Session creation failed' }, { status: 500 })
   }
+
+  logAuthEvent({ userId: result.userId, eventType: 'passkey_auth_success', authMethod: 'passkey', request })
 
   return NextResponse.json({
     success: true,

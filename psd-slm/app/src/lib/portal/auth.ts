@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { decrypt } from '@/lib/crypto'
 
 export interface PortalContact {
   id: string
@@ -38,7 +39,7 @@ export async function getPortalContact(): Promise<PortalContact | null> {
     id: contact.id,
     first_name: contact.first_name,
     last_name: contact.last_name,
-    email: contact.email,
+    email: typeof contact.email === 'string' && contact.email ? decrypt(contact.email) : contact.email,
     customer_id: contact.customer_id,
     is_overseer: contact.is_overseer || false,
     portal_auth_id: contact.portal_auth_id,

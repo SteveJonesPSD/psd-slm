@@ -318,6 +318,7 @@ function ContractTypeModal({
                   id: l._new ? undefined : l.id,
                   description: l.description,
                   annual_price: l.annual_price,
+                  buy_price: l.buy_price,
                   vat_rate: l.vat_rate,
                   sort_order: i,
                   is_active: l.is_active,
@@ -636,6 +637,7 @@ function PricebookEditor({
         contract_type_id: '',
         description: '',
         annual_price: 0,
+        buy_price: null,
         vat_rate: 20,
         sort_order: lines.length,
         is_active: true,
@@ -677,14 +679,28 @@ function PricebookEditor({
                 placeholder="Description"
                 className="flex-1 rounded border border-gray-200 px-2 py-1.5 text-sm focus:border-indigo-400 focus:outline-none"
               />
-              <input
-                type="number"
-                step="0.01"
-                value={line.annual_price || ''}
-                onChange={(e) => updateLine(idx, 'annual_price', Number(e.target.value))}
-                placeholder="Annual"
-                className="w-28 rounded border border-gray-200 px-2 py-1.5 text-sm text-right focus:border-indigo-400 focus:outline-none"
-              />
+              <div className="flex flex-col items-end">
+                <span className="text-[10px] text-slate-400 mb-0.5">Sell</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={line.annual_price || ''}
+                  onChange={(e) => updateLine(idx, 'annual_price', Number(e.target.value))}
+                  placeholder="Sell £/yr"
+                  className="w-28 rounded border border-gray-200 px-2 py-1.5 text-sm text-right focus:border-indigo-400 focus:outline-none"
+                />
+              </div>
+              <div className="flex flex-col items-end">
+                <span className="text-[10px] text-slate-400 mb-0.5">Buy</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={line.buy_price ?? ''}
+                  onChange={(e) => updateLine(idx, 'buy_price', e.target.value === '' ? null : Number(e.target.value))}
+                  placeholder="—"
+                  className="w-28 rounded border border-gray-200 px-2 py-1.5 text-sm text-right focus:border-indigo-400 focus:outline-none"
+                />
+              </div>
               <select
                 value={line.vat_rate}
                 onChange={(e) => updateLine(idx, 'vat_rate', Number(e.target.value))}
