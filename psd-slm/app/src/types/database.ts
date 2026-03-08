@@ -2055,6 +2055,7 @@ export type GpsEventType =
   | 'status_changed'
   | 'departed'
   | 'return_arrived'
+  | 'tasks_saved'
 
 export interface JobGpsLog {
   id: string
