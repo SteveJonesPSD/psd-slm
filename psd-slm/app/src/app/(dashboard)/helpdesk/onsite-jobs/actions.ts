@@ -596,7 +596,8 @@ export async function pushTicketToOji(input: PushTicketToOjiInput): Promise<{ da
   const visit = await autoLinkVisit(adminClient, user.orgId, oji.id, ticket.customer_id)
 
   // Send email notification to ticket requester (fire-and-forget)
-  const contact = ticket.contacts as { email: string; first_name: string; last_name: string } | null
+  const contactArr = ticket.contacts as unknown as { email: string; first_name: string; last_name: string }[] | null
+  const contact = contactArr?.[0] ?? null
   if (contact?.email) {
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
     const visitText = visit
@@ -732,7 +733,8 @@ export async function createEscalation(input: {
         .limit(1)
         .maybeSingle()
 
-      const hasOnsiteContract = !!(contract?.contract_types as Record<string, boolean> | null)?.includes_onsite
+      const contractType = contract?.contract_types as unknown as { includes_onsite: boolean } | null
+      const hasOnsiteContract = !!contractType?.includes_onsite
       const chargeWarning = !hasOnsiteContract
         ? '<div style="background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; padding: 12px; margin: 16px 0;"><strong>Please note:</strong> Urgent onsite visits are not included in your current support contract and will be arranged as a chargeable call-out. Our team will confirm costs before proceeding.</div>'
         : '<p>Our team will be in touch to arrange the earliest possible attendance or adjust your next scheduled visit.</p>'
